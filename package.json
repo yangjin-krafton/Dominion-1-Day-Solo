@@ -1,0 +1,22 @@
+{
+  "name": "dominion-1-day-solo",
+  "version": "0.1.0",
+  "description": "도미니언 기본 규칙은 그대로. 혼자서도 덱이 돌아가는 맛을 매일 한 판씩 가볍게 즐기는 데일리 솔로 챌린지.",
+  "scripts": {
+    "dev": "cd src && python -m http.server 8080",
+    "build": "echo 'No build step required for static site'",
+    "deploy": "gh-pages -d src"
+  },
+  "keywords": [
+    "dominion",
+    "deck-building",
+    "card-game",
+    "solo",
+    "daily-challenge"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "gh-pages": "^6.1.1"
+  }
+}
