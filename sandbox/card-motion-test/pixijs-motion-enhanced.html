@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>카드 모션 테스트 - PixiJS Enhanced</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            touch-action: manipulation;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0f3460;
+            color: #fff;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        #controls {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 10px;
+            display: flex;
+            gap: 8px;
+            z-index: 100;
+            flex-wrap: wrap;
+            font-size: 13px;
+        }
+
+        button {
+            padding: 8px 12px;
+            background: #16213e;
+            border: 1px solid #4a90e2;
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #4a90e2;
+        }
+
+        button:active {
+            background: #357abd;
+            transform: scale(0.95);
+        }
+
+        #pixi-container {
+            position: absolute;
+            top: 70px;
+            left: 0;
+            width: 100%;
+            height: calc(100vh - 120px);
+        }
+
+        #info {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 8px 10px;
+            font-size: 11px;
+            z-index: 100;
+        }
+
+        .stat {
+            display: inline-block;
+            margin-right: 12px;
+        }
+
+        .section {
+            display: flex;
+            gap: 5px;
+            padding: 2px 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <div class="section">
+            <button onclick="shuffleDeck()">🔀 덱 셔플</button>
+            <button onclick="drawCard()">📥 카드 뽑기</button>
+            <button onclick="drawCards(5)">📥 5장 뽑기</button>
+            <button onclick="flipAllCards()">🔄 카드 뒤집기</button>
+        </div>
+        <div class="section">
+            <button onclick="playRandomCard()">🎮 카드 사용</button>
+            <button onclick="discardHand()">🗑️ 손패 버리기</button>
+            <button onclick="cleanup()">♻️ 정리 단계</button>
+        </div>
+        <div class="section">
+            <button onclick="resetGame()">🔄 게임 리셋</button>
+        </div>
+    </div>
+
+    <div id="pixi-container"></div>
+
+    <div id="info">
+        <span class="stat">렌더링: PixiJS Enhanced</span>
+        <span class="stat">FPS: <span id="fps">60</span></span>
+        <span class="stat">덱: <span id="deckCount">10</span></span>
+        <span class="stat">손패: <span id="handCount">0</span></span>
+        <span class="stat">플레이: <span id="playCount">0</span></span>
+        <span class="stat">버림: <span id="discardCount">0</span></span>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/pixi.js@7.3.2/dist/pixi.min.js"></script>
+    <script>
+        let app;
+        let isInitialized = false;
+
+        // 카드 템플릿
+        const CARD_TEMPLATES = [
+            { name: 'Copper', cost: 0, color: 0xcd7f32, type: 'treasure' },
+            { name: 'Silver', cost: 3, color: 0xc0c0c0, type: 'treasure' },
+            { name: 'Gold', cost: 6, color: 0xffd700, type: 'treasure' },
+            { name: 'Estate', cost: 2, color: 0x90ee90, type: 'victory' },
+            { name: 'Smithy', cost: 4, color: 0xe89d3f, type: 'action' },
+            { name: 'Village', cost: 3, color: 0x4db56a, type: 'action' },
+            { name: 'Market', cost: 5, color: 0x6a9be8, type: 'action' },
+        ];
+
+        const AREAS = {
+            DECK: 'deck',
+            HAND: 'hand',
+            PLAY: 'play',
+            DISCARD: 'discard'
+        };
+
+        // 카드 클래스
+        class Card {
+            constructor(template, id) {
+                this.id = id;
+                this.name = template.name;
+                this.cost = template.cost;
+                this.color = template.color;
+                this.type = template.type;
+                this.area = AREAS.DECK;
+
+                this.container = new PIXI.Container();
+                this.frontFace = null;
+                this.backFace = null;
+                this.borderGlow = null;
+                this.isFaceUp = false;
+
+                this.createGraphics();
+
+                this.targetX = 0;
+                this.targetY = 0;
+                this.targetRotation = 0;
+                this.targetScale = 1;
+                this.hoverOffset = 0;
+                this.targetHoverOffset = 0;
+                this.isAnimating = false;
+                this.glowTime = 0;
+            }
+
+            createGraphics() {
+                const width = 70;
+                const height = 100;
+
+                // 그림자
+                const shadow = new PIXI.Graphics();
+                shadow.beginFill(0x000000, 0.3);
+                shadow.drawRoundedRect(-width/2 + 2, -height/2 + 2, width, height, 6);
+                shadow.endFill();
+                this.container.addChild(shadow);
+
+                // 테두리 글로우 (호버/선택 시)
+                this.borderGlow = new PIXI.Graphics();
+                this.container.addChild(this.borderGlow);
+
+                // 뒷면 컨테이너
+                this.backFace = new PIXI.Container();
+                this.createBackFace(width, height);
+                this.container.addChild(this.backFace);
+
+                // 앞면 컨테이너
+                this.frontFace = new PIXI.Container();
+                this.createFrontFace(width, height);
+                this.container.addChild(this.frontFace);
+
+                // 초기 상태: 뒷면
+                this.frontFace.visible = false;
+                this.backFace.visible = true;
+
+                // 인터랙티브 설정
+                this.container.interactive = true;
+                this.container.buttonMode = true;
+
+                this.container.on('pointerover', () => {
+                    if (this.area === AREAS.HAND && this.isFaceUp) {
+                        this.setHovered(true);
+                    }
+                });
+
+                this.container.on('pointerout', () => {
+                    this.setHovered(false);
+                });
+
+                this.container.on('pointerdown', () => {
+                    if (this.area === AREAS.HAND && this.isFaceUp) {
+                        playCard(this);
+                    }
+                });
+
+                // 우클릭으로 뒤집기
+                this.container.on('rightdown', (e) => {
+                    e.stopPropagation();
+                    this.flip();
+                });
+            }
+
+            createBackFace(width, height) {
+                // 뒷면 배경
+                const background = new PIXI.Graphics();
+                background.beginFill(0x2c3e50);
+                background.drawRoundedRect(-width/2, -height/2, width, height, 6);
+                background.endFill();
+
+                // 뒷면 패턴
+                background.lineStyle(2, 0x34495e);
+                for (let i = 0; i < 5; i++) {
+                    const y = -height/2 + (height / 4) * i;
+                    background.moveTo(-width/2 + 10, y);
+                    background.lineTo(width/2 - 10, y);
+                }
+
+                // 중앙 로고
+                background.lineStyle(3, 0x5dade2);
+                background.drawCircle(0, 0, 15);
+                background.moveTo(-10, -10);
+                background.lineTo(10, 10);
+                background.moveTo(10, -10);
+                background.lineTo(-10, 10);
+
+                this.backFace.addChild(background);
+            }
+
+            createFrontFace(width, height) {
+                // 카드 배경 (그라디언트)
+                const background = new PIXI.Graphics();
+                const gradientSteps = 20;
+                for (let i = 0; i < gradientSteps; i++) {
+                    const ratio = i / gradientSteps;
+                    const darkenFactor = 0.4 * ratio;
+
+                    const r = ((this.color >> 16) & 0xFF) * (1 - darkenFactor);
+                    const g = ((this.color >> 8) & 0xFF) * (1 - darkenFactor);
+                    const b = (this.color & 0xFF) * (1 - darkenFactor);
+
+                    const color = (r << 16) | (g << 8) | b;
+
+                    background.beginFill(color);
+                    background.drawRect(
+                        -width/2,
+                        -height/2 + (height / gradientSteps) * i,
+                        width,
+                        height / gradientSteps
+                    );
+                    background.endFill();
+                }
+
+                // 테두리
+                background.lineStyle(2, this.lightenColor(this.color, 0.4));
+                background.drawRoundedRect(-width/2, -height/2, width, height, 6);
+
+                this.frontFace.addChild(background);
+
+                // 카드 이름
+                const nameText = new PIXI.Text(this.name, {
+                    fontFamily: 'sans-serif',
+                    fontSize: 12,
+                    fontWeight: 'bold',
+                    fill: 0xffffff
+                });
+                nameText.anchor.set(0.5);
+                nameText.y = -height * 0.3;
+                this.frontFace.addChild(nameText);
+
+                // 코스트
+                if (this.cost > 0) {
+                    const costBadge = new PIXI.Graphics();
+                    costBadge.beginFill(0xffd700);
+                    costBadge.drawCircle(width * 0.35, -height * 0.35, 10);
+                    costBadge.endFill();
+                    costBadge.lineStyle(2, 0xb8860b);
+                    costBadge.drawCircle(width * 0.35, -height * 0.35, 10);
+                    this.frontFace.addChild(costBadge);
+
+                    const costText = new PIXI.Text(this.cost.toString(), {
+                        fontFamily: 'sans-serif',
+                        fontSize: 12,
+                        fontWeight: 'bold',
+                        fill: 0x000000
+                    });
+                    costText.anchor.set(0.5);
+                    costText.x = width * 0.35;
+                    costText.y = -height * 0.35;
+                    this.frontFace.addChild(costText);
+                }
+            }
+
+            setHovered(hovered) {
+                this.hovered = hovered;
+                if (hovered) {
+                    this.targetScale = 1.15;
+                    this.targetHoverOffset = -20;
+                } else {
+                    this.targetScale = 1.0;
+                    this.targetHoverOffset = 0;
+                }
+                updateCardPositions();
+            }
+
+            flip(duration = 0.3) {
+                // 플립 애니메이션
+                const startTime = Date.now();
+                const startScaleX = this.container.scale.x;
+
+                const animate = () => {
+                    const elapsed = (Date.now() - startTime) / 1000;
+                    const progress = Math.min(elapsed / duration, 1);
+
+                    if (progress < 0.5) {
+                        // 첫 번째 반: 현재 면 축소
+                        this.container.scale.x = startScaleX * (1 - progress * 2);
+                    } else {
+                        // 두 번째 반: 반대 면 확대
+                        if (progress === 0.5 || Math.abs(progress - 0.5) < 0.01) {
+                            this.isFaceUp = !this.isFaceUp;
+                            this.frontFace.visible = this.isFaceUp;
+                            this.backFace.visible = !this.isFaceUp;
+                        }
+                        this.container.scale.x = startScaleX * ((progress - 0.5) * 2);
+                    }
+
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        this.container.scale.x = startScaleX;
+                    }
+                };
+
+                animate();
+            }
+
+            updateGlow(deltaTime) {
+                if (!this.hovered) {
+                    this.borderGlow.clear();
+                    return;
+                }
+
+                this.glowTime += deltaTime * 3;
+                const pulse = (Math.sin(this.glowTime) + 1) / 2;
+                const glowAlpha = 0.3 + pulse * 0.5;
+                const glowWidth = 2 + pulse * 2;
+
+                this.borderGlow.clear();
+                this.borderGlow.lineStyle(glowWidth, 0xffffff, glowAlpha);
+                this.borderGlow.drawRoundedRect(-35, -50, 70, 100, 6);
+            }
+
+            update(deltaTime) {
+                const smoothFactor = Math.min(1, deltaTime * 8);
+
+                this.container.x += (this.targetX - this.container.x) * smoothFactor;
+                this.container.y += (this.targetY + this.targetHoverOffset - this.container.y) * smoothFactor;
+                this.container.rotation += (this.targetRotation - this.container.rotation) * smoothFactor;
+
+                const targetScaleValue = this.targetScale;
+                this.container.scale.x += (targetScaleValue - this.container.scale.x) * smoothFactor;
+                this.container.scale.y += (targetScaleValue - this.container.scale.y) * smoothFactor;
+
+                this.hoverOffset += (this.targetHoverOffset - this.hoverOffset) * smoothFactor;
+
+                this.updateGlow(deltaTime);
+
+                if (Math.abs(this.targetX - this.container.x) < 0.5 &&
+                    Math.abs(this.targetY - this.container.y) < 0.5) {
+                    this.isAnimating = false;
+                }
+            }
+
+            moveTo(x, y, rotation = 0, scale = 1) {
+                this.targetX = x;
+                this.targetY = y;
+                this.targetRotation = rotation;
+                this.targetScale = scale;
+                this.isAnimating = true;
+            }
+
+            lightenColor(color, factor) {
+                const r = Math.min(255, ((color >> 16) & 0xFF) * (1 + factor));
+                const g = Math.min(255, ((color >> 8) & 0xFF) * (1 + factor));
+                const b = Math.min(255, (color & 0xFF) * (1 + factor));
+                return (r << 16) | (g << 8) | b;
+            }
+        }
+
+        // 게임 상태
+        const game = {
+            deck: [],
+            hand: [],
+            play: [],
+            discard: [],
+            cardIdCounter: 0,
+            cardWidth: 70,
+            cardHeight: 100,
+            areas: {}
+        };
+
+        let lastTime = performance.now();
+        const cardsContainer = new PIXI.Container();
+        const labelsContainer = new PIXI.Container();
+
+        // 초기화
+        app = new PIXI.Application({
+            backgroundColor: 0x0f3460,
+            resizeTo: document.getElementById('pixi-container'),
+            antialias: true,
+            resolution: window.devicePixelRatio || 1,
+            autoDensity: true
+        });
+
+        document.getElementById('pixi-container').appendChild(app.view);
+        isInitialized = true;
+
+        app.stage.addChild(cardsContainer);
+        app.stage.addChild(labelsContainer);
+
+        initGame();
+        app.ticker.add(render);
+
+        function initGame() {
+            game.deck = [];
+            game.hand = [];
+            game.play = [];
+            game.discard = [];
+            game.cardIdCounter = 0;
+
+            // 초기 덱 생성
+            for (let i = 0; i < 7; i++) {
+                const card = new Card(CARD_TEMPLATES[0], game.cardIdCounter++);
+                game.deck.push(card);
+                cardsContainer.addChild(card.container);
+            }
+            for (let i = 0; i < 3; i++) {
+                const card = new Card(CARD_TEMPLATES[3], game.cardIdCounter++);
+                game.deck.push(card);
+                cardsContainer.addChild(card.container);
+            }
+
+            updateCardPositions();
+            updateUI();
+            updateLabels();
+        }
+
+        function updateAreas() {
+            const width = app.screen.width;
+            const height = app.screen.height;
+
+            game.areas = {
+                deck: { x: width * 0.15, y: height * 0.2 },
+                hand: { x: width * 0.5, y: height * 0.8 },
+                play: { x: width * 0.5, y: height * 0.4 },
+                discard: { x: width * 0.85, y: height * 0.2 }
+            };
+        }
+
+        function updateCardPositions() {
+            if (!isInitialized) return;
+
+            updateAreas();
+            const { deck, hand, play, discard, areas } = game;
+
+            // 덱 (중첩 효과)
+            deck.forEach((card, i) => {
+                card.area = AREAS.DECK;
+                const stackOffset = Math.min(i * 0.5, 10);
+                card.moveTo(
+                    areas.deck.x + stackOffset,
+                    areas.deck.y + stackOffset,
+                    0,
+                    1
+                );
+                card.container.zIndex = i;
+            });
+
+            // 손패
+            const handSpacing = Math.min(game.cardWidth * 1.2, 400 / Math.max(1, hand.length));
+            const handStartX = areas.hand.x - (handSpacing * (hand.length - 1)) / 2;
+
+            hand.forEach((card, i) => {
+                card.area = AREAS.HAND;
+                const angle = (i - (hand.length - 1) / 2) * 0.05;
+                const yOffset = Math.abs(i - (hand.length - 1) / 2) * 5;
+
+                card.moveTo(
+                    handStartX + i * handSpacing,
+                    areas.hand.y + yOffset,
+                    angle,
+                    card.hovered ? 1.15 : 1
+                );
+                card.container.zIndex = 100 + i;
+            });
+
+            // 플레이 영역
+            const playSpacing = game.cardWidth * 1.1;
+            const playStartX = areas.play.x - (playSpacing * (play.length - 1)) / 2;
+
+            play.forEach((card, i) => {
+                card.area = AREAS.PLAY;
+                card.moveTo(playStartX + i * playSpacing, areas.play.y, 0, 1);
+                card.container.zIndex = 50 + i;
+            });
+
+            // 버림 더미 (중첩 효과)
+            discard.forEach((card, i) => {
+                card.area = AREAS.DISCARD;
+                const stackOffset = Math.min(i * 0.5, 10);
+                const randomRotation = (Math.random() - 0.5) * 0.1;
+                card.moveTo(
+                    areas.discard.x + stackOffset,
+                    areas.discard.y + stackOffset,
+                    randomRotation,
+                    1
+                );
+                card.container.zIndex = 20 + i;
+            });
+
+            cardsContainer.sortChildren();
+        }
+
+        function updateLabels() {
+            if (!isInitialized) return;
+
+            labelsContainer.removeChildren();
+            updateAreas();
+
+            const labelStyle = {
+                fontFamily: 'sans-serif',
+                fontSize: 12,
+                fill: 0xffffff
+            };
+
+            const labels = [
+                { text: '덱', x: game.areas.deck.x, y: game.areas.deck.y - 60 },
+                { text: '손패', x: game.areas.hand.x, y: game.areas.hand.y - 100 },
+                { text: '플레이 영역', x: game.areas.play.x, y: game.areas.play.y - 80 },
+                { text: '버림 더미', x: game.areas.discard.x, y: game.areas.discard.y - 60 }
+            ];
+
+            labels.forEach(({ text, x, y }) => {
+                const label = new PIXI.Text(text, labelStyle);
+                label.anchor.set(0.5);
+                label.x = x;
+                label.y = y;
+                label.alpha = 0.5;
+                labelsContainer.addChild(label);
+            });
+        }
+
+        // 게임 액션
+        function shuffleDeck(animate = true) {
+            if (game.deck.length === 0) return;
+
+            for (let i = game.deck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [game.deck[i], game.deck[j]] = [game.deck[j], game.deck[i]];
+            }
+
+            if (animate) {
+                game.deck.forEach((card) => {
+                    const tempX = game.areas.deck.x + (Math.random() - 0.5) * 100;
+                    const tempY = game.areas.deck.y + (Math.random() - 0.5) * 100;
+                    const tempRotation = (Math.random() - 0.5) * Math.PI / 2;
+                    card.moveTo(tempX, tempY, tempRotation, 1);
+                });
+
+                setTimeout(() => updateCardPositions(), 200);
+            }
+
+            updateUI();
+        }
+
+        function drawCard() {
+            if (game.deck.length === 0) {
+                if (game.discard.length > 0) {
+                    game.deck = [...game.discard];
+                    game.discard = [];
+                    shuffleDeck(true);
+                    setTimeout(() => drawCard(), 500);
+                }
+                return;
+            }
+
+            const card = game.deck.pop();
+            game.hand.push(card);
+
+            // 카드 뒤집기
+            setTimeout(() => card.flip(), 200);
+
+            updateCardPositions();
+            updateUI();
+        }
+
+        function drawCards(count) {
+            for (let i = 0; i < count; i++) {
+                setTimeout(() => drawCard(), i * 150);
+            }
+        }
+
+        function flipAllCards() {
+            const allCards = [...game.deck, ...game.hand, ...game.play, ...game.discard];
+            allCards.forEach((card, i) => {
+                setTimeout(() => card.flip(), i * 50);
+            });
+        }
+
+        function playCard(card) {
+            const index = game.hand.indexOf(card);
+            if (index === -1) return;
+
+            game.hand.splice(index, 1);
+            game.play.push(card);
+            card.hovered = false;
+
+            updateCardPositions();
+            updateUI();
+        }
+
+        function playRandomCard() {
+            if (game.hand.length === 0) return;
+
+            const randomIndex = Math.floor(Math.random() * game.hand.length);
+            const card = game.hand[randomIndex];
+            playCard(card);
+        }
+
+        function discardHand() {
+            game.discard.push(...game.hand);
+            game.hand = [];
+            updateCardPositions();
+            updateUI();
+        }
+
+        function cleanup() {
+            game.discard.push(...game.play, ...game.hand);
+            game.play = [];
+            game.hand = [];
+            updateCardPositions();
+            updateUI();
+            setTimeout(() => drawCards(5), 500);
+        }
+
+        function resetGame() {
+            cardsContainer.removeChildren();
+            initGame();
+        }
+
+        function updateUI() {
+            document.getElementById('deckCount').textContent = game.deck.length;
+            document.getElementById('handCount').textContent = game.hand.length;
+            document.getElementById('playCount').textContent = game.play.length;
+            document.getElementById('discardCount').textContent = game.discard.length;
+        }
+
+        // 렌더링
+        function render() {
+            const currentTime = performance.now();
+            const deltaTime = Math.min((currentTime - lastTime) / 1000, 0.1);
+            lastTime = currentTime;
+
+            const fps = Math.round(1 / deltaTime);
+            if (fps > 0 && fps < 200) {
+                document.getElementById('fps').textContent = fps;
+            }
+
+            const allCards = [...game.deck, ...game.hand, ...game.play, ...game.discard];
+            allCards.forEach(card => card.update(deltaTime));
+        }
+
+        // 리사이즈 처리
+        window.addEventListener('resize', () => {
+            if (isInitialized) {
+                updateCardPositions();
+                updateLabels();
+            }
+        });
+    </script>
+</body>
+</html>

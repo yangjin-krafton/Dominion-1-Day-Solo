@@ -2,9 +2,6 @@
 node_modules/
 package-lock.json
 
-# Sandbox (테스트 공간)
-sandbox/
-
 # OS
 .DS_Store
 Thumbs.db
