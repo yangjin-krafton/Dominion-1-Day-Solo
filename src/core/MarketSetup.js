@@ -28,7 +28,16 @@ export function buildMarketSetup(cardMap) {
   const pool         = KINGDOM_POOL.filter(id => cardMap.has(id));
   const kingdomIds   = _selectDiverse(cardMap, pool, kingdomCount);
 
-  return { marketIds: [...basicIds, ...kingdomIds], kingdomIds };
+  // ── 3. 정렬: 재물 → 승점 → 행동, 같은 타입 내 비용 오름차순 ─
+  const TYPE_ORDER = { Treasure: 0, Victory: 1, Action: 2, Curse: 3 };
+  const marketIds = [...basicIds, ...kingdomIds].sort((a, b) => {
+    const da = cardMap.get(a), db = cardMap.get(b);
+    const ta = TYPE_ORDER[da.type] ?? 9;
+    const tb = TYPE_ORDER[db.type] ?? 9;
+    return ta !== tb ? ta - tb : da.cost - db.cost;
+  });
+
+  return { marketIds, kingdomIds };
 }
 
 // ── 내부 유틸 ─────────────────────────────────────────────────

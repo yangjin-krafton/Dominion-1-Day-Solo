@@ -181,6 +181,8 @@ export class Market {
       countTxt.style.fill   = count > 0 ? C.gold : 0x555544;
       emptyOverlay.visible  = count <= 0;
       wrapper.cursor        = count > 0 ? 'pointer' : 'default';
+      // 품절 시 setAffordable 호출 전에도 즉시 dim 보장
+      if (count <= 0) dimOverlay.visible = true;
     };
 
     this.slots.set(id, { container: wrapper, updateCount, dimOverlay, def, getCurCount: () => curCount });
@@ -195,10 +197,13 @@ export class Market {
   }
 
   // ── 구매 가능 카드 dim 제어 ────────────────────────────────
-  /** @param {number} coins - 현재 보유 코인 */
-  setAffordable(coins) {
+  /**
+   * @param {number} coins  - 현재 보유 코인
+   * @param {number} buys   - 남은 구매 횟수 (0이면 전체 dim)
+   */
+  setAffordable(coins, buys) {
     for (const slot of this.slots.values()) {
-      const affordable = slot.getCurCount() > 0 && slot.def.cost <= coins;
+      const affordable = buys > 0 && slot.getCurCount() > 0 && slot.def.cost <= coins;
       slot.dimOverlay.visible = !affordable;
     }
   }

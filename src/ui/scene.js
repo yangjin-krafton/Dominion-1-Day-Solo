@@ -495,22 +495,7 @@ export function buildUI(layer, gs, profile = null) {
   refs.classTxt.x = 50; refs.classTxt.y = 30;
   layer.addChild(refs.classTxt);
 
-  // VP 배지 (프로필 우측 · 카메라 영역 밖 좌단 고정)
-  const vpBg = new PIXI.Graphics();
-  vpBg.beginFill(C.dark, 0.88);
-  vpBg.lineStyle(1, C.gold, 0.55);
-  vpBg.drawRoundedRect(0, 0, 52, 28, 6);
-  vpBg.endFill();
-  vpBg.x = 120; vpBg.y = 16;
-  layer.addChild(vpBg);
-
-  const vpLbl = makeText('VP', 7, C.dimCream, { fontStyle: 'italic' });
-  vpLbl.anchor.set(0, 0.5); vpLbl.x = 125; vpLbl.y = 30;
-  layer.addChild(vpLbl);
-
-  refs.vpTxt = makeText('0', 13, C.goldHi, { fontWeight: 'bold' });
-  refs.vpTxt.anchor.set(0, 0.5); refs.vpTxt.x = 143; refs.vpTxt.y = 30;
-  layer.addChild(refs.vpTxt);
+  // VP는 스탯 칩으로 이동 (top bar에서 제거)
 
   // 우측 아이콘 버튼: 음량 · 도감 · 랭킹
   const btnY = 30;
@@ -527,25 +512,40 @@ export function buildUI(layer, gs, profile = null) {
   const R1_Y  = ZONE.STAT_Y + 5;
   const C_GAP = 6;
 
+  // ── 승점 칩 (첫 번째, 녹색) ──────────────────────────────
+  const vpChip = makeStatChip('승점', 0, 0x22bb55);
+  vpChip.container.x = 6; vpChip.container.y = R1_Y;
+  layer.addChild(vpChip.container);
+  refs.vpVal  = vpChip.valueTxt;
+  refs.vpAnim = vpChip.animate;
+  // 값 폰트 크기를 줄여 "8/15" 형식이 칩 안에 맞도록
+  refs.vpVal.style.fontSize = 11;
+  // 목표 승점 (/ 15) — 칩 레이블 우측, 고정 텍스트
+  refs.vpTargetTxt = makeText('/ ?', 7, 0x448844, {});
+  refs.vpTargetTxt.anchor.set(0, 0.5);
+  refs.vpTargetTxt.x = 36; refs.vpTargetTxt.y = CHIP_H / 2;
+  vpChip.container.addChild(refs.vpTargetTxt);
+
   const actionChip = makeStatChip('행동', 1, 0x3399ff);
-  actionChip.container.x = 6; actionChip.container.y = R1_Y;
+  actionChip.container.x = 6 + (CHIP_W + C_GAP); actionChip.container.y = R1_Y;
   layer.addChild(actionChip.container);
   refs.actionVal   = actionChip.valueTxt;
   refs.actionAnim  = actionChip.animate;
 
-  const buyChip = makeStatChip('구매', 1, 0x228844);
-  buyChip.container.x = 6 + CHIP_W + C_GAP; buyChip.container.y = R1_Y;
+  const buyChip = makeStatChip('구매', 1, 0xdd3333);
+  buyChip.container.x = 6 + (CHIP_W + C_GAP) * 2; buyChip.container.y = R1_Y;
   layer.addChild(buyChip.container);
   refs.buyVal   = buyChip.valueTxt;
   refs.buyAnim  = buyChip.animate;
 
   const coinChip = makeStatChip('코인', 0, C.gold);
-  coinChip.container.x = 6 + (CHIP_W + C_GAP) * 2; coinChip.container.y = R1_Y;
+  coinChip.container.x = 6 + (CHIP_W + C_GAP) * 3; coinChip.container.y = R1_Y;
   layer.addChild(coinChip.container);
   refs.coinVal   = coinChip.valueTxt;
   refs.coinAnim  = coinChip.animate;
 
   // spawn 애니메이션 (게임 시작 시 칩 등장)
+  setTimeout(() => refs.vpAnim?.('spawn'),     0);
   setTimeout(() => refs.actionAnim?.('spawn'), 60);
   setTimeout(() => refs.buyAnim?.('spawn'),    120);
   setTimeout(() => refs.coinAnim?.('spawn'),   180);
@@ -587,8 +587,15 @@ export function applyProfile(profile) {
 
 // ─── 게임 상태 변경 시 UI 텍스트 갱신 ───────────────────────
 export function updateUI(gs) {
-  // 승점 (좌측 배지)
-  if (refs.vpTxt) refs.vpTxt.text = String(gs.vp ?? 0);
+  // 승점 칩 + 목표
+  const curVP = gs.vp ?? 0;
+  const prvVP = refs._prevVP ?? curVP;
+  if (refs.vpVal) {
+    if (curVP !== prvVP) refs.vpAnim?.(curVP > prvVP ? 'increase' : 'decrease');
+    refs.vpVal.text = String(curVP);
+  }
+  refs._prevVP = curVP;
+  if (refs.vpTargetTxt) refs.vpTargetTxt.text = `/ ${gs.vpTarget ?? '?'}`;
 
   // 행 1: 기본 스탯 칩 — 값 변경 시 이펙트 트리거
   const cur = { actions: gs.actions ?? 0, buys: gs.buys ?? 0, coins: gs.coins ?? 0 };

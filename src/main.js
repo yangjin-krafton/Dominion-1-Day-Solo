@@ -67,7 +67,7 @@ let _nextSetup         = null;   // 다음 게임 랜덤 시장 구성 (buildMar
 let _activeKingdomIds  = [];     // 현재 게임에 사용 중인 킹덤 카드 IDs
 
 const gs = {
-  turn: 1, vp: 0, actions: 1, buys: 1, coins: 0,
+  turn: 1, vp: 0, vpTarget: 15, actions: 1, buys: 1, coins: 0,
   phase: 'action',
   deck: [], hand: [], play: [], discard: [], trash: [],
   supply: new Map(),
@@ -93,10 +93,24 @@ export function makeCard(def) {
 // 비주얼 브리지
 // ============================================================
 function _sync() {
+  // 현재 보유 승점 실시간 계산 (덱+손패+낸카드+버림더미)
+  const allCards = [...gs.deck, ...gs.hand, ...gs.play, ...gs.discard];
+  gs.vp = allCards.reduce((s, c) => s + (c.def.points ?? 0), 0);
+
   updateCardPositions(gs);
   updateUI(gs);
   _market?.refresh(gs.supply);
-  _market?.setAffordable(gs.coins);
+  _market?.setAffordable(gs.coins, gs.buys);
+
+  // 행동 0일때 핸드의 액션 카드 dim (alpha 낮춤)
+  const noActions = gs.actions === 0;
+  gs.hand.forEach(card => {
+    const isDimTarget = noActions && card.isFaceUp && card.def.type === 'Action';
+    card.container.alpha = isDimTarget ? 0.38 : 1;
+  });
+  // 핸드 밖 카드는 항상 alpha 복원
+  [...gs.deck, ...gs.play, ...gs.discard, ...gs.trash]
+    .forEach(card => { card.container.alpha = 1; });
 }
 
 // ── 재셔플 애니메이션 ──────────────────────────────────────
@@ -261,7 +275,7 @@ function _onBuyCard(def) {
   gs.phase = 'buy';
   _sync();
 
-  if (checkVictory(gs.supply)) {
+  if (checkVictory(gs.supply) || gs.vp >= gs.vpTarget) {
     _finishGame();
   }
 }
@@ -272,7 +286,7 @@ function _onEndTurn() {
   gs.phase      = 'action';
   _sync();
 
-  if (checkVictory(gs.supply)) {
+  if (checkVictory(gs.supply) || gs.vp >= gs.vpTarget) {
     _finishGame();
     return;
   }
@@ -329,6 +343,8 @@ export function _startGame() {
   gs.handScroll = 0;
   _idSeq = 0;
   gs.turn = 1; gs.vp = 0; gs.actions = 1; gs.buys = 1; gs.coins = 0;
+  // 목표 승점 랜덤 배정 (10~20)
+  gs.vpTarget = 10 + Math.floor(Math.random() * 11);
   gs.phase           = 'action';
   gs.pendingGain     = null;
   gs.pendingDiscard  = null;
