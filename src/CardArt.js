@@ -1,6 +1,5 @@
 // ============================================================
 // CardArt.js — Art-Nouveau 카드 렌더링 함수 모음
-// sandbox/art-nouveau/app.js 에서 추출 · 모듈화
 // ============================================================
 import { C, ACCENT, CARD_W as CW, CARD_H as CH } from './config.js';
 

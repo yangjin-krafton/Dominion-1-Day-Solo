@@ -1,7 +1,5 @@
 // ============================================================
-// Card.js — Card 클래스
-// 비주얼: art-nouveau (CardArt.js)
-// 모션:   visual-sample/app.js 방식 그대로 포팅
+// Card.js — Card 클래스 (Art-Nouveau 비주얼 · 모션 시스템)
 // ============================================================
 import { C, ACCENT, CARD_W as CW, CARD_H as CH, AREAS } from './config.js';
 import { buildFrontFace, buildBackFace } from './CardArt.js';
@@ -19,7 +17,7 @@ export class Card {
     this.area   = AREAS.DECK;
     this.isFaceUp = false;
 
-    // ── 모션 상태 (visual-sample 방식) ──────────────────────
+    // ── 모션 상태 ────────────────────────────────────────────
     this.targetX          = 0;
     this.targetY          = 0;
     this.targetRotation   = 0;
@@ -101,7 +99,7 @@ export class Card {
   }
 
   /**
-   * 카드 뒤집기 애니메이션 (visual-sample 방식)
+   * 카드 뒤집기 애니메이션
    * scaleX: 1 → 0 (중간에 face 교체) → 1
    */
   flip(duration = 0.3) {

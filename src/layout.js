@@ -1,6 +1,5 @@
 // ============================================================
 // layout.js — 카드 영역별 위치 계산
-// visual-sample/app.js updateCardPositions() 포팅 · 좌표 조정
 // ============================================================
 import { AREAS, SCREEN_W as W, SCREEN_H as H, CARD_W as CW, CARD_H as CH } from './config.js';
 
