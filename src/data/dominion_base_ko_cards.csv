@@ -1,34 +1,34 @@
-id,name_ko,name_en,set,edition,type,cost,points,effect_ko,color_top,color_mid,color_bot
-copper,동전,Copper,Base,2,Treasure,0,0,"+1 코인",1a0d05,5c2810,c47838
-silver,은화,Silver,Base,2,Treasure,3,0,"+2 코인",0a0f14,2a3c4a,7a9ab0
-gold,금화,Gold,Base,2,Treasure,6,0,"+3 코인",14100a,6a4810,d4a820
-estate,영지,Estate,Base,2,Victory,2,1,"승점 +1",05100a,144028,3a8850
-duchy,공작령,Duchy,Base,2,Victory,5,3,"승점 +3",04100a,0f3820,286840
-province,속주,Province,Base,2,Victory,8,6,"승점 +6",081008,1c4c18,40a030
-curse,저주,Curse,Base,2,Curse,0,-1,"승점 -1",0f040a,2a0820,5c1038
-cellar,지하창고,Cellar,Base,2,Action,2,0,"+1 행동, 원하는 수만큼 버리고 같은 수만큼 뽑기",060508,18143a,342a70
-chapel,예배당,Chapel,Base,2,Action,2,0,"손에서 최대 4장 폐기",080814,1c1c48,4040a0
-moat,해자,Moat,Base,2,Action-Reaction,2,0,"+2 카드, 반응: 공격 방어",020810,083040,186878
-harbinger,선구자,Harbinger,Base,2,Action,3,0,"+1 카드, +1 행동, 버린 카드 더미 맨 위 카드를 덱 맨 위로 이동",080412,2a1440,702808
-merchant,상인,Merchant,Base,2,Action,3,0,"+1 카드, +1 행동, 이번 턴 첫 은화 사용 시 +1 코인",0c0804,302010,704828
-vassal,부관,Vassal,Base,2,Action,3,0,"+2 코인, 덱 맨 위 카드 공개 후 액션이면 플레이 아니면 버리기",0c0514,2a1040,5c2880
-village,마을,Village,Base,2,Action,3,0,"+1 카드, +2 행동",060c04,183018,386030
-workshop,작업장,Workshop,Base,2,Action,3,0,"비용 4 이하 카드 1장 획득",100604,3a1008,802818
-bureaucrat,관료,Bureaucrat,Base,2,Action-Attack,4,0,"은화 1장 덱 위에 획득, 상대는 승점 카드 1장 덱 위로 올리기",040812,0c2038,1c4870
-gardens,정원,Gardens,Base,2,Victory,4,0,"덱 10장당 승점 +1",041004,0c3010,287828
-militia,민병대,Militia,Base,2,Action-Attack,4,0,"+2 코인, 상대는 손패 3장만 남기고 버리기",100606,2c1010,602020
-moneylender,고리대금업자,Moneylender,Base,2,Action,4,0,"동전 1장 폐기하면 +3 코인",0c0c04,302c08,786010
-poacher,밀렵꾼,Poacher,Base,2,Action,4,0,"+1 카드, +1 행동, +1 코인, 빈 공급 더미 수만큼 버리기",040c04,0c2810,205030
-remodel,개조,Remodel,Base,2,Action,4,0,"손에서 1장 폐기 후 비용이 최대 +2인 카드 1장 획득",100c04,2a2008,705010
-smithy,대장간,Smithy,Base,2,Action,4,0,"+3 카드",100504,3a0c08,8c1810
-throne_room,왕좌의 방,Throne Room,Base,2,Action,4,0,"손의 액션 카드 1장을 두 번 플레이",0c0818,201840,4c2890
-bandit,노상강도,Bandit,Base,2,Action-Attack,5,0,"금화 1장 획득, 상대 덱 위 2장 중 보물 1장(금화 제외) 폐기",0c0804,281008,5c1818
-council_room,의회실,Council Room,Base,2,Action,5,0,"+4 카드, +1 구매, 각 상대 +1 카드",040810,0c1c30,1c4068
-festival,축제,Festival,Base,2,Action,5,0,"+2 행동, +1 구매, +2 코인",0c0818,200c3a,501870
-laboratory,연구소,Laboratory,Base,2,Action,5,0,"+2 카드, +1 행동",040808,081828,103860
-library,도서관,Library,Base,2,Action,5,0,"손패가 7장이 될 때까지 뽑기(원하면 액션은 옆으로 치워두기)",0c0804,201408,503818
-market,시장,Market,Base,2,Action,5,0,"+1 카드, +1 행동, +1 구매, +1 코인",080c04,182410,384c1c
-mine,광산,Mine,Base,2,Action,5,0,"보물 1장 폐기 후 비용이 최대 +3인 보물 1장을 손으로 획득",080604,201408,4a2c10
-sentry,파수병,Sentry,Base,2,Action,5,0,"+1 카드, +1 행동, 덱 위 2장을 확인해 폐기/버리기/순서 재배치",040a10,0c2030,204858
-witch,마녀,Witch,Base,2,Action-Attack,5,0,"+2 카드, 각 상대는 저주 1장 획득",08040c,180830,381060
-artisan,장인,Artisan,Base,2,Action,6,0,"비용 5 이하 카드 1장 획득 후 손의 카드 1장을 덱 위로 올리기",0c0c04,281808,5c3418
+id,name_ko,name_en,set,edition,type,cost,points,effect_ko,effect_code,color_top,color_mid,color_bot
+copper,동전,Copper,Base,2,Treasure,0,0,"+1 코인",coin:1,1a0d05,5c2810,c47838
+silver,은화,Silver,Base,2,Treasure,3,0,"+2 코인",coin:2,0a0f14,2a3c4a,7a9ab0
+gold,금화,Gold,Base,2,Treasure,6,0,"+3 코인",coin:3,14100a,6a4810,d4a820
+estate,영지,Estate,Base,2,Victory,2,1,"승점 +1",,05100a,144028,3a8850
+duchy,공작령,Duchy,Base,2,Victory,5,3,"승점 +3",,04100a,0f3820,286840
+province,속주,Province,Base,2,Victory,8,6,"승점 +6",,081008,1c4c18,40a030
+curse,저주,Curse,Base,2,Curse,0,-1,"승점 -1",,0f040a,2a0820,5c1038
+cellar,지하창고,Cellar,Base,2,Action,2,0,"+1 행동, 원하는 수만큼 버리고 같은 수만큼 뽑기",action:1|cellar,060508,18143a,342a70
+chapel,예배당,Chapel,Base,2,Action,2,0,"손에서 최대 4장 폐기",chapel,080814,1c1c48,4040a0
+moat,해자,Moat,Base,2,Action-Reaction,2,0,"+2 카드, 반응: 공격 방어",draw:2,020810,083040,186878
+harbinger,선구자,Harbinger,Base,2,Action,3,0,"+1 카드, +1 행동, 버린 카드 더미 맨 위 카드를 덱 맨 위로 이동",draw:1|action:1|harbinger,080412,2a1440,702808
+merchant,상인,Merchant,Base,2,Action,3,0,"+1 카드, +1 행동, 이번 턴 첫 은화 사용 시 +1 코인",draw:1|action:1|merchant,0c0804,302010,704828
+vassal,부관,Vassal,Base,2,Action,3,0,"+2 코인, 덱 맨 위 카드 공개 후 액션이면 플레이 아니면 버리기",coin:2|vassal,0c0514,2a1040,5c2880
+village,마을,Village,Base,2,Action,3,0,"+1 카드, +2 행동",draw:1|action:2,060c04,183018,386030
+workshop,작업장,Workshop,Base,2,Action,3,0,"비용 4 이하 카드 1장 획득",workshop,100604,3a1008,802818
+bureaucrat,관료,Bureaucrat,Base,2,Action-Attack,4,0,"은화 1장 덱 위에 획득, 상대는 승점 카드 1장 덱 위로 올리기",bureaucrat,040812,0c2038,1c4870
+gardens,정원,Gardens,Base,2,Victory,4,0,"덱 10장당 승점 +1",,041004,0c3010,287828
+militia,민병대,Militia,Base,2,Action-Attack,4,0,"+2 코인, 상대는 손패 3장만 남기고 버리기",coin:2|militia,100606,2c1010,602020
+moneylender,고리대금업자,Moneylender,Base,2,Action,4,0,"동전 1장 폐기하면 +3 코인",moneylender,0c0c04,302c08,786010
+poacher,밀렵꾼,Poacher,Base,2,Action,4,0,"+1 카드, +1 행동, +1 코인, 빈 공급 더미 수만큼 버리기",draw:1|action:1|coin:1|poacher,040c04,0c2810,205030
+remodel,개조,Remodel,Base,2,Action,4,0,"손에서 1장 폐기 후 비용이 최대 +2인 카드 1장 획득",remodel,100c04,2a2008,705010
+smithy,대장간,Smithy,Base,2,Action,4,0,"+3 카드",draw:3,100504,3a0c08,8c1810
+throne_room,왕좌의 방,Throne Room,Base,2,Action,4,0,"손의 액션 카드 1장을 두 번 플레이",throne_room,0c0818,201840,4c2890
+bandit,노상강도,Bandit,Base,2,Action-Attack,5,0,"금화 1장 획득, 상대 덱 위 2장 중 보물 1장(금화 제외) 폐기",bandit,0c0804,281008,5c1818
+council_room,의회실,Council Room,Base,2,Action,5,0,"+4 카드, +1 구매, 각 상대 +1 카드",draw:4|buy:1|draw_others:1,040810,0c1c30,1c4068
+festival,축제,Festival,Base,2,Action,5,0,"+2 행동, +1 구매, +2 코인",action:2|buy:1|coin:2,0c0818,200c3a,501870
+laboratory,연구소,Laboratory,Base,2,Action,5,0,"+2 카드, +1 행동",draw:2|action:1,040808,081828,103860
+library,도서관,Library,Base,2,Action,5,0,"손패가 7장이 될 때까지 뽑기(원하면 액션은 옆으로 치워두기)",library,0c0804,201408,503818
+market,시장,Market,Base,2,Action,5,0,"+1 카드, +1 행동, +1 구매, +1 코인",draw:1|action:1|buy:1|coin:1,080c04,182410,384c1c
+mine,광산,Mine,Base,2,Action,5,0,"보물 1장 폐기 후 비용이 최대 +3인 보물 1장을 손으로 획득",mine,080604,201408,4a2c10
+sentry,파수병,Sentry,Base,2,Action,5,0,"+1 카드, +1 행동, 덱 위 2장을 확인해 폐기/버리기/순서 재배치",draw:1|action:1|sentry,040a10,0c2030,204858
+witch,마녀,Witch,Base,2,Action-Attack,5,0,"+2 카드, 각 상대는 저주 1장 획득",draw:2|curse_others,08040c,180830,381060
+artisan,장인,Artisan,Base,2,Action,6,0,"비용 5 이하 카드 1장 획득 후 손의 카드 1장을 덱 위로 올리기",artisan,0c0c04,281808,5c3418

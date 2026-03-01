@@ -74,16 +74,17 @@ function rowToCard(row) {
   const gradBot = parseHex(row.color_bot) ?? base;
 
   return {
-    id:      row.id,
-    name:    row.name_ko,
-    nameEn:  row.name_en,
-    set:     row.set,
+    id:         row.id,
+    name:       row.name_ko,
+    nameEn:     row.name_en,
+    set:        row.set,
     type,
     rawType,
-    cost:    parseInt(row.cost,   10) || 0,
-    points:  parseInt(row.points, 10) || 0,
+    cost:       parseInt(row.cost,   10) || 0,
+    points:     parseInt(row.points, 10) || 0,
     coins,
-    desc:    row.effect_ko ?? '',
+    desc:       row.effect_ko  ?? '',
+    effectCode: row.effect_code ?? '',   // ← effects.js 레지스트리와 매핑되는 토큰 문자열
     base,
     gradTop,
     gradMid,
