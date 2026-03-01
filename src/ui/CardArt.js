@@ -169,8 +169,8 @@ export function buildFrontFace(def) {
   nameTxt.y = Math.round(15 * F);
   face.addChild(nameTxt);
 
-  // 설명 텍스트
-  const descTxt = new PIXI.Text(def.desc, {
+  // 설명 텍스트 — 카드 앞면에서는 summary(요약) 사용, 없으면 전문 폴백
+  const descTxt = new PIXI.Text(def.summary || def.desc, {
     fontFamily: 'Georgia, serif', fontSize: FS_DESC,
     fill: C.cream, align: 'center',
     wordWrap: true, wordWrapWidth: CW - mX * 2, lineHeight: Math.round(FS_DESC * 1.45),

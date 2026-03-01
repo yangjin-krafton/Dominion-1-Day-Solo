@@ -117,31 +117,62 @@ function makeIconBtn(label, x, y, onClick) {
   return btn;
 }
 
-// ─── 스탯 칩 ─────────────────────────────────────────────────
+// ─── 기본 스탯 칩 (행1) ──────────────────────────────────────
+const CHIP_W = 78;
+const CHIP_H = 24;
 /**
  * @returns {{ container: PIXI.Container, valueTxt: PIXI.Text }}
  */
-function makeStatChip(icon, value, accentColor) {
+function makeStatChip(label, value, accentColor) {
   const chip = new PIXI.Container();
 
   const bg = new PIXI.Graphics();
-  bg.beginFill(C.dark, 0.88);
-  bg.lineStyle(1, accentColor, 0.55);
-  bg.drawRoundedRect(0, 0, 56, 28, 6);
+  bg.beginFill(C.dark, 0.92);
+  bg.lineStyle(1.2, accentColor, 0.65);
+  bg.drawRoundedRect(0, 0, CHIP_W, CHIP_H, 6);
   bg.endFill();
   chip.addChild(bg);
 
-  const iconTxt = makeText(icon, 9, accentColor);
-  iconTxt.anchor.set(0, 0.5);
-  iconTxt.x = 7; iconTxt.y = 14;
-  chip.addChild(iconTxt);
+  // 레이블 (밝은 흰색)
+  const labelTxt = makeText(label, 9, C.cream, { fontStyle: 'italic' });
+  labelTxt.anchor.set(0, 0.5);
+  labelTxt.x = 8; labelTxt.y = CHIP_H / 2;
+  chip.addChild(labelTxt);
 
-  const valueTxt = makeText(String(value), 13, accentColor, { fontWeight: 'bold' });
+  // 값 (오른쪽 정렬, 밝은 골드 굵게)
+  const valueTxt = makeText(String(value), 15, C.goldHi, { fontWeight: 'bold' });
   valueTxt.anchor.set(1, 0.5);
-  valueTxt.x = 49; valueTxt.y = 14;
+  valueTxt.x = CHIP_W - 7; valueTxt.y = CHIP_H / 2;
   chip.addChild(valueTxt);
 
   return { container: chip, valueTxt };
+}
+
+// ─── 이펙트 태그 칩 (행2) ────────────────────────────────────
+/**
+ * 카드 효과 태그 생성
+ * @param {string} text   표시 텍스트 (예: "공격방어", "은화×2")
+ * @param {number} color  테두리/텍스트 색상 (기본 dimCream)
+ * @returns {PIXI.Container}
+ */
+function makeEffectTag(text, color = C.dimCream) {
+  const tag = new PIXI.Container();
+
+  const lbl = makeText(text, 8, color, { fontWeight: 'bold' });
+  const tw  = lbl.width + 14;   // 좌우 패딩 7px
+
+  const bg = new PIXI.Graphics();
+  bg.beginFill(0x1a1428, 0.9);
+  bg.lineStyle(1, color, 0.45);
+  bg.drawRoundedRect(0, 0, tw, 16, 4);
+  bg.endFill();
+  tag.addChild(bg);
+
+  lbl.anchor.set(0, 0.5);
+  lbl.x = 7; lbl.y = 8;
+  tag.addChild(lbl);
+
+  return tag;
 }
 
 // ─── 더미 영역 + 턴 종료 버튼 통합 패널 (5등분) ─────────────
@@ -286,43 +317,49 @@ export function buildUI(layer, gs, profile = null) {
   layer.addChild(makeIconBtn('랭킹', W - 86,  btnY, () => gs.onOpenRanking?.()));
 
   // ══════════════════════════════════════════════════════════
-  // ② 스탯 카운트 바 (액션 · 구매 · 코인 + 페이즈 태그)
+  // ② 스탯 카운트 바 — 2행 레이아웃
+  //    행1: [⚔ 행동 N] [⊕ 구매 N] [● 코인 N]
+  //    행2: 이펙트 태그 (카드 효과에 따라 동적 추가)
   // ══════════════════════════════════════════════════════════
   const statBg = new PIXI.Graphics();
-  statBg.beginFill(0x090614, 0.94);
+  statBg.beginFill(0x080511, 0.97);
   statBg.drawRect(0, ZONE.STAT_Y, W, ZONE.STAT_H);
   statBg.endFill();
-  statBg.lineStyle(0.8, C.goldDim, 0.3);
-  statBg.moveTo(0, ZONE.STAT_Y);                   statBg.lineTo(W, ZONE.STAT_Y);
-  statBg.moveTo(0, ZONE.STAT_Y + ZONE.STAT_H);     statBg.lineTo(W, ZONE.STAT_Y + ZONE.STAT_H);
+  statBg.lineStyle(0.8, C.goldDim, 0.35);
+  statBg.moveTo(0, ZONE.STAT_Y);              statBg.lineTo(W, ZONE.STAT_Y);
+  statBg.moveTo(0, ZONE.STAT_Y + ZONE.STAT_H); statBg.lineTo(W, ZONE.STAT_Y + ZONE.STAT_H);
   layer.addChild(statBg);
 
-  const chipY = ZONE.STAT_Y + 6;
-  const chipGap = 62;
+  // ── 행 1: 기본 스탯 칩 ──────────────────────────────────
+  const R1_Y  = ZONE.STAT_Y + 5;
+  const C_GAP = 6;
 
-  const actionChip = makeStatChip('⚔ 행동', 1, 0x9933cc);
-  actionChip.container.x = 8;
-  actionChip.container.y = chipY;
+  const actionChip = makeStatChip('행동', 1, 0x3399ff);
+  actionChip.container.x = 6; actionChip.container.y = R1_Y;
   layer.addChild(actionChip.container);
   refs.actionVal = actionChip.valueTxt;
 
-  const buyChip = makeStatChip('⊕ 구매', 1, 0x228844);
-  buyChip.container.x = 8 + chipGap;
-  buyChip.container.y = chipY;
+  const buyChip = makeStatChip('구매', 1, 0x228844);
+  buyChip.container.x = 6 + CHIP_W + C_GAP; buyChip.container.y = R1_Y;
   layer.addChild(buyChip.container);
   refs.buyVal = buyChip.valueTxt;
 
-  const coinChip = makeStatChip('● 코인', 0, C.gold);
-  coinChip.container.x = 8 + chipGap * 2;
-  coinChip.container.y = chipY;
+  const coinChip = makeStatChip('코인', 0, C.gold);
+  coinChip.container.x = 6 + (CHIP_W + C_GAP) * 2; coinChip.container.y = R1_Y;
   layer.addChild(coinChip.container);
   refs.coinVal = coinChip.valueTxt;
 
-  // 우측: 이펙트 태그 영역 (텍스트 표시용)
-  refs.effectTxt = makeText('', 8, C.dimCream, { fontStyle: 'italic' });
-  refs.effectTxt.x = 8 + chipGap * 3 + 4;
-  refs.effectTxt.y = chipY + 7;
-  layer.addChild(refs.effectTxt);
+  // 행1·행2 구분선
+  const divG = new PIXI.Graphics();
+  divG.lineStyle(0.5, C.goldDim, 0.2);
+  divG.moveTo(6, ZONE.STAT_Y + 32); divG.lineTo(W - 6, ZONE.STAT_Y + 32);
+  layer.addChild(divG);
+
+  // ── 행 2: 이펙트 태그 컨테이너 ──────────────────────────
+  refs.tagsCont = new PIXI.Container();
+  refs.tagsCont.x = 6;
+  refs.tagsCont.y = ZONE.STAT_Y + 36;
+  layer.addChild(refs.tagsCont);
 
   // ══════════════════════════════════════════════════════════
   // ③ 더미 영역 + 턴 종료 버튼 (통합)
@@ -347,8 +384,43 @@ export function updateUI(gs) {
   // 승점 (좌측 배지)
   if (refs.vpTxt) refs.vpTxt.text = String(gs.vp ?? 0);
 
-  // 스탯 칩
+  // 행 1: 기본 스탯 칩
   if (refs.actionVal) refs.actionVal.text = String(gs.actions ?? 0);
   if (refs.buyVal)    refs.buyVal.text    = String(gs.buys    ?? 0);
   if (refs.coinVal)   refs.coinVal.text   = String(gs.coins   ?? 0);
+
+  // 행 2: 이펙트 태그 재빌드
+  if (refs.tagsCont) {
+    refs.tagsCont.removeChildren();
+    const tags = _collectEffectTags(gs);
+    let tx = 0;
+    for (const { text, color } of tags) {
+      const tag = makeEffectTag(text, color);
+      tag.x = tx;
+      refs.tagsCont.addChild(tag);
+      tx += tag.width + 5;
+    }
+  }
+}
+
+/**
+ * 현재 게임 상태에서 표시할 이펙트 태그 목록을 수집
+ * 추후 카드 효과 시스템 확장 시 여기에 조건 추가
+ * @returns {{ text: string, color: number }[]}
+ */
+function _collectEffectTags(gs) {
+  const tags = [];
+  // 보유 코인이 기본 보화 외 추가 코인이 있을 때 (플레이한 재화 기준)
+  const playedTreasureCoins = (gs.play ?? [])
+    .filter(c => c.def?.type === 'Treasure')
+    .reduce((s, c) => s + (c.def.coins ?? 0), 0);
+  if (playedTreasureCoins > 0) {
+    tags.push({ text: `재화 ×${playedTreasureCoins}`, color: C.gold });
+  }
+  // 낸 액션 카드
+  const playedActions = (gs.play ?? []).filter(c => c.def?.type === 'Action');
+  for (const card of playedActions) {
+    tags.push({ text: card.def.name, color: 0x9933cc });
+  }
+  return tags;
 }

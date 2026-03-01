@@ -83,8 +83,9 @@ function rowToCard(row) {
     cost:       parseInt(row.cost,   10) || 0,
     points:     parseInt(row.points, 10) || 0,
     coins,
-    desc:       row.effect_ko  ?? '',
-    effectCode: row.effect_code ?? '',   // ← effects.js 레지스트리와 매핑되는 토큰 문자열
+    desc:       row.effect_ko         ?? '',   // 상세 보기 전문
+    summary:    row.effect_ko_summary ?? '',   // 카드 앞면 요약
+    effectCode: row.effect_code       ?? '',   // effects.js 레지스트리 토큰
     base,
     gradTop,
     gradMid,

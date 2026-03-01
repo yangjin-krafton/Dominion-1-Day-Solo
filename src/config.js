@@ -19,8 +19,8 @@ export const PILE_SCALE    = 0.70;
 /** 갤러리 그리드 표시 배율 */
 export const GALLERY_SCALE = 0.77;
 /** 상세 보기 카드 물리 너비(px) */
-export const DETAIL_W = 240;
-export const DETAIL_H = Math.round(CARD_H * DETAIL_W / CARD_W);  // 360px
+export const DETAIL_W = 300;
+export const DETAIL_H = Math.round(CARD_H * DETAIL_W / CARD_W);  // 450px
 
 // ── 레이아웃 존 Y 경계 ───────────────────────────────────────
 // ──────────────────────────────────────────────────────────────
@@ -32,9 +32,9 @@ export const DETAIL_H = Math.round(CARD_H * DETAIL_W / CARD_W);  // 360px
 export const ZONE = {
   TOP_H:    60,   // 상단바 높이          →   0– 60
   MARKET_Y: 62,   // 시장 섹션 시작       →  62–505
-  STAT_Y:   517,  // 스탯 카운트 바 시작  → 517–559  (페이즈 라벨 제거, 위로 이동)
-  STAT_H:   42,
-  HAND_Y:   574,  // 핸드 카드 (STAT 끝 559 + 15px 여백)  → 574–709
+  STAT_Y:   514,  // 스탯 카운트 바 시작  → 514–572  (2행 레이아웃)
+  STAT_H:   58,   // 행1(기본스탯) + 행2(이펙트태그) 2행
+  HAND_Y:   578,  // 핸드 카드 (STAT 끝 572 + 6px 여백)  → 578–713
   PILES_Y:  724,  // 더미+턴종료 버튼(최하단)  → 724–844  (HAND 끝 709 + 15px 여백)
   PILES_H:  120,
 };
