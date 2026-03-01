@@ -2,7 +2,7 @@
 // ui/Market.js — 시장(공급) 그리드  최대 4열 × 3행 (12슬롯)
 // ============================================================
 import {
-  C, ACCENT,
+  C,
   CARD_W, CARD_H,
   MARKET_SCALE,
   ZONE,
@@ -10,6 +10,7 @@ import {
 } from '../config.js';
 import { buildFrontFace } from './CardArt.js';
 import * as CardDetail    from './CardDetail.js';
+import { CardGlow }       from './CardGlow.js';
 
 // ── 마켓 카드 크기 ──────────────────────────────────────────
 const MW    = Math.round(CARD_W * MARKET_SCALE);   // 90px
@@ -110,6 +111,17 @@ export class Market {
     face.scale.set(MARKET_SCALE);
     wrapper.addChild(face);
 
+    // ─ 비용 배지 dim 오버레이 (구매 불가 시 표시) ─
+    // buildFrontFace 기준: BCX=10, BR=9 → MARKET_SCALE 적용 후 (7, 7), r≈8
+    const _bcx = Math.round(10 * MARKET_SCALE);
+    const _br  = Math.round(9  * MARKET_SCALE) + 2;
+    const costDim = new PIXI.Graphics();
+    costDim.beginFill(0x000000, 0.60);
+    costDim.drawCircle(_bcx, _bcx, _br);
+    costDim.endFill();
+    costDim.visible = true;   // setAffordable 호출 전까지 dim
+    wrapper.addChild(costDim);
+
     // ─ 비어있을 때 어두운 오버레이 ─
     const emptyOverlay = new PIXI.Graphics();
     emptyOverlay.beginFill(0x000000, 0.65);
@@ -137,12 +149,9 @@ export class Market {
     badgeG.y = MH - 5;
     wrapper.addChild(badgeG);
 
-    // ─ 타입 색상 글로우 박스 (테두리) ─
-    const accentCol = ACCENT[def.type] ?? C.goldDim;
-    const border = new PIXI.Graphics();
-    border.lineStyle(1.5, accentCol, 0.55);
-    border.drawRect(0, 0, MW, MH);
-    wrapper.addChild(border);
+    // ─ 빛 흐름 아웃라인 이펙트 ─
+    const glow = new CardGlow(MW, MH);
+    wrapper.addChild(glow.g);
 
     // ─ 인터랙션 ─
     wrapper.eventMode = 'static';
@@ -182,7 +191,7 @@ export class Market {
       wrapper.cursor        = count > 0 ? 'pointer' : 'default';
     };
 
-    this.slots.set(id, { container: wrapper, updateCount });
+    this.slots.set(id, { container: wrapper, updateCount, glow, costDim, def, getCurCount: () => curCount });
   }
 
   // ── 구매 후 수량 갱신 ─────────────────────────────────────
@@ -190,6 +199,24 @@ export class Market {
   refresh(supply) {
     for (const [id, { count }] of supply) {
       this.slots.get(id)?.updateCount(count);
+    }
+  }
+
+  // ── 매 프레임 글로우 애니메이션 업데이트 ──────────────────
+  /** @param {number} dt - 초 단위 델타타임 */
+  update(dt) {
+    for (const slot of this.slots.values()) {
+      slot.glow.update(dt);
+    }
+  }
+
+  // ── 구매 가능 카드 글로우 활성화 ──────────────────────────
+  /** @param {number} coins - 현재 보유 코인 */
+  setAffordable(coins) {
+    for (const slot of this.slots.values()) {
+      const affordable = slot.getCurCount() > 0 && slot.def.cost <= coins;
+      slot.glow.setActive(affordable);
+      slot.costDim.visible = !affordable;
     }
   }
 

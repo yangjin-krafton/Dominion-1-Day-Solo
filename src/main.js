@@ -93,6 +93,7 @@ function _sync() {
   updateCardPositions(gs);
   updateUI(gs);
   _market?.refresh(gs.supply);
+  _market?.setAffordable(gs.coins);
 }
 
 // ── 재셔플 애니메이션 ──────────────────────────────────────
@@ -369,6 +370,7 @@ app.ticker.add(() => {
   lastTime  = now;
   [...gs.deck, ...gs.hand, ...gs.play, ...gs.discard, ...gs.trash]
     .forEach(c => c.update(dt));
+  _market?.update(dt);
 });
 
 // ============================================================
