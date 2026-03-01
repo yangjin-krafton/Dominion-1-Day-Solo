@@ -52,36 +52,36 @@ export function drawOrnamentLine(parent, y, alpha = 0.35) {
 }
 
 // ─── 베지어 코너 덩굴 장식 (F 스케일 적용) ──────────────────
-export function drawCornerFlourish(g, cx, cy, sx, sy, color, alpha = 0.75) {
-  g.lineStyle(1.2 * F, color, alpha);
-  g.moveTo(cx, cy + sy * 18 * F);
-  g.bezierCurveTo(cx, cy + sy * 7 * F, cx + sx * 7 * F, cy, cx + sx * 18 * F, cy);
+export function drawCornerFlourish(g, cx, cy, sx, sy, color, alpha = 0.75, scale = F) {
+  g.lineStyle(1.2 * scale, color, alpha);
+  g.moveTo(cx, cy + sy * 18 * scale);
+  g.bezierCurveTo(cx, cy + sy * 7 * scale, cx + sx * 7 * scale, cy, cx + sx * 18 * scale, cy);
 
-  g.lineStyle(0.6 * F, color, alpha * 0.4);
-  g.moveTo(cx + sx * 2 * F, cy + sy * 14 * F);
+  g.lineStyle(0.6 * scale, color, alpha * 0.4);
+  g.moveTo(cx + sx * 2 * scale, cy + sy * 14 * scale);
   g.bezierCurveTo(
-    cx + sx * 2 * F, cy + sy * 7 * F,
-    cx + sx * 7 * F, cy + sy * 2 * F,
-    cx + sx * 14 * F, cy + sy * 2 * F,
+    cx + sx * 2 * scale, cy + sy * 7 * scale,
+    cx + sx * 7 * scale, cy + sy * 2 * scale,
+    cx + sx * 14 * scale, cy + sy * 2 * scale,
   );
 
-  g.lineStyle(0.8 * F, color, alpha * 0.6);
-  g.moveTo(cx + sx * 18 * F, cy);
+  g.lineStyle(0.8 * scale, color, alpha * 0.6);
+  g.moveTo(cx + sx * 18 * scale, cy);
   g.bezierCurveTo(
-    cx + sx * 24 * F, cy - sy * 3 * F,
-    cx + sx * 25 * F, cy - sy * 7 * F,
-    cx + sx * 22 * F, cy - sy * 5 * F,
+    cx + sx * 24 * scale, cy - sy * 3 * scale,
+    cx + sx * 25 * scale, cy - sy * 7 * scale,
+    cx + sx * 22 * scale, cy - sy * 5 * scale,
   );
-  g.moveTo(cx, cy + sy * 18 * F);
+  g.moveTo(cx, cy + sy * 18 * scale);
   g.bezierCurveTo(
-    cx - sx * 3 * F, cy + sy * 24 * F,
-    cx - sx * 7 * F, cy + sy * 25 * F,
-    cx - sx * 5 * F, cy + sy * 22 * F,
+    cx - sx * 3 * scale, cy + sy * 24 * scale,
+    cx - sx * 7 * scale, cy + sy * 25 * scale,
+    cx - sx * 5 * scale, cy + sy * 22 * scale,
   );
 
   g.lineStyle(0);
   g.beginFill(color, alpha * 0.8);
-  g.drawCircle(cx + sx * 4 * F, cy + sy * 4 * F, 1.2 * F);
+  g.drawCircle(cx + sx * 4 * scale, cy + sy * 4 * scale, 1.2 * scale);
   g.endFill();
 }
 
@@ -182,9 +182,9 @@ export function buildFrontFace(def) {
 
   // 타입 레이블
   const typeLabel = (def.rawType ?? def.type).replace(/-/g, ' · ');
-  const typeTxt = new PIXI.Text(typeLabel.toUpperCase(), {
+  const typeTxt = new PIXI.Text(typeLabel, {
     fontFamily: 'Georgia, serif', fontSize: FS_TYPE, fontStyle: 'italic',
-    fill: accent, alpha: 0.85,
+    fill: C.cream, alpha: 0.85,
   });
   typeTxt.anchor.set(0.5);
   typeTxt.x = CW / 2;

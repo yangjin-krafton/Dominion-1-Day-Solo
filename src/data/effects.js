@@ -33,12 +33,12 @@ export const EFFECT_REGISTRY = new Map([
 
   // ── 복잡 효과 (인터랙션 필요 — 추후 구현) ─────────────────
   //  구현 시: _stub() 를 실제 함수로 교체
-  ['cellar',      _stub('Cellar:    버리고 뽑기')],
+  ['cellar',      (gs) => { gs.pendingDiscard = { type: 'cellar', drawAfter: true }; }],
   ['chapel',      _stub('Chapel:    최대 4장 폐기')],
   ['harbinger',   _stub('Harbinger: 버림더미→덱 위')],
   ['merchant',    _stub('Merchant:  첫 Silver +1 코인')],
   ['vassal',      _stub('Vassal:    덱 위 액션 플레이')],
-  ['workshop',    _stub('Workshop:  비용 4↓ 획득')],
+  ['workshop',    (gs) => { gs.pendingGain = { maxCost: 4, dest: 'discard' }; }],
   ['bureaucrat',  _stub('Bureaucrat: Silver 획득, 공격')],
   ['militia',     _stub('Militia:   손패 3장 공격')],
   ['moneylender', _stub('Moneylender: 동전 폐기→+3코인')],

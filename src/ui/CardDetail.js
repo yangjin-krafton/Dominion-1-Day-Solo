@@ -7,7 +7,7 @@ import {
   SCREEN_W as W, SCREEN_H as H,
   DETAIL_W as DW, DETAIL_H as DH,  // config에서 일괄 관리
 } from '../config.js';
-import { lerpColor } from './CardArt.js';
+import { lerpColor, drawCornerFlourish } from './CardArt.js';
 
 // ─── 상세 뷰 위치 (크기는 config.js의 DETAIL_W/H에서 결정) ───
 const CX = Math.round((W - DW) / 2);  // 카드 좌측 x
@@ -59,6 +59,16 @@ function _buildLargeCard(def) {
   g.lineStyle(2, C.gold, 0.35); g.moveTo(24, DH - 52); g.lineTo(DW - 24, DH - 52);
   c.addChild(g);
 
+  // 4코너 덩굴 장식 (CardArt 동일 스타일, 대형 스케일)
+  const FD = DW / 72;
+  const m  = Math.round(3 * FD);
+  const fl = new PIXI.Graphics();
+  drawCornerFlourish(fl,      m,      m,  1,  1, C.gold, 0.7, FD);
+  drawCornerFlourish(fl, DW - m,      m, -1,  1, C.gold, 0.7, FD);
+  drawCornerFlourish(fl,      m, DH - m,  1, -1, C.gold, 0.7, FD);
+  drawCornerFlourish(fl, DW - m, DH - m, -1, -1, C.gold, 0.7, FD);
+  c.addChild(fl);
+
   // 코스트 배지
   const badge = new PIXI.Graphics();
   badge.lineStyle(3.5, C.gold); badge.beginFill(C.dark, 0.9);
@@ -92,9 +102,9 @@ function _buildLargeCard(def) {
 
   // 타입 레이블
   const typeLabel = (def.rawType ?? def.type).replace(/-/g, ' · ');
-  const typeTxt = new PIXI.Text(typeLabel.toUpperCase(), {
+  const typeTxt = new PIXI.Text(typeLabel, {
     fontFamily: 'Georgia, serif', fontSize: 18, fontStyle: 'italic',
-    fill: acc, alpha: 0.85,
+    fill: C.cream, alpha: 0.85,
   });
   typeTxt.anchor.set(0.5); typeTxt.x = DW / 2; typeTxt.y = DH - 28;
   c.addChild(typeTxt);

@@ -9,7 +9,7 @@ import { GameFlow, STATES }                from './core/GameFlow.js';
 import * as Storage                        from './core/Storage.js';
 import { drawCard, playCard, endTurn,
          shuffle, checkVictory, initSupply,
-         buyCard }                         from './core/TurnEngine.js';
+         buyCard, gainCard }               from './core/TurnEngine.js';
 
 // ── ui ─────────────────────────────────────────────────────
 import { Card }                                from './ui/Card.js';
@@ -20,6 +20,8 @@ import { updateCardPositions,
          buildHandArrows,
          PILE_X, PILE_Y }                      from './ui/layout.js';
 import * as CardDetail                         from './ui/CardDetail.js';
+import { showGainCardOverlay }                 from './ui/GainCardOverlay.js';
+import { showDiscardSelectOverlay }            from './ui/DiscardSelectOverlay.js';
 import { Market }                              from './ui/Market.js';
 import { ProfileScreen }                       from './ui/screens/ProfileScreen.js';
 import { HomeScreen }                          from './ui/screens/HomeScreen.js';
@@ -66,6 +68,8 @@ const gs = {
   phase: 'action',
   deck: [], hand: [], play: [], discard: [], trash: [],
   supply: new Map(),
+  pendingGain:    null,   // { maxCost, dest } — 카드 획득 대기 (workshop 등)
+  pendingDiscard: null,   // { type, drawAfter } — 핸드 선택 버리기 대기 (cellar 등)
   handScroll: 0,
   _handArrows: null,
   cardsContainer: lCards,
@@ -170,6 +174,76 @@ function _onPlayCard(card) {
       setTimeout(() => c.flip(), 150 + i * 70);
     }
   });
+
+  // 카드 획득 대기 효과 처리 (workshop 등)
+  if (gs.pendingGain) {
+    const { maxCost, dest = 'discard' } = gs.pendingGain;
+    gs.pendingGain = null;
+    _handleGainCard(maxCost, dest);
+  }
+
+  // 핸드 선택 버리기 효과 처리 (cellar 등)
+  if (gs.pendingDiscard) {
+    const pd = gs.pendingDiscard;
+    gs.pendingDiscard = null;
+    _handleDiscardSelect(pd);
+  }
+}
+
+/** 핸드에서 선택한 카드들을 버리고 같은 수만큼 드로우 */
+function _handleDiscardSelect(pd) {
+  let _ov = null;
+
+  const close = () => { _ov?.close(); _ov = null; _sync(); };
+
+  _ov = showDiscardSelectOverlay(
+    lUI,
+    [...gs.hand],          // 현재 손패 스냅샷 (원본 참조 유지)
+    (selectedCards) => {
+      // 선택한 카드들을 손패에서 제거 → 버림더미로
+      for (const card of selectedCards) {
+        const idx = gs.hand.indexOf(card);
+        if (idx !== -1) {
+          gs.hand.splice(idx, 1);
+          card.area          = 'discard';
+          card.isFaceUp      = true;
+          card.frontFace.visible = true;
+          card.backFace.visible  = false;
+          gs.discard.push(card);
+        }
+      }
+      const drawN = selectedCards.length;
+      close();
+      // 버린 수만큼 드로우
+      if (pd.drawAfter && drawN > 0) {
+        _drawCardsVisual(drawN);
+      }
+    },
+    close,
+  );
+}
+
+/** 카드 획득 오버레이 표시 — workshop 등 gainCard 효과 공용 진입점 */
+function _handleGainCard(maxCost, dest) {
+  let _ov = null;
+
+  const close = () => {
+    _ov?.close();
+    _ov = null;
+    _sync();
+  };
+
+  _ov = showGainCardOverlay(
+    lUI,
+    gs.supply,
+    maxCost,
+    (def) => {
+      // 카드 획득 → 버림더미(또는 핸드)
+      gainCard(gs, def, makeCard, dest);
+      close();
+    },
+    close,
+  );
 }
 
 function _onBuyCard(def) {
@@ -249,7 +323,9 @@ export function _startGame() {
   gs.handScroll = 0;
   _idSeq = 0;
   gs.turn = 1; gs.vp = 0; gs.actions = 1; gs.buys = 1; gs.coins = 0;
-  gs.phase = 'action';
+  gs.phase           = 'action';
+  gs.pendingGain     = null;
+  gs.pendingDiscard  = null;
 
   // 공급 초기화
   gs.supply = initSupply(_cardMap, BASIC_IDS, KINGDOM_IDS);

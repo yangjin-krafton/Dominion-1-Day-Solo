@@ -9,12 +9,12 @@ import { C } from '../config.js';
 
 // ── 타입 정규화 (CSV rawType → 게임 내부 type) ─────────────
 const TYPE_NORMALIZE = {
-  'Treasure':        'Treasure',
-  'Victory':         'Victory',
-  'Action':          'Action',
-  'Action-Attack':   'Action',
-  'Action-Reaction': 'Action',
-  'Curse':           'Curse',
+  '재물':     'Treasure',
+  '승점':     'Victory',
+  '행동':     'Action',
+  '행동-공격': 'Action',
+  '행동-반응': 'Action',
+  '저주':     'Curse',
 };
 
 // 타입별 카드 바디 기본색

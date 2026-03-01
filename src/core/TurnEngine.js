@@ -87,6 +87,37 @@ export function playCard(gs, card) {
   return { ok: true };
 }
 
+// ─── 카드 획득 (비용 무관) ────────────────────────────────────
+
+/**
+ * 공급에서 카드를 무료로 획득 (workshop 등)
+ * @param {object}   gs
+ * @param {object}   def        - CardDef
+ * @param {Function} makeCardFn - (def) => Card
+ * @param {'discard'|'hand'} dest - 획득 후 도착 더미 (기본: discard)
+ * @returns {{ ok: boolean, card?: Card, reason?: string }}
+ */
+export function gainCard(gs, def, makeCardFn, dest = 'discard') {
+  const slot = gs.supply?.get(def.id);
+  if (!slot || slot.count <= 0) return { ok: false, reason: 'out_of_stock' };
+  slot.count--;
+
+  const card = makeCardFn(def);
+  card.isFaceUp          = true;
+  card.frontFace.visible = true;
+  card.backFace.visible  = false;
+
+  if (dest === 'hand') {
+    card.area = AREAS.HAND;
+    gs.hand.push(card);
+  } else {
+    card.area = AREAS.DISCARD;
+    gs.discard.push(card);
+  }
+
+  return { ok: true, card };
+}
+
 // ─── 구매 ─────────────────────────────────────────────────────
 
 /**
