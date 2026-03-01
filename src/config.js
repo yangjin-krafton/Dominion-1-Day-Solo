@@ -4,18 +4,38 @@
 
 export const SCREEN_W = 390;
 export const SCREEN_H = 844;
-// ── 카드 기본 크기 ───────────────────────────────────────────
-export const CARD_W = 108;   // 기준 72 × 1.5
-export const CARD_H = 162;   // 기준 108 × 1.5
 
-// ── 표시 스케일 (모든 카드 크기를 여기서 일괄 관리) ──────────
-/** 덱 · 버림더미 파일 표시 배율 */
-export const STACK_SCALE  = 0.84;
+// ── 카드 기본 크기 (Art-Nouveau 설계 기준 72px, F=1.0) ───────
+// * 108→72 축소: 화면에 4열×5행 시장 + 핸드 영역 확보
+export const CARD_W = 72;
+export const CARD_H = 108;
+
+// ── 표시 스케일 ──────────────────────────────────────────────
+/** 시장 그리드 카드 표시 배율  → 63×95px (4열×3행 기준) */
+export const MARKET_SCALE  = 0.88;
+/** 더미 영역(덱·버림·낸카드·추방) 표시 배율  → 36×54px */
+export const PILE_SCALE    = 0.50;
 /** 갤러리 그리드 표시 배율 */
 export const GALLERY_SCALE = 0.77;
-/** 상세 보기 카드 물리 너비(px) — 높이는 비율 자동 계산 */
-export const DETAIL_W = 281;
-export const DETAIL_H = Math.round(CARD_H * DETAIL_W / CARD_W); // ~421px
+/** 상세 보기 카드 물리 너비(px) */
+export const DETAIL_W = 240;
+export const DETAIL_H = Math.round(CARD_H * DETAIL_W / CARD_W);  // 360px
+
+// ── 레이아웃 존 Y 경계 ───────────────────────────────────────
+// 시장 4열×3행 기준 레이아웃
+// MARKET_SCALE=0.88 → 카드 63×95px, 3행: 3×95+2×5=295px, 섹션: 62~392
+export const ZONE = {
+  TOP_H:    60,   // 상단바 높이          →   0– 60
+  MARKET_Y: 62,   // 시장 섹션 시작       →  62–392
+  STAT_Y:   394,  // 스탯 카운트 바 시작  → 394–434
+  STAT_H:   40,
+  PILES_Y:  436,  // 더미 영역 시작       → 436–536
+  PILES_H:  100,
+  HAND_Y:   538,  // 핸드 카드 시작       → 538–646
+  BTN_Y:    652,  // 턴 종료 버튼 시작    → 652–694
+  PHASE_Y:  698,  // 페이즈 라벨          → 698–720
+  BOTTOM_Y: 792,  // 하단 상태바          → 792–844
+};
 
 // Art-Nouveau 팔레트
 export const C = {
@@ -48,31 +68,21 @@ export const AREAS = {
   HAND:    'hand',
   PLAY:    'play',
   DISCARD: 'discard',
+  TRASH:   'trash',
+  SUPPLY:  'supply',
 };
 
 // ── 게임 설정 ────────────────────────────────────────────────
-
-/**
- * 오늘의 킹덤 카드 10장 ID
- * 추후 날짜 기반 시드로 자동 선택 예정
- * CSV에 있는 id 값을 그대로 사용
- */
 export const KINGDOM_IDS = [
   'cellar', 'merchant', 'village', 'workshop',
   'militia', 'smithy', 'council_room', 'festival', 'laboratory', 'market',
 ];
 
-/**
- * 기본 공급 카드 ID (항상 공급란에 존재)
- */
 export const BASIC_IDS = [
   'copper', 'silver', 'gold',
   'estate', 'duchy',  'province', 'curse',
 ];
 
-/**
- * 플레이어 초기 덱 구성  { cardId: 장수 }
- */
 export const START_DECK = {
   copper: 7,
   estate: 3,

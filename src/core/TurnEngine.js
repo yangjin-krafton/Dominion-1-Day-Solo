@@ -91,17 +91,22 @@ export function playCard(gs, card) {
  * @returns {{ ok: boolean, card?: Card, reason?: string }}
  */
 export function buyCard(gs, def, makeCardFn) {
-  if (gs.buys   <= 0)      return { ok: false, reason: 'no_buys' };
-  if (gs.coins  <  def.cost) return { ok: false, reason: 'insufficient_coins' };
+  if (gs.buys <= 0)         return { ok: false, reason: 'no_buys' };
+  if (gs.coins < def.cost)  return { ok: false, reason: 'insufficient_coins' };
+
+  // 공급 재고 확인 & 차감
+  const slot = gs.supply?.get(def.id);
+  if (slot && slot.count <= 0) return { ok: false, reason: 'out_of_stock' };
+  if (slot) slot.count--;
 
   gs.buys--;
   gs.coins -= def.cost;
 
-  const card  = makeCardFn(def);
-  card.area   = AREAS.DISCARD;
-  card.isFaceUp    = true;
-  card.frontFace?.visible && (card.frontFace.visible = true);
-  card.backFace?.visible  && (card.backFace.visible  = false);
+  const card = makeCardFn(def);
+  card.area              = AREAS.DISCARD;
+  card.isFaceUp          = true;
+  card.frontFace.visible = true;
+  card.backFace.visible  = false;
   gs.discard.push(card);
 
   return { ok: true, card };

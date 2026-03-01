@@ -1,36 +1,35 @@
 // ============================================================
-// layout.js — 카드 영역별 위치 계산
+// layout.js — 카드 영역별 위치 계산 (리뉴얼)
 // ============================================================
 import {
   AREAS,
-  SCREEN_W as W, SCREEN_H as H,
-  CARD_W as CW, CARD_H as CH,
-  STACK_SCALE, GALLERY_SCALE,      // config에서 일괄 관리
+  SCREEN_W as W,
+  CARD_W   as CW,
+  CARD_H   as CH,
+  PILE_SCALE,
+  ZONE,
+  C,
 } from '../config.js';
 
-// ── 고정 위치 상수 ──────────────────────────────────────────
-const DECK_X    = 34;
-const DECK_Y    = 82;
-const DISCARD_X = W - 34 - Math.round(CW * STACK_SCALE);
-const DISCARD_Y = 82;
+// ── 더미(Pile) 크기 ─────────────────────────────────────────
+const PW = Math.round(CW * PILE_SCALE);   // 36px
 
-const PLAY_Y      = Math.round(H * 0.47 - CH / 2);  // ~342
-const PLAY_SPACE  = CW + 8;
+// 4개 더미를 화면 너비에 균등 배치
+const PILE_GAP = Math.round((W - 4 * PW) / 5);   // ~49px
+const PILE_X   = [0, 1, 2, 3].map(i => PILE_GAP + i * (PW + PILE_GAP));
+const PILE_Y   = ZONE.PILES_Y + 16;   // 섹션 라벨 아래
 
-const HAND_Y      = H - 52 - 8 - CH;                // ~676
-const HAND_BOW    = 3;     // 부채꼴 호 굴곡 (px/step)
-const HAND_ANGLE  = 0.04;  // 부채꼴 기울기 (rad/step)
-const STACK_OFF   = 5;     // 같은 카드 중첩 시 카드당 오프셋 (px)
+// ── 핸드 상수 ────────────────────────────────────────────────
+const HAND_START_Y  = ZONE.HAND_Y;
+const HAND_SPACING  = CW + 8;              // 기본 그룹 간격
+const HAND_MAX_VIS  = 4;                   // 한 번에 최대 표시 그룹 수
+const ARROW_W       = 22;                  // 스크롤 화살표 너비
+const STACK_OFF     = 4;                   // 동일 카드 중첩 오프셋
 
 // ─── 유틸: def.id 기준 그룹화 ────────────────────────────────
-/**
- * 카드 배열을 def.id 기준으로 그룹화 (첫 등장 순서 유지)
- * @param {Card[]} cards
- * @returns {Card[][]}
- */
 function _groupByDefId(cards) {
   const groups = [];
-  const idx    = new Map();   // id → groups 배열 인덱스
+  const idx    = new Map();
   for (const card of cards) {
     const id = card.def.id;
     if (idx.has(id)) {
@@ -43,104 +42,173 @@ function _groupByDefId(cards) {
   return groups;
 }
 
+// ─── 핸드 스크롤 화살표 빌드 (main.js에서 1회 호출) ────────
 /**
- * 전체 카드 위치 업데이트 (매 드로우·플레이·종료 후 호출)
- * @param {object} gs - gameState { deck, hand, play, discard, cardsContainer }
+ * @param {PIXI.Container} layer - UI 레이어
+ * @param {object} gs
+ * @returns {{ left: PIXI.Container, right: PIXI.Container }}
+ */
+export function buildHandArrows(layer, gs) {
+  function makeArrow(text, x) {
+    const cont = new PIXI.Container();
+    const bg   = new PIXI.Graphics();
+    bg.beginFill(0x0a0814, 0.85);
+    bg.lineStyle(1, C.goldDim, 0.5);
+    bg.drawRoundedRect(0, 0, ARROW_W, CH, 5);
+    bg.endFill();
+    cont.addChild(bg);
+
+    const t = new PIXI.Text(text, { fontSize: 16, fill: C.gold });
+    t.anchor.set(0.5);
+    t.x = ARROW_W / 2;
+    t.y = CH / 2;
+    cont.addChild(t);
+
+    cont.x = x;
+    cont.y = HAND_START_Y;
+    cont.visible   = false;
+    cont.eventMode = 'static';
+    cont.cursor    = 'pointer';
+    layer.addChild(cont);
+    return cont;
+  }
+
+  const arrows = {
+    left:  makeArrow('‹', 2),
+    right: makeArrow('›', W - ARROW_W - 2),
+  };
+
+  arrows.left.on('pointerdown', () => {
+    gs.handScroll = Math.max(0, (gs.handScroll ?? 0) - 1);
+    gs.onScrollHand?.();
+  });
+  arrows.right.on('pointerdown', () => {
+    gs.handScroll = (gs.handScroll ?? 0) + 1;
+    gs.onScrollHand?.();
+  });
+
+  return arrows;
+}
+
+// ─── 전체 카드 위치 업데이트 ─────────────────────────────────
+/**
+ * @param {object} gs - {deck, hand, play, discard, trash, cardsContainer,
+ *                        handScroll, _handArrows}
  */
 export function updateCardPositions(gs) {
-  const { deck, hand, play, discard } = gs;
+  const { deck, hand, play, discard, trash = [] } = gs;
 
-  // ── 덱 파일 (왼쪽 상단) ──────────────────────────────────
+  // ══════════════════════════════════════════════════════════
+  // 더미 영역 (4 파일)
+  // ══════════════════════════════════════════════════════════
+
+  // ① 덱 (면 아래) — PILE 0
   deck.forEach((card, i) => {
     card.area = AREAS.DECK;
-    const off = Math.min(i * 0.3, 4);
-    card.moveTo(DECK_X + off, DECK_Y + off, 0, STACK_SCALE);
+    const off = Math.min(i * 0.4, 5);
+    card.moveTo(PILE_X[0] + off, PILE_Y + off, 0, PILE_SCALE);
     card.container.zIndex = i;
   });
 
-  // ── 버림 더미 (오른쪽 상단) ──────────────────────────────
+  // ② 버림더미 (면 위) — PILE 1
   discard.forEach((card, i) => {
     card.area = AREAS.DISCARD;
-    const off = Math.min(i * 0.3, 4);
-    const rot = (Math.random() - 0.5) * 0.1;
-    card.moveTo(DISCARD_X + off, DISCARD_Y + off, rot, STACK_SCALE);
+    const off = Math.min(i * 0.4, 5);
+    const rot = (Math.random() - 0.5) * 0.08;
+    card.moveTo(PILE_X[1] + off, PILE_Y + off, rot, PILE_SCALE);
     card.container.zIndex = 20 + i;
   });
 
-  // ── 플레이 영역 (같은 카드 중첩) ─────────────────────────
-  const playGroups  = _groupByDefId(play);
-  const playTotalW  = playGroups.length * PLAY_SPACE - 8;
-  const playStartX  = (W - playTotalW) / 2;
-
-  playGroups.forEach((group, gIdx) => {
-    const n    = group.length;
-    const baseX = playStartX + gIdx * PLAY_SPACE;
-    group.forEach((card, cIdx) => {
-      const isTop = cIdx === n - 1;
-      const off   = (n - 1 - cIdx) * STACK_OFF;   // 하단 카드일수록 오른쪽+아래
-      card.area = AREAS.PLAY;
-      card.moveTo(baseX + off, PLAY_Y + off, 0, 1);
-      card.container.zIndex    = 50 + gIdx * 20 + cIdx;
-      card.container.eventMode = isTop ? 'static' : 'none';
-      card.setStackCount(isTop ? n : 0);
-      if (!isTop) card.setHovered(false);
-    });
+  // ③ 낸카드더미 (플레이) — PILE 2
+  play.forEach((card, i) => {
+    card.area = AREAS.PLAY;
+    const off = Math.min(i * 0.4, 5);
+    card.moveTo(PILE_X[2] + off, PILE_Y + off, 0, PILE_SCALE);
+    card.container.zIndex = 40 + i;
   });
 
-  // ── 손패 (같은 카드 중첩 부채꼴) ─────────────────────────
-  const handGroups = _groupByDefId(hand);
-  const spacing    = Math.min(CW + 8, (W - 40) / Math.max(1, handGroups.length));
-  const totalHandW = spacing * (handGroups.length - 1);
-  const handStartX = (W - totalHandW) / 2 - CW / 2;
-  const mid        = (handGroups.length - 1) / 2;
+  // ④ 추방더미 — PILE 3
+  trash.forEach((card, i) => {
+    card.area = AREAS.TRASH;
+    const off = Math.min(i * 0.4, 5);
+    card.moveTo(PILE_X[3] + off, PILE_Y + off, 0, PILE_SCALE);
+    card.container.zIndex = 60 + i;
+  });
 
-  handGroups.forEach((group, gIdx) => {
-    const n     = group.length;
-    const angle = (gIdx - mid) * HAND_ANGLE;
-    const bow   = Math.abs(gIdx - mid) * HAND_BOW;
-    const baseX = handStartX + gIdx * spacing;
-    const baseY = HAND_Y + bow;
+  // ══════════════════════════════════════════════════════════
+  // 핸드 카드 (그룹화 + 좌우 스크롤)
+  // ══════════════════════════════════════════════════════════
+  const handGroups   = _groupByDefId(hand);
+  const totalGroups  = handGroups.length;
+  const scrollOffset = Math.max(
+    0,
+    Math.min(gs.handScroll ?? 0, Math.max(0, totalGroups - HAND_MAX_VIS)),
+  );
+  gs.handScroll = scrollOffset;   // 범위 클램프 반영
+
+  const needScroll  = totalGroups > HAND_MAX_VIS;
+  const visGroups   = needScroll
+    ? handGroups.slice(scrollOffset, scrollOffset + HAND_MAX_VIS)
+    : handGroups;
+
+  // 화살표 표시 갱신
+  if (gs._handArrows) {
+    gs._handArrows.left.visible  = needScroll && scrollOffset > 0;
+    gs._handArrows.right.visible = needScroll && scrollOffset + HAND_MAX_VIS < totalGroups;
+  }
+
+  // 화면 밖 그룹 숨기기
+  handGroups.forEach((group, gi) => {
+    const inWindow = !needScroll
+      || (gi >= scrollOffset && gi < scrollOffset + HAND_MAX_VIS);
+    group.forEach(card => { card.container.visible = inWindow; });
+  });
+
+  // 보이는 그룹 배치
+  const areaW  = needScroll ? (W - ARROW_W * 2 - 12) : (W - 16);
+  const areaX  = needScroll ? (ARROW_W + 6)           : 8;
+  const n      = visGroups.length;
+  const spacing = n > 1
+    ? Math.min(HAND_SPACING, (areaW - CW) / (n - 1))
+    : 0;
+  const totalW  = spacing * (n - 1) + CW;
+  const startX  = areaX + (areaW - totalW) / 2;
+
+  visGroups.forEach((group, gIdx) => {
+    const stackN = group.length;
+    const baseX  = startX + gIdx * spacing;
 
     group.forEach((card, cIdx) => {
-      const isTop = cIdx === n - 1;
-      const off   = (n - 1 - cIdx) * STACK_OFF;
+      const isTop = cIdx === stackN - 1;
+      const off   = (stackN - 1 - cIdx) * STACK_OFF;
+
       card.area = AREAS.HAND;
-      card.moveTo(
-        baseX + off, baseY + off, angle,
-        isTop && card.hovered ? 1.15 : 1,
-      );
+      card.moveTo(baseX + off, HAND_START_Y + off, 0, 1);
       card.container.zIndex    = 100 + gIdx * 20 + cIdx;
       card.container.eventMode = isTop ? 'static' : 'none';
       card.container.cursor    = isTop ? 'pointer' : 'default';
-      card.setStackCount(isTop ? n : 0);
-      if (!isTop) card.setHovered(false);
+      card.setStackCount(isTop ? stackN : 0);
     });
   });
 
   gs.cardsContainer?.sortChildren();
 }
 
-// ─── 갤러리 레이아웃 ─────────────────────────────────────────
-// GALLERY_SCALE은 config.js에서 import — 여기서는 사용만 함
+// ─── 갤러리 레이아웃 (카드도감) ─────────────────────────────
 const GALLERY_GAP_X   = 8;
 const GALLERY_GAP_Y   = 12;
 const GALLERY_MARGIN  = 10;
-const GALLERY_START_Y = 62;
+const GALLERY_START_Y = 70;
+const GALLERY_SCALE_V = 0.77;
 
-// 화면 너비에서 최대 배치 가능 열 수 자동 계산
-const _gCW    = Math.round(CW * GALLERY_SCALE);
+const _gCW    = Math.round(CW * GALLERY_SCALE_V);
 const GALLERY_COLS = Math.floor(
-  (W - GALLERY_MARGIN * 2 + GALLERY_GAP_X) / (_gCW + GALLERY_GAP_X)
-); // 390px 기준 → 4열
+  (W - GALLERY_MARGIN * 2 + GALLERY_GAP_X) / (_gCW + GALLERY_GAP_X),
+);
 
-/**
- * 카드 배열을 그리드로 배치 (비주얼 테스트용)
- * @param {Card[]} cards
- * @param {PIXI.Container} container
- */
 export function layoutGallery(cards, container) {
   const cw = _gCW;
-  const ch = Math.round(CH * GALLERY_SCALE);
+  const ch = Math.round(CH * GALLERY_SCALE_V);
   const totalW = GALLERY_COLS * cw + (GALLERY_COLS - 1) * GALLERY_GAP_X;
   const startX = Math.round((W - totalW) / 2);
 
@@ -150,10 +218,10 @@ export function layoutGallery(cards, container) {
     const x   = startX + col * (cw + GALLERY_GAP_X);
     const y   = GALLERY_START_Y + row * (ch + GALLERY_GAP_Y);
 
-    card.moveTo(x, y, 0, GALLERY_SCALE);
+    card.moveTo(x, y, 0, GALLERY_SCALE_V);
     card.container.x = x;
     card.container.y = y;
-    card.container.scale.set(GALLERY_SCALE);
+    card.container.scale.set(GALLERY_SCALE_V);
     card.container.zIndex = i;
   });
 
