@@ -4,7 +4,8 @@
 // ============================================================
 
 // ── config & core ──────────────────────────────────────────
-import { SCREEN_W as W, SCREEN_H as H, KINGDOM_IDS, BASIC_IDS } from './config.js';
+import { SCREEN_W as W, SCREEN_H as H, KINGDOM_POOL, BASIC_IDS } from './config.js';
+import { buildMarketSetup } from './core/MarketSetup.js';
 import { GameFlow, STATES }                from './core/GameFlow.js';
 import * as Storage                        from './core/Storage.js';
 import { drawCard, playCard, endTurn,
@@ -62,6 +63,8 @@ let _cardMap   = new Map();
 let _idSeq     = 0;
 let _gameStart = 0;
 let _market    = null;   // Market 인스턴스
+let _nextSetup         = null;   // 다음 게임 랜덤 시장 구성 (buildMarketSetup 결과)
+let _activeKingdomIds  = [];     // 현재 게임에 사용 중인 킹덤 카드 IDs
 
 const gs = {
   turn: 1, vp: 0, actions: 1, buys: 1, coins: 0,
@@ -299,11 +302,13 @@ flow
   .on(STATES.HOME, () => {
     const profile  = Storage.getProfile();
     const records  = Storage.getRecords();
-    const kingdomNames = KINGDOM_IDS.map(id =>
+    // 다음 게임 시장 구성 미리 생성 (홈 화면에 킹덤 미리보기 표시)
+    _nextSetup = buildMarketSetup(_cardMap);
+    const kingdomNames = _nextSetup.kingdomIds.map(id =>
       _cardMap.get(id)?.name ?? id,
     );
     homeScr.onStart = () => flow.go(STATES.GAME);
-    homeScr.show({ profile, records, kingdomIds: KINGDOM_IDS, kingdomNames });
+    homeScr.show({ profile, records, kingdomIds: _nextSetup.kingdomIds, kingdomNames });
   })
 
   .on(STATES.GAME, () => { _startGame(); })
@@ -328,8 +333,11 @@ export function _startGame() {
   gs.pendingGain     = null;
   gs.pendingDiscard  = null;
 
-  // 공급 초기화
-  gs.supply = initSupply(_cardMap, BASIC_IDS, KINGDOM_IDS);
+  // 공급 초기화 — HOME에서 미리 생성된 구성 사용 (없으면 신규 생성)
+  const setup       = _nextSetup ?? buildMarketSetup(_cardMap);
+  _nextSetup        = null;
+  _activeKingdomIds = setup.kingdomIds;
+  gs.supply         = initSupply(_cardMap, setup.marketIds);
 
   // 초기 덱 (Copper 7 + Estate 3)
   for (let i = 0; i < 7; i++) gs.deck.push(makeCard(_cardMap.get('copper')));
@@ -353,7 +361,7 @@ function _finishGame() {
 
   const record  = Storage.addRecord({
     turns: gs.turn, vp: totalVP, durationSec,
-    kingdom: KINGDOM_IDS,
+    kingdom: _activeKingdomIds,
   });
   const ranking = Storage.getRanking();
   flow.go(STATES.RESULT, { record, ranking });
@@ -390,7 +398,7 @@ CardDetail.init(lUI);
 (async () => {
   try {
     _cardMap = await loadCards('./data/dominion_base_ko_cards.csv');
-    resolveCards(_cardMap, [...KINGDOM_IDS, ...BASIC_IDS]);
+    resolveCards(_cardMap, [...KINGDOM_POOL, ...BASIC_IDS]);
 
     // 최초 진입 상태 결정
     const profile = Storage.getProfile();

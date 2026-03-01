@@ -189,21 +189,27 @@ export function checkVictory(supply) {
 }
 
 /**
- * 표준 공급 수량 초기화 (솔로 1인 기준)
+ * 공급 수량 초기화 (솔로 1인 기준)
  * @param {Map<string,object>} cardMap  - id → CardDef
- * @param {string[]} basicIds
- * @param {string[]} kingdomIds
+ * @param {string[]} marketIds          - 시장 12슬롯 카드 ID 배열
  * @returns {Map<string, {def, count}>}
+ *   · marketIds 순서대로 Map에 추가 (시장 그리드가 앞 12장 표시)
+ *   · 저주는 marketIds에 없어도 공급에 자동 추가 (게임 메카닉 유지)
  */
-export function initSupply(cardMap, basicIds, kingdomIds) {
+export function initSupply(cardMap, marketIds) {
   const COUNTS = {
     copper: 46, silver: 40, gold: 30,
     estate: 8,  duchy: 8,  province: 8, curse: 10,
   };
   const supply = new Map();
-  for (const id of [...basicIds, ...kingdomIds]) {
+  for (const id of marketIds) {
     const def = cardMap.get(id);
     if (def) supply.set(id, { def, count: COUNTS[id] ?? 10 });
+  }
+  // 저주: 시장에 미포함이어도 공급에는 항상 존재 (curse_others 등 효과용)
+  if (!supply.has('curse')) {
+    const def = cardMap.get('curse');
+    if (def) supply.set('curse', { def, count: 10 });
   }
   return supply;
 }

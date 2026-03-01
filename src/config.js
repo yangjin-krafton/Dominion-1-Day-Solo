@@ -75,14 +75,37 @@ export const AREAS = {
 };
 
 // ── 게임 설정 ────────────────────────────────────────────────
-export const KINGDOM_IDS = [
-  'cellar', 'merchant', 'village', 'workshop',
-  'militia', 'smithy', 'council_room', 'festival', 'laboratory', 'market',
+
+/** 랜덤 선택 풀 — 모든 킹덤 액션 카드 (비용 순) */
+export const KINGDOM_POOL = [
+  // 비용 2
+  'cellar', 'chapel', 'moat',
+  // 비용 3
+  'harbinger', 'merchant', 'vassal', 'village', 'workshop',
+  // 비용 4
+  'bureaucrat', 'militia', 'moneylender', 'poacher', 'remodel', 'smithy', 'throne_room',
+  // 비용 5
+  'bandit', 'council_room', 'festival', 'laboratory', 'library', 'market', 'mine', 'sentry', 'witch',
+  // 비용 6
+  'artisan',
 ];
 
+/** 시장 basic 풀 — 저주 제외한 재화·승점 6종 */
+export const BASIC_POOL = [
+  'copper', 'silver', 'gold',
+  'estate', 'duchy',  'province',
+];
+
+/** 저주 포함 전체 기본 카드 (공급 초기화 등 내부용) */
 export const BASIC_IDS = [
   'copper', 'silver', 'gold',
   'estate', 'duchy',  'province', 'curse',
+];
+
+/** 하위 호환 — 기존 고정 킹덤 10장 */
+export const KINGDOM_IDS = [
+  'cellar', 'merchant', 'village', 'workshop',
+  'militia', 'smithy', 'council_room', 'festival', 'laboratory', 'market',
 ];
 
 export const START_DECK = {
