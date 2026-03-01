@@ -16,7 +16,8 @@ import { Card }                                from './ui/Card.js';
 import { buildBackground, buildParticles,
          buildUI, updateUI, applyProfile }     from './ui/scene.js';
 import { updateCardPositions,
-         buildHandArrows }                     from './ui/layout.js';
+         buildHandArrows,
+         PILE_X, PILE_Y }                      from './ui/layout.js';
 import * as CardDetail                         from './ui/CardDetail.js';
 import { Market }                              from './ui/Market.js';
 import { ProfileScreen }                       from './ui/screens/ProfileScreen.js';
@@ -89,9 +90,59 @@ function _sync() {
   _market?.refresh(gs.supply);
 }
 
+// ── 재셔플 애니메이션 ──────────────────────────────────────
+let _reshuffling = false;
+
+/**
+ * 버림더미 카드들을 뒷면으로 뒤집고 덱 위치로 이동시키는 모션
+ * @param {function} onDone 애니메이션 완료 후 콜백
+ */
+function _reshuffleAnim(onDone) {
+  // 버림더미 카드 모두 뒷면으로 즉시 전환
+  for (const card of gs.discard) {
+    card.isFaceUp          = false;
+    card.frontFace.visible = false;
+    card.backFace.visible  = true;
+  }
+  // 카드마다 살짝 지연하며 덱 위치로 이동 (스태거 효과)
+  gs.discard.forEach((card, i) => {
+    setTimeout(() => {
+      const jitter = (Math.random() - 0.5) * 0.14;
+      card.moveTo(PILE_X[0], PILE_Y, jitter, card.container.scale.y);
+    }, i * 18);
+  });
+  // lerp 수렴 대기 후 콜백
+  setTimeout(onDone, 380);
+}
+
 function _drawCardVisual() {
+  if (_reshuffling) {
+    // 재셔플 진행 중: 잠시 후 재시도
+    setTimeout(_drawCardVisual, 80);
+    return;
+  }
+
+  if (gs.deck.length === 0 && gs.discard.length > 0) {
+    // 덱 소진 → 재셔플 모션 후 드로우
+    _reshuffling = true;
+    _reshuffleAnim(() => {
+      _reshuffling = false;
+      _doSingleDraw();
+    });
+  } else {
+    _doSingleDraw();
+  }
+}
+
+function _doSingleDraw() {
   const card = drawCard(gs);
   if (!card) return;
+  // 버림→덱 재활용 카드: 앞면 상태일 경우 뒷면 강제 리셋
+  if (card.isFaceUp) {
+    card.isFaceUp          = false;
+    card.frontFace.visible = false;
+    card.backFace.visible  = true;
+  }
   _sync();
   setTimeout(() => card.flip(), 180);
 }
@@ -105,6 +156,16 @@ function _onPlayCard(card) {
   if (!result.ok) return;
   gs.phase = gs.actions > 0 ? 'action' : 'buy';
   _sync();
+
+  // 액션 효과로 드로우된 카드: 뒷면 상태로 핸드에 있으면 flip
+  gs.hand.forEach((c, i) => {
+    if (!c.isFaceUp) {
+      c.isFaceUp          = false;
+      c.frontFace.visible = false;
+      c.backFace.visible  = true;
+      setTimeout(() => c.flip(), 150 + i * 70);
+    }
+  });
 }
 
 function _onBuyCard(def) {

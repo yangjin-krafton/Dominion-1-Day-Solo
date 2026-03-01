@@ -20,9 +20,9 @@ const COL_W    = Math.floor((W - COL_M * 2 - COL_G * 4) / 5);  // 74px
 const colX     = i => COL_M + i * (COL_W + COL_G);
 const CARD_OFF = Math.floor((COL_W - PW) / 2);   // 5px (카드 중앙 정렬)
 
-// 4개 더미 카드의 x 위치 (컬럼 0~3 내 중앙)
-const PILE_X  = [0, 1, 2, 3].map(i => colX(i) + CARD_OFF);  // 9, 86, 163, 240
-const PILE_Y  = ZONE.PILES_Y + 14;   // scene.js CARD_Y_OFF와 동일
+// 4개 더미 카드의 x 위치 (컬럼 0~3 내 중앙) — main.js에서도 import 가능
+export const PILE_X  = [0, 1, 2, 3].map(i => colX(i) + CARD_OFF);  // 9, 86, 163, 240
+export const PILE_Y  = ZONE.PILES_Y + 14;   // scene.js CARD_Y_OFF와 동일
 
 // ── 핸드 상수 ────────────────────────────────────────────────
 const HAND_START_Y  = ZONE.HAND_Y;
@@ -110,6 +110,12 @@ export function updateCardPositions(gs) {
   // ① 덱 (면 아래) — PILE 0
   deck.forEach((card, i) => {
     card.area = AREAS.DECK;
+    // 버림→덱 재활용 카드가 앞면 상태일 수 있으므로 강제 뒷면 보장
+    if (card.isFaceUp) {
+      card.isFaceUp          = false;
+      card.frontFace.visible = false;
+      card.backFace.visible  = true;
+    }
     const off = Math.min(i * 0.4, 5);
     card.moveTo(PILE_X[0] + off, PILE_Y + off, 0, PILE_SCALE);
     card.container.zIndex = i;

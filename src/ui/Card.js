@@ -96,11 +96,15 @@ export class Card {
   /**
    * 카드 뒤집기 애니메이션
    * scaleX: 1 → 0 (중간에 face 교체) → 1
+   *
+   * this.flipped = true  → update()가 scale.x lerp 건드리지 않도록 차단
+   * faceToggled (local)  → 면 교체를 정확히 1회만 수행
    */
   flip(duration = 0.3) {
     const startTime  = Date.now();
     const initScaleX = this.container.scale.x;
-    this.flipped     = false;
+    this.flipped     = true;    // ← 시작부터 차단 (기존: false → 충돌 버그)
+    let faceToggled  = false;
 
     const animate = () => {
       const t = Math.min((Date.now() - startTime) / 1000 / duration, 1);
@@ -108,11 +112,11 @@ export class Card {
       if (t < 0.5) {
         this.container.scale.x = initScaleX * (1 - t * 2);
       } else {
-        if (!this.flipped) {
+        if (!faceToggled) {
           this.isFaceUp          = !this.isFaceUp;
           this.frontFace.visible = this.isFaceUp;
           this.backFace.visible  = !this.isFaceUp;
-          this.flipped           = true;
+          faceToggled            = true;
         }
         this.container.scale.x = initScaleX * ((t - 0.5) * 2);
       }
@@ -121,7 +125,7 @@ export class Card {
         requestAnimationFrame(animate);
       } else {
         this.container.scale.x = initScaleX;
-        this.flipped            = false;
+        this.flipped            = false;  // ← 애니메이션 종료 후 해제
       }
     };
 
