@@ -11,13 +11,18 @@ import {
   C,
 } from '../config.js';
 
-// ── 더미(Pile) 크기 ─────────────────────────────────────────
-const PW = Math.round(CW * PILE_SCALE);   // 36px
+// ── 더미(Pile) 크기 & 5등분 컬럼 레이아웃 ───────────────────
+// scene.js buildPileArea와 동일한 상수 (COL_M=4, COL_G=3)
+const PW       = Math.round(CW * PILE_SCALE);    // 63px
+const COL_M    = 4;
+const COL_G    = 3;
+const COL_W    = Math.floor((W - COL_M * 2 - COL_G * 4) / 5);  // 74px
+const colX     = i => COL_M + i * (COL_W + COL_G);
+const CARD_OFF = Math.floor((COL_W - PW) / 2);   // 5px (카드 중앙 정렬)
 
-// 4개 더미를 화면 너비에 균등 배치
-const PILE_GAP = Math.round((W - 4 * PW) / 5);   // ~49px
-const PILE_X   = [0, 1, 2, 3].map(i => PILE_GAP + i * (PW + PILE_GAP));
-const PILE_Y   = ZONE.PILES_Y + 16;   // 섹션 라벨 아래
+// 4개 더미 카드의 x 위치 (컬럼 0~3 내 중앙)
+const PILE_X  = [0, 1, 2, 3].map(i => colX(i) + CARD_OFF);  // 9, 86, 163, 240
+const PILE_Y  = ZONE.PILES_Y + 14;   // scene.js CARD_Y_OFF와 동일
 
 // ── 핸드 상수 ────────────────────────────────────────────────
 const HAND_START_Y  = ZONE.HAND_Y;
@@ -99,7 +104,7 @@ export function updateCardPositions(gs) {
   const { deck, hand, play, discard, trash = [] } = gs;
 
   // ══════════════════════════════════════════════════════════
-  // 더미 영역 (4 파일)
+  // 더미 영역 (3개 표시: 덱·버림·낸카드 / 추방은 화면 밖)
   // ══════════════════════════════════════════════════════════
 
   // ① 덱 (면 아래) — PILE 0
@@ -127,7 +132,7 @@ export function updateCardPositions(gs) {
     card.container.zIndex = 40 + i;
   });
 
-  // ④ 추방더미 — PILE 3
+  // ④ 패기더미 — PILE 3
   trash.forEach((card, i) => {
     card.area = AREAS.TRASH;
     const off = Math.min(i * 0.4, 5);

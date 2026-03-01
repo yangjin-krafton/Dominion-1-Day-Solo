@@ -12,9 +12,9 @@ import { buildFrontFace } from './CardArt.js';
 import * as CardDetail    from './CardDetail.js';
 
 // ── 마켓 카드 크기 ──────────────────────────────────────────
-const MW    = Math.round(CARD_W * MARKET_SCALE);   // 63px
-const MH    = Math.round(CARD_H * MARKET_SCALE);   // 95px
-const GAP   = 5;
+const MW    = Math.round(CARD_W * MARKET_SCALE);   // 90px
+const MH    = Math.round(CARD_H * MARKET_SCALE);   // 135px
+const GAP   = 6;   // MARGIN과 동일 (좌우 6px + 열간 6px)
 const COLS  = 4;
 const ROWS  = 3;
 const MAX_SLOTS = COLS * ROWS;   // 12슬롯
@@ -26,8 +26,9 @@ const START_X = Math.round((W - GRID_W) / 2);      // 61px
 // 카드 상단 y (섹션 라벨 14px + 4px 여백)
 const CARD_Y0 = ZONE.MARKET_Y + 18;
 
-// 섹션 배경 높이
-const SECTION_H = ZONE.STAT_Y - ZONE.MARKET_Y;
+// 그리드 실제 하단 y (섹션 bg·경계선에 사용)
+const MARKET_SECTION_END = CARD_Y0 + ROWS * MH + (ROWS - 1) * GAP + 8;  // ~383
+const SECTION_H = MARKET_SECTION_END - ZONE.MARKET_Y;
 
 // ============================================================
 export class Market {
@@ -57,8 +58,8 @@ export class Market {
 
     // 위·아래 경계선
     g.lineStyle(1, C.goldDim, 0.4);
-    g.moveTo(0, ZONE.MARKET_Y); g.lineTo(W, ZONE.MARKET_Y);
-    g.moveTo(0, ZONE.STAT_Y);   g.lineTo(W, ZONE.STAT_Y);
+    g.moveTo(0, ZONE.MARKET_Y);       g.lineTo(W, ZONE.MARKET_Y);
+    g.moveTo(0, MARKET_SECTION_END);  g.lineTo(W, MARKET_SECTION_END);
 
     this.container.addChild(g);
 

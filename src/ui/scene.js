@@ -144,51 +144,75 @@ function makeStatChip(icon, value, accentColor) {
   return { container: chip, valueTxt };
 }
 
-// ─── 더미 영역 레이블 패널 ───────────────────────────────────
+// ─── 더미 영역 + 턴 종료 버튼 통합 패널 (5등분) ─────────────
 /**
- * 4개 더미(덱·버림·낸카드·추방) 레이블을 UI 레이어에 그림
- * layout.js의 pile 위치와 일치해야 함
+ * 5등분 컬럼: [덱] [버림] [낸카드] [패기더미] [턴종료버튼]
+ * layout.js의 PILE 위치 계산과 동일한 상수 사용 (COL_M=4, COL_G=3)
  */
-function buildPileLabels(layer) {
-  // pile 위치는 layout.js와 동일하게 계산
-  const PW      = Math.round(CARD_W * PILE_SCALE);
-  const PH      = Math.round(CARD_H * PILE_SCALE);
-  const TOTAL_W = 4 * PW;
-  const GAP     = Math.round((W - TOTAL_W) / 5);
+function buildPileArea(layer, gs) {
+  const PW = Math.round(CARD_W * PILE_SCALE);   // 63px
+  const PH = Math.round(CARD_H * PILE_SCALE);   // 95px
 
-  const pileNames  = ['덱', '버림더미', '낸카드', '추방더미'];
-  const pileColors = [C.dimCream, C.dimCream, C.dimCream, 0x886644];
+  // 5등분 컬럼 레이아웃 (4더미 + 1버튼)
+  const COL_M = 4;   // 좌우 여백
+  const COL_G = 3;   // 컬럼 사이 간격
+  const COL_W = Math.floor((W - COL_M * 2 - COL_G * 4) / 5);  // 74px
+  const colX  = i => COL_M + i * (COL_W + COL_G);
+  const CARD_Y_OFF = 14;
+  const py    = ZONE.PILES_Y + CARD_Y_OFF;
 
-  // 섹션 제목
-  const sectionLbl = makeText('— 더미 영역 —', 8, C.dimCream, { fontStyle: 'italic' });
-  sectionLbl.anchor.set(0.5, 0);
-  sectionLbl.x = W / 2;
-  sectionLbl.y = ZONE.PILES_Y + 2;
-  layer.addChild(sectionLbl);
+  // 섹션 배경
+  const bg = new PIXI.Graphics();
+  bg.beginFill(0x06040f, 0.45);
+  bg.drawRect(0, ZONE.PILES_Y, W, ZONE.PILES_H);
+  bg.endFill();
+  bg.lineStyle(0.8, C.goldDim, 0.3);
+  bg.moveTo(0, ZONE.PILES_Y); bg.lineTo(W, ZONE.PILES_Y);
+  layer.addChild(bg);
 
-  // 구분선
-  const g = new PIXI.Graphics();
-  g.lineStyle(0.8, C.goldDim, 0.25);
-  g.moveTo(0, ZONE.PILES_Y); g.lineTo(W, ZONE.PILES_Y);
-  g.moveTo(0, ZONE.PILES_Y + ZONE.PILES_H); g.lineTo(W, ZONE.PILES_Y + ZONE.PILES_H);
-  layer.addChild(g);
+  // 4개 더미 (컬럼 0–3): 외곽선 + 이름 레이블
+  ['덱', '버림', '낸카드', '패기'].forEach((name, i) => {
+    const cx = colX(i);
+    const px = cx + Math.floor((COL_W - PW) / 2);
 
-  pileNames.forEach((name, i) => {
-    const cx = GAP + i * (PW + GAP) + PW / 2;
-
-    // 빈 더미 자리 외곽선
     const outline = new PIXI.Graphics();
-    outline.lineStyle(1, C.goldDim, 0.22);
-    outline.drawRect(GAP + i * (PW + GAP), ZONE.PILES_Y + 16, PW, PH);
+    outline.lineStyle(1, C.goldDim, 0.28);
+    outline.drawRect(px, py, PW, PH);
     layer.addChild(outline);
 
-    // 이름 레이블 (더미 아래)
-    const lbl = makeText(name, 7, pileColors[i], { fontStyle: 'italic' });
+    const lbl = makeText(name, 7, C.dimCream, { fontStyle: 'italic' });
     lbl.anchor.set(0.5, 0);
-    lbl.x = cx;
-    lbl.y = ZONE.PILES_Y + 16 + PH + 3;
+    lbl.x = cx + COL_W / 2;
+    lbl.y = py + PH + 3;
     layer.addChild(lbl);
   });
+
+  // 턴 종료 버튼 (컬럼 4)
+  const BTN_X = colX(4) + 2;
+  const BTN_W = COL_W - 4;    // 70px
+  const BTN_H = PH;            // 카드와 동일 높이
+  const BTN_Y = py;
+
+  const btn   = new PIXI.Container();
+  const btnBg = new PIXI.Graphics();
+  btnBg.beginFill(0x1a1030); btnBg.drawRect(0, 0, BTN_W, BTN_H); btnBg.endFill();
+  btnBg.lineStyle(1.5, C.gold, 0.8); btnBg.drawRect(0, 0, BTN_W, BTN_H);
+  [[0, 0], [BTN_W, 0], [0, BTN_H], [BTN_W, BTN_H]].forEach(([bx, by]) => {
+    btnBg.lineStyle(0); btnBg.beginFill(C.goldDim, 0.8);
+    btnBg.drawRect(bx - 2, by - 2, 4, 4); btnBg.endFill();
+  });
+  btn.addChild(btnBg);
+
+  const btnTxt = makeText('턴\n종료', 12, C.gold, { fontWeight: 'bold', align: 'center' });
+  btnTxt.anchor.set(0.5); btnTxt.x = BTN_W / 2; btnTxt.y = BTN_H / 2;
+  btn.addChild(btnTxt);
+
+  btn.x = BTN_X; btn.y = BTN_Y;
+  btn.eventMode = 'static'; btn.cursor = 'pointer';
+  btn.on('pointerdown',      () => btn.scale.set(0.96));
+  btn.on('pointerup',        () => { btn.scale.set(1); gs.onEndTurn?.(); });
+  btn.on('pointerupoutside', () => btn.scale.set(1));
+  layer.addChild(btn);
 }
 
 // ─── 참조 map (updateUI에서 사용) ───────────────────────────
@@ -228,29 +252,31 @@ export function buildUI(layer, gs, profile = null) {
   refs.avatarTxt.x = 26; refs.avatarTxt.y = 30;
   layer.addChild(refs.avatarTxt);
 
-  // 플레이어 이름 / 클래스
+  // 플레이어 이름 (상단)
   refs.nameTxt = makeText('', 10, C.cream, { fontWeight: 'bold' });
-  refs.nameTxt.x = 50; refs.nameTxt.y = 17;
+  refs.nameTxt.x = 50; refs.nameTxt.y = 15;
   layer.addChild(refs.nameTxt);
 
+  // 클래스 (하단)
   refs.classTxt = makeText('', 8, C.dimCream, { fontStyle: 'italic' });
-  refs.classTxt.x = 50; refs.classTxt.y = 33;
+  refs.classTxt.x = 50; refs.classTxt.y = 30;
   layer.addChild(refs.classTxt);
 
-  // 목표 승점 배지 (중앙)
-  const vpBadgeG = new PIXI.Graphics();
-  vpBadgeG.beginFill(C.dark, 0.9);
-  vpBadgeG.lineStyle(1, C.gold, 0.6);
-  vpBadgeG.drawRoundedRect(W / 2 - 36, 14, 72, 32, 7);
-  vpBadgeG.endFill();
-  layer.addChild(vpBadgeG);
+  // VP 배지 (프로필 우측 · 카메라 영역 밖 좌단 고정)
+  const vpBg = new PIXI.Graphics();
+  vpBg.beginFill(C.dark, 0.88);
+  vpBg.lineStyle(1, C.gold, 0.55);
+  vpBg.drawRoundedRect(0, 0, 52, 28, 6);
+  vpBg.endFill();
+  vpBg.x = 120; vpBg.y = 16;
+  layer.addChild(vpBg);
 
-  const vpLbl = makeText('목표 VP', 7, C.dimCream, { fontStyle: 'italic' });
-  vpLbl.anchor.set(0.5, 0); vpLbl.x = W / 2; vpLbl.y = 16;
+  const vpLbl = makeText('VP', 7, C.dimCream, { fontStyle: 'italic' });
+  vpLbl.anchor.set(0, 0.5); vpLbl.x = 125; vpLbl.y = 30;
   layer.addChild(vpLbl);
 
-  refs.vpTxt = makeText('0 VP', 11, C.goldHi, { fontWeight: 'bold' });
-  refs.vpTxt.anchor.set(0.5, 0); refs.vpTxt.x = W / 2; refs.vpTxt.y = 28;
+  refs.vpTxt = makeText('0', 13, C.goldHi, { fontWeight: 'bold' });
+  refs.vpTxt.anchor.set(0, 0.5); refs.vpTxt.x = 143; refs.vpTxt.y = 30;
   layer.addChild(refs.vpTxt);
 
   // 우측 아이콘 버튼: 음량 · 도감 · 랭킹
@@ -299,63 +325,9 @@ export function buildUI(layer, gs, profile = null) {
   layer.addChild(refs.effectTxt);
 
   // ══════════════════════════════════════════════════════════
-  // ③ 더미 영역 레이블
+  // ③ 더미 영역 + 턴 종료 버튼 (통합)
   // ══════════════════════════════════════════════════════════
-  buildPileLabels(layer);
-
-  // ══════════════════════════════════════════════════════════
-  // ④ 턴 종료 버튼
-  // ══════════════════════════════════════════════════════════
-  const btnW = W - 32;
-  const btn  = new PIXI.Container();
-
-  const btnBg = new PIXI.Graphics();
-  btnBg.beginFill(0x1a1030); btnBg.drawRect(0, 0, btnW, 38); btnBg.endFill();
-  btnBg.lineStyle(1.5, C.gold, 0.8); btnBg.drawRect(0, 0, btnW, 38);
-  [[0, 0], [btnW, 0], [0, 38], [btnW, 38]].forEach(([bx, by]) => {
-    btnBg.lineStyle(0);
-    btnBg.beginFill(C.goldDim, 0.8);
-    btnBg.drawRect(bx - 2, by - 2, 4, 4);
-    btnBg.endFill();
-  });
-  btn.addChild(btnBg);
-
-  const btnTxt = makeText('턴  종료', 14, C.gold, { fontWeight: 'bold' });
-  btnTxt.anchor.set(0.5); btnTxt.x = btnW / 2; btnTxt.y = 19;
-  btn.addChild(btnTxt);
-
-  btn.x = 16; btn.y = ZONE.BTN_Y;
-  btn.eventMode = 'static'; btn.cursor = 'pointer';
-  btn.on('pointerdown',      () => btn.scale.set(0.96));
-  btn.on('pointerup',        () => { btn.scale.set(1); gs.onEndTurn?.(); });
-  btn.on('pointerupoutside', () => btn.scale.set(1));
-  layer.addChild(btn);
-
-  // ══════════════════════════════════════════════════════════
-  // ⑤ 페이즈 라벨
-  // ══════════════════════════════════════════════════════════
-  refs.phaseTxt = makeText('', 9, C.dimCream, { fontStyle: 'italic' });
-  refs.phaseTxt.anchor.set(0.5, 0);
-  refs.phaseTxt.x = W / 2; refs.phaseTxt.y = ZONE.PHASE_Y + 2;
-  layer.addChild(refs.phaseTxt);
-
-  // ══════════════════════════════════════════════════════════
-  // ⑥ 하단 상태바
-  // ══════════════════════════════════════════════════════════
-  const botBg = new PIXI.Graphics();
-  botBg.beginFill(0x0a0814, 0.94);
-  botBg.drawRect(0, ZONE.BOTTOM_Y, W, H - ZONE.BOTTOM_Y);
-  botBg.endFill();
-  botBg.lineStyle(1, C.gold, 0.25);
-  botBg.moveTo(0, ZONE.BOTTOM_Y); botBg.lineTo(W, ZONE.BOTTOM_Y);
-  layer.addChild(botBg);
-  drawOrnamentLine(layer, ZONE.BOTTOM_Y, 0.14);
-
-  refs.statusTxt = makeText('', 9, C.dimCream);
-  refs.statusTxt.anchor.set(0.5, 0.5);
-  refs.statusTxt.x = W / 2;
-  refs.statusTxt.y = ZONE.BOTTOM_Y + (H - ZONE.BOTTOM_Y) / 2;
-  layer.addChild(refs.statusTxt);
+  buildPileArea(layer, gs);
 
   // 초기 프로필 + UI 반영
   if (profile) applyProfile(profile);
@@ -372,28 +344,11 @@ export function applyProfile(profile) {
 
 // ─── 게임 상태 변경 시 UI 텍스트 갱신 ───────────────────────
 export function updateUI(gs) {
-  // 승점
-  if (refs.vpTxt)    refs.vpTxt.text    = `${gs.vp ?? 0} VP`;
+  // 승점 (좌측 배지)
+  if (refs.vpTxt) refs.vpTxt.text = String(gs.vp ?? 0);
 
   // 스탯 칩
   if (refs.actionVal) refs.actionVal.text = String(gs.actions ?? 0);
   if (refs.buyVal)    refs.buyVal.text    = String(gs.buys    ?? 0);
   if (refs.coinVal)   refs.coinVal.text   = String(gs.coins   ?? 0);
-
-  // 페이즈
-  if (refs.phaseTxt) {
-    const p = gs.phase ?? 'action';
-    refs.phaseTxt.text = {
-      action:  '⚔ 액션 페이즈',
-      buy:     '⊕ 구매 페이즈',
-      cleanup: '↺ 클린업',
-    }[p] ?? '대기 중';
-  }
-
-  // 하단 상태바
-  if (refs.statusTxt) {
-    refs.statusTxt.text =
-      `덱 ${gs.deck?.length ?? 0}  버림 ${gs.discard?.length ?? 0}  ` +
-      `낸카드 ${gs.play?.length ?? 0}  Turn ${gs.turn ?? 1}`;
-  }
 }
