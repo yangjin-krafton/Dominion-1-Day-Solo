@@ -3,6 +3,7 @@
 // ============================================================
 import { C, ACCENT, CARD_W as CW, CARD_H as CH, AREAS } from './config.js';
 import { buildFrontFace, buildBackFace } from './CardArt.js';
+import * as CardDetail from './CardDetail.js';
 
 export class Card {
   /**
@@ -67,13 +68,39 @@ export class Card {
     this.container.eventMode = 'static';
     this.container.cursor    = 'pointer';
 
+    let _timer = null, _startX = 0, _startY = 0;
+    const _cancel = () => { clearTimeout(_timer); _timer = null; };
+
     this.container.on('pointerover', () => {
       if (this.isFaceUp) this.setHovered(true);
     });
-    this.container.on('pointerout', () => this.setHovered(false));
-    this.container.on('pointerdown', () => {
-      if (this.area === AREAS.HAND && this.isFaceUp && this.onPlay) this.onPlay(this);
+    this.container.on('pointerout', () => { this.setHovered(false); _cancel(); });
+
+    // 롱프레스 시작
+    this.container.on('pointerdown', (e) => {
+      _startX = e.global.x; _startY = e.global.y;
+      _timer = setTimeout(() => {
+        _timer = null;
+        this.setHovered(false);
+        CardDetail.show(this.def);       // 500ms 유지 → 상세 보기
+      }, 500);
     });
+
+    // 이동 시 롱프레스 취소 (8px 임계값)
+    this.container.on('pointermove', (e) => {
+      if (!_timer) return;
+      const dx = e.global.x - _startX, dy = e.global.y - _startY;
+      if (dx * dx + dy * dy > 64) _cancel();
+    });
+
+    // 짧은 클릭 → 카드 플레이
+    this.container.on('pointerup', () => {
+      if (_timer) {
+        _cancel();
+        if (this.area === AREAS.HAND && this.isFaceUp && this.onPlay) this.onPlay(this);
+      }
+    });
+    this.container.on('pointerupoutside', _cancel);
   }
 
   // ── 공개 API ──────────────────────────────────────────────

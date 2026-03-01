@@ -1,14 +1,18 @@
 // ============================================================
 // layout.js — 카드 영역별 위치 계산
 // ============================================================
-import { AREAS, SCREEN_W as W, SCREEN_H as H, CARD_W as CW, CARD_H as CH } from './config.js';
+import {
+  AREAS,
+  SCREEN_W as W, SCREEN_H as H,
+  CARD_W as CW, CARD_H as CH,
+  STACK_SCALE, GALLERY_SCALE,      // config에서 일괄 관리
+} from './config.js';
 
 // ── 고정 위치 상수 ──────────────────────────────────────────
-const DECK_X      = 34;
-const DECK_Y      = 82;
-const DISCARD_X   = W - 34 - Math.round(CW * 0.84);
-const DISCARD_Y   = 82;
-const STACK_SCALE = 0.84;
+const DECK_X    = 34;
+const DECK_Y    = 82;
+const DISCARD_X = W - 34 - Math.round(CW * STACK_SCALE);
+const DISCARD_Y = 82;
 
 const PLAY_Y      = Math.round(H * 0.47 - CH / 2);  // ~342
 const PLAY_SPACE  = CW + 8;
@@ -73,7 +77,7 @@ export function updateCardPositions(gs) {
 }
 
 // ─── 갤러리 레이아웃 ─────────────────────────────────────────
-const GALLERY_SCALE   = 0.77 * 1.5;        // 현재 크기의 150% = ~1.155
+// GALLERY_SCALE은 config.js에서 import — 여기서는 사용만 함
 const GALLERY_GAP_X   = 8;
 const GALLERY_GAP_Y   = 12;
 const GALLERY_MARGIN  = 10;

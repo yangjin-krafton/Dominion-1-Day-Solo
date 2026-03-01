@@ -4,8 +4,18 @@
 
 export const SCREEN_W = 390;
 export const SCREEN_H = 844;
-export const CARD_W   = 72;
-export const CARD_H   = 108;
+// ── 카드 기본 크기 ───────────────────────────────────────────
+export const CARD_W = 108;   // 기준 72 × 1.5
+export const CARD_H = 162;   // 기준 108 × 1.5
+
+// ── 표시 스케일 (모든 카드 크기를 여기서 일괄 관리) ──────────
+/** 덱 · 버림더미 파일 표시 배율 */
+export const STACK_SCALE  = 0.84;
+/** 갤러리 그리드 표시 배율 */
+export const GALLERY_SCALE = 0.77;
+/** 상세 보기 카드 물리 너비(px) — 높이는 비율 자동 계산 */
+export const DETAIL_W = 281;
+export const DETAIL_H = Math.round(CARD_H * DETAIL_W / CARD_W); // ~421px
 
 // Art-Nouveau 팔레트
 export const C = {

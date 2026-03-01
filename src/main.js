@@ -6,6 +6,7 @@ import { Card }                                from './Card.js';
 import { buildBackground, buildParticles, buildUI, updateUI } from './scene.js';
 import { updateCardPositions, layoutGallery }  from './layout.js';
 import { loadCards, resolveCards }             from './data/cards.js';
+import * as CardDetail                         from './CardDetail.js';
 
 // ─── PixiJS 앱 초기화 ────────────────────────────────────────
 const app = new PIXI.Application({
@@ -156,6 +157,7 @@ app.ticker.add(() => {
 // ─── 부트 (씬 빌드 → CSV 로드 → 게임 시작) ──────────────────
 buildBackground(lBg);
 buildUI(lUI, gs);
+CardDetail.init(lUI);
 
 (async () => {
   try {
