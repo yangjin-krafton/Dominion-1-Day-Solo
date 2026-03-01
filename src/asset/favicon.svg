@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2d3436" />
+      <stop offset="100%" stop-color="#1e272e" />
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f1c40f" />
+      <stop offset="100%" stop-color="#f39c12" />
+    </linearGradient>
+  </defs>
+  
+  <rect width="100" height="100" rx="20" fill="url(#bg)" />
+  
+  <!-- Crown Base -->
+  <path d="M22,75 L22,40 L38,55 L50,30 L62,55 L78,40 L78,75 Z" fill="url(#gold)" stroke="#d35400" stroke-width="2" stroke-linejoin="round"/>
+  
+  <!-- Jewels -->
+  <circle cx="22" cy="40" r="4.5" fill="#e74c3c" />
+  <circle cx="50" cy="30" r="5" fill="#e74c3c" />
+  <circle cx="78" cy="40" r="4.5" fill="#e74c3c" />
+  
+  <!-- Bottom Details -->
+  <rect x="25" y="65" width="50" height="5" rx="2.5" fill="#e67e22" />
+  <circle cx="35" cy="67.5" r="1.5" fill="#f1c40f" />
+  <circle cx="50" cy="67.5" r="1.5" fill="#f1c40f" />
+  <circle cx="65" cy="67.5" r="1.5" fill="#f1c40f" />
+</svg>
