@@ -28,6 +28,8 @@ export class Card {
     this.glowTime         = 0;
     this.hovered          = false;
     this.flipped          = false;   // flip 애니메이션 진행 중 플래그
+    this._stackBadge      = null;    // 중첩 수량 배지 (lazy 생성)
+    this._stackBadgeText  = null;
 
     this.container = new PIXI.Container();
     this._build();
@@ -207,5 +209,44 @@ export class Card {
 
     // 글로우 테두리
     this._updateGlow(dt);
+  }
+
+  // ── 중첩 배지 ─────────────────────────────────────────────
+
+  /**
+   * 같은 카드 중첩 수량 배지 표시/갱신
+   * n = 0 or 1 → 배지 숨김 / n ≥ 2 → "×N" 배지 표시
+   */
+  setStackCount(n) {
+    if (n > 1) {
+      if (!this._stackBadge) this._createStackBadge();
+      this._stackBadgeText.text = `×${n}`;
+      this._stackBadge.visible  = true;
+    } else if (this._stackBadge) {
+      this._stackBadge.visible = false;
+    }
+  }
+
+  /** 수량 배지 초기 생성 (lazy) */
+  _createStackBadge() {
+    const BR = 11;   // 배지 반지름 (고정 크기)
+    const bg = new PIXI.Graphics();
+    bg.lineStyle(1.5, C.dark, 1);
+    bg.beginFill(C.gold); bg.drawCircle(0, 0, BR); bg.endFill();
+    // 안쪽 링
+    bg.lineStyle(0.8, C.dark, 0.4); bg.drawCircle(0, 0, BR - 3);
+
+    this._stackBadgeText = new PIXI.Text('×1', {
+      fontFamily: 'Georgia, serif', fontSize: 9,
+      fontWeight: 'bold', fill: C.dark,
+    });
+    this._stackBadgeText.anchor.set(0.5);
+
+    this._stackBadge = new PIXI.Container();
+    this._stackBadge.addChild(bg, this._stackBadgeText);
+    // 카드 오른쪽 상단 (약간 외부로 돌출)
+    this._stackBadge.x = CW - 4;
+    this._stackBadge.y = 4;
+    this.container.addChild(this._stackBadge);
   }
 }

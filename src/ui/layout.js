@@ -20,6 +20,28 @@ const PLAY_SPACE  = CW + 8;
 const HAND_Y      = H - 52 - 8 - CH;                // ~676
 const HAND_BOW    = 3;     // 부채꼴 호 굴곡 (px/step)
 const HAND_ANGLE  = 0.04;  // 부채꼴 기울기 (rad/step)
+const STACK_OFF   = 5;     // 같은 카드 중첩 시 카드당 오프셋 (px)
+
+// ─── 유틸: def.id 기준 그룹화 ────────────────────────────────
+/**
+ * 카드 배열을 def.id 기준으로 그룹화 (첫 등장 순서 유지)
+ * @param {Card[]} cards
+ * @returns {Card[][]}
+ */
+function _groupByDefId(cards) {
+  const groups = [];
+  const idx    = new Map();   // id → groups 배열 인덱스
+  for (const card of cards) {
+    const id = card.def.id;
+    if (idx.has(id)) {
+      groups[idx.get(id)].push(card);
+    } else {
+      idx.set(id, groups.length);
+      groups.push([card]);
+    }
+  }
+  return groups;
+}
 
 /**
  * 전체 카드 위치 업데이트 (매 드로우·플레이·종료 후 호출)
@@ -45,32 +67,54 @@ export function updateCardPositions(gs) {
     card.container.zIndex = 20 + i;
   });
 
-  // ── 플레이 영역 (화면 중앙) ──────────────────────────────
-  const playTotalW  = play.length * PLAY_SPACE - 8;
+  // ── 플레이 영역 (같은 카드 중첩) ─────────────────────────
+  const playGroups  = _groupByDefId(play);
+  const playTotalW  = playGroups.length * PLAY_SPACE - 8;
   const playStartX  = (W - playTotalW) / 2;
-  play.forEach((card, i) => {
-    card.area = AREAS.PLAY;
-    card.moveTo(playStartX + i * PLAY_SPACE, PLAY_Y, 0, 1);
-    card.container.zIndex = 50 + i;
+
+  playGroups.forEach((group, gIdx) => {
+    const n    = group.length;
+    const baseX = playStartX + gIdx * PLAY_SPACE;
+    group.forEach((card, cIdx) => {
+      const isTop = cIdx === n - 1;
+      const off   = (n - 1 - cIdx) * STACK_OFF;   // 하단 카드일수록 오른쪽+아래
+      card.area = AREAS.PLAY;
+      card.moveTo(baseX + off, PLAY_Y + off, 0, 1);
+      card.container.zIndex    = 50 + gIdx * 20 + cIdx;
+      card.container.eventMode = isTop ? 'static' : 'none';
+      card.setStackCount(isTop ? n : 0);
+      if (!isTop) card.setHovered(false);
+    });
   });
 
-  // ── 손패 (하단 부채꼴) ───────────────────────────────────
-  const spacing    = Math.min(CW + 8, (W - 40) / Math.max(1, hand.length));
-  const totalHandW = spacing * (hand.length - 1);
+  // ── 손패 (같은 카드 중첩 부채꼴) ─────────────────────────
+  const handGroups = _groupByDefId(hand);
+  const spacing    = Math.min(CW + 8, (W - 40) / Math.max(1, handGroups.length));
+  const totalHandW = spacing * (handGroups.length - 1);
   const handStartX = (W - totalHandW) / 2 - CW / 2;
-  const mid        = (hand.length - 1) / 2;
+  const mid        = (handGroups.length - 1) / 2;
 
-  hand.forEach((card, i) => {
-    card.area = AREAS.HAND;
-    const angle = (i - mid) * HAND_ANGLE;
-    const bow   = Math.abs(i - mid) * HAND_BOW;
-    card.moveTo(
-      handStartX + i * spacing,
-      HAND_Y + bow,
-      angle,
-      card.hovered ? 1.15 : 1,
-    );
-    card.container.zIndex = 100 + i;
+  handGroups.forEach((group, gIdx) => {
+    const n     = group.length;
+    const angle = (gIdx - mid) * HAND_ANGLE;
+    const bow   = Math.abs(gIdx - mid) * HAND_BOW;
+    const baseX = handStartX + gIdx * spacing;
+    const baseY = HAND_Y + bow;
+
+    group.forEach((card, cIdx) => {
+      const isTop = cIdx === n - 1;
+      const off   = (n - 1 - cIdx) * STACK_OFF;
+      card.area = AREAS.HAND;
+      card.moveTo(
+        baseX + off, baseY + off, angle,
+        isTop && card.hovered ? 1.15 : 1,
+      );
+      card.container.zIndex    = 100 + gIdx * 20 + cIdx;
+      card.container.eventMode = isTop ? 'static' : 'none';
+      card.container.cursor    = isTop ? 'pointer' : 'default';
+      card.setStackCount(isTop ? n : 0);
+      if (!isTop) card.setHovered(false);
+    });
   });
 
   gs.cardsContainer?.sortChildren();
