@@ -1,0 +1,155 @@
+/* ============================================================
+   screens.css — Art-Nouveau HTML 오버레이 화면 공통 스타일
+   ProfileScreen / HomeScreen / ResultScreen
+   ============================================================ */
+
+/* ── 오버레이 배경 ──────────────────────────────────────────── */
+.ds-screen {
+  position: fixed;
+  inset: 0;
+  background: rgba(7, 5, 15, 0.96);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  font-family: 'Georgia', serif;
+  animation: ds-fadein 0.25s ease-out;
+}
+
+@keyframes ds-fadein {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1);    }
+}
+
+/* ── 카드 패널 ──────────────────────────────────────────────── */
+.ds-card {
+  background: #110d20;
+  border: 1.5px solid #d4a520;
+  width: min(370px, 92vw);
+  padding: 32px 28px 28px;
+  text-align: center;
+  box-shadow: 0 0 40px rgba(212, 165, 32, 0.12);
+}
+
+/* ── 타이포그래피 ───────────────────────────────────────────── */
+.ds-title {
+  color: #d4a520;
+  font-size: 26px;
+  font-style: italic;
+  font-weight: bold;
+  margin-bottom: 4px;
+  letter-spacing: 1px;
+}
+
+.ds-subtitle {
+  color: #aa9966;
+  font-size: 12px;
+  margin-bottom: 18px;
+}
+
+.ds-label {
+  color: #7a5c0a;
+  font-size: 11px;
+  margin-bottom: 8px;
+  font-style: italic;
+}
+
+.ds-divider {
+  color: #7a5c0a;
+  font-size: 11px;
+  margin: 14px 0;
+  letter-spacing: 4px;
+}
+
+/* ── 입력 ───────────────────────────────────────────────────── */
+.ds-input {
+  width: 100%;
+  background: #07050f;
+  border: 1px solid #7a5c0a;
+  color: #fff3d6;
+  padding: 11px 14px;
+  font-family: 'Georgia', serif;
+  font-size: 15px;
+  margin-bottom: 20px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+.ds-input:focus { border-color: #d4a520; }
+.ds-input::placeholder { color: #554433; }
+
+/* ── 버튼 ───────────────────────────────────────────────────── */
+.ds-btn {
+  background: #1a1030;
+  border: 1.5px solid #d4a520;
+  color: #d4a520;
+  padding: 12px 28px;
+  font-family: 'Georgia', serif;
+  font-size: 15px;
+  font-style: italic;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.18s;
+}
+.ds-btn:hover { background: #281a48; }
+
+.ds-btn-s {
+  background: transparent;
+  border: 1px solid #554433;
+  color: #aa9966;
+  padding: 10px 16px;
+  font-family: 'Georgia', serif;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.18s;
+}
+.ds-btn-s:hover { border-color: #d4a520; color: #d4a520; }
+
+.ds-btn-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+.ds-btn-row .ds-btn   { flex: 2; }
+.ds-btn-row .ds-btn-s { flex: 1; }
+
+/* ── 홈화면 통계 ────────────────────────────────────────────── */
+.ds-greeting {
+  color: #fff3d6;
+  font-size: 15px;
+  margin-bottom: 18px;
+}
+.ds-greeting strong { color: #d4a520; }
+
+.ds-stats {
+  display: flex;
+  justify-content: space-around;
+  margin: 18px 0;
+  padding: 14px 0;
+  border-top: 1px solid #1a1030;
+  border-bottom: 1px solid #1a1030;
+}
+.ds-stat         { text-align: center; }
+.ds-stat-v       { display: block; font-size: 22px; color: #d4a520; font-weight: bold; }
+.ds-stat-l       { font-size: 10px; color: #7a5c0a; margin-top: 2px; }
+
+.ds-kingdom      { margin: 14px 0; }
+.ds-kingdom-list { color: #9933cc; font-size: 11px; margin-top: 4px; line-height: 1.6; }
+
+/* ── 결과화면 ───────────────────────────────────────────────── */
+.ds-result-main { margin: 12px 0 6px; }
+.ds-big-vp      { display: block; font-size: 60px; color: #d4a520; font-weight: bold; line-height: 1; }
+.ds-big-label   { font-size: 13px; color: #aa9966; }
+.ds-meta        { color: #7a5c0a; font-size: 12px; margin-bottom: 16px; font-style: italic; }
+
+.ds-rank-table  { width: 100%; border-collapse: collapse; margin: 8px 0; }
+.ds-rank-table td {
+  padding: 6px 8px;
+  font-size: 12px;
+  color: #aa9966;
+  border-bottom: 1px solid #1a1030;
+  text-align: center;
+}
+.ds-rank-table td:first-child { color: #7a5c0a; }
+.ds-rank-me td  { color: #d4a520 !important; font-weight: bold; }
+.ds-rank-me td:first-child { color: #ffe066 !important; }

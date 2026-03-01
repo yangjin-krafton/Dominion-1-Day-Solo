@@ -124,3 +124,45 @@ export function endTurn(gs) {
   gs.buys    = 1;
   gs.coins   = 0;
 }
+
+// ─── 승리 조건 ────────────────────────────────────────────────
+
+/**
+ * 표준 Dominion 승리 조건 확인
+ *  1) Province 더미 소진
+ *  2) 3개 이상 공급 더미 소진
+ * @param {Map<string, {def, count}>} supply
+ * @returns {boolean}
+ */
+export function checkVictory(supply) {
+  if (!supply?.size) return false;
+  let emptyCount = 0;
+  for (const [id, { count }] of supply) {
+    if (count <= 0) {
+      if (id === 'province') return true;
+      emptyCount++;
+      if (emptyCount >= 3) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 표준 공급 수량 초기화 (솔로 1인 기준)
+ * @param {Map<string,object>} cardMap  - id → CardDef
+ * @param {string[]} basicIds
+ * @param {string[]} kingdomIds
+ * @returns {Map<string, {def, count}>}
+ */
+export function initSupply(cardMap, basicIds, kingdomIds) {
+  const COUNTS = {
+    copper: 46, silver: 40, gold: 30,
+    estate: 8,  duchy: 8,  province: 8, curse: 10,
+  };
+  const supply = new Map();
+  for (const id of [...basicIds, ...kingdomIds]) {
+    const def = cardMap.get(id);
+    if (def) supply.set(id, { def, count: COUNTS[id] ?? 10 });
+  }
+  return supply;
+}
