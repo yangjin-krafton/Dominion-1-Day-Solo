@@ -513,17 +513,22 @@ export function buildUI(layer, gs, profile = null) {
   const C_GAP = 6;
 
   // ── 승점 칩 (첫 번째, 녹색) ──────────────────────────────
+  // 레이아웃: [승점       8 /15]
+  //   - 현재 VP "8"  : 오른쪽에서 목표 너비만큼 띄워서
+  //   - 목표 "/15"   : 칩 우측 끝에 고정
   const vpChip = makeStatChip('승점', 0, 0x22bb55);
   vpChip.container.x = 6; vpChip.container.y = R1_Y;
   layer.addChild(vpChip.container);
   refs.vpVal  = vpChip.valueTxt;
   refs.vpAnim = vpChip.animate;
-  // 값 폰트 크기를 줄여 "8/15" 형식이 칩 안에 맞도록
-  refs.vpVal.style.fontSize = 11;
-  // 목표 승점 (/ 15) — 칩 레이블 우측, 고정 텍스트
-  refs.vpTargetTxt = makeText('/ ?', 7, 0x448844, {});
-  refs.vpTargetTxt.anchor.set(0, 0.5);
-  refs.vpTargetTxt.x = 36; refs.vpTargetTxt.y = CHIP_H / 2;
+  // 현재 VP: 우측 끝에서 목표 텍스트 폭(26px)만큼 안쪽에 배치
+  refs.vpVal.style.fontSize = 13;
+  refs.vpVal.x = CHIP_W - 28;  // 우측 끝(72) - 목표폭(26) - 여백(2) ≈ 44
+  refs.vpVal.y = CHIP_H / 2;
+  // 목표 "/15": 칩 최우측, 같은 행
+  refs.vpTargetTxt = makeText('/ ?', 9, C.goldHi, {});
+  refs.vpTargetTxt.anchor.set(1, 0.5);
+  refs.vpTargetTxt.x = CHIP_W - 5; refs.vpTargetTxt.y = CHIP_H / 2;
   vpChip.container.addChild(refs.vpTargetTxt);
 
   const actionChip = makeStatChip('행동', 1, 0x3399ff);
