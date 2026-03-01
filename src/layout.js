@@ -71,3 +71,43 @@ export function updateCardPositions(gs) {
 
   gs.cardsContainer?.sortChildren();
 }
+
+// ─── 갤러리 레이아웃 ─────────────────────────────────────────
+const GALLERY_SCALE   = 0.77 * 1.5;        // 현재 크기의 150% = ~1.155
+const GALLERY_GAP_X   = 8;
+const GALLERY_GAP_Y   = 12;
+const GALLERY_MARGIN  = 10;
+const GALLERY_START_Y = 62;
+
+// 화면 너비에서 최대 배치 가능 열 수 자동 계산
+const _gCW    = Math.round(CW * GALLERY_SCALE);
+const GALLERY_COLS = Math.floor(
+  (W - GALLERY_MARGIN * 2 + GALLERY_GAP_X) / (_gCW + GALLERY_GAP_X)
+); // 390px 기준 → 4열
+
+/**
+ * 카드 배열을 그리드로 배치 (비주얼 테스트용)
+ * @param {Card[]} cards
+ * @param {PIXI.Container} container
+ */
+export function layoutGallery(cards, container) {
+  const cw = _gCW;
+  const ch = Math.round(CH * GALLERY_SCALE);
+  const totalW = GALLERY_COLS * cw + (GALLERY_COLS - 1) * GALLERY_GAP_X;
+  const startX = Math.round((W - totalW) / 2);
+
+  cards.forEach((card, i) => {
+    const col = i % GALLERY_COLS;
+    const row = Math.floor(i / GALLERY_COLS);
+    const x   = startX + col * (cw + GALLERY_GAP_X);
+    const y   = GALLERY_START_Y + row * (ch + GALLERY_GAP_Y);
+
+    card.moveTo(x, y, 0, GALLERY_SCALE);
+    card.container.x = x;
+    card.container.y = y;
+    card.container.scale.set(GALLERY_SCALE);
+    card.container.zIndex = i;
+  });
+
+  container?.sortChildren();
+}

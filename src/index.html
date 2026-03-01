@@ -15,8 +15,13 @@
     #app {
       width: 100vw; height: 100vh;
       display: flex; justify-content: center; align-items: center;
+      overflow: hidden;
     }
-    canvas { display: block; }
+    /* canvas 크기는 JS에서 고정값으로 생성되며, CSS transform으로 뷰포트에 맞게 스케일 */
+    canvas {
+      display: block;
+      transform-origin: center center;
+    }
   </style>
 </head>
 <body>

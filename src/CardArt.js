@@ -3,6 +3,41 @@
 // ============================================================
 import { C, ACCENT, CARD_W as CW, CARD_H as CH } from './config.js';
 
+// ─── 그라디언트 유틸리티 ─────────────────────────────────────
+
+/** 두 색상 선형 보간 (t: 0→1) */
+function lerpColor(a, b, t) {
+  const ar = (a >> 16) & 0xff, ag = (a >> 8) & 0xff, ab = a & 0xff;
+  const br = (b >> 16) & 0xff, bg = (b >> 8) & 0xff, bb = b & 0xff;
+  return (Math.round(ar + (br - ar) * t) << 16)
+       | (Math.round(ag + (bg - ag) * t) << 8)
+       |  Math.round(ab + (bb - ab) * t);
+}
+
+/**
+ * 3색 그라디언트 바디 렌더링 (상단→중간→하단, 12밴드)
+ * CardDef의 gradTop / gradMid / gradBot 을 사용.
+ * 색상 추가·교체 시 이 함수만 수정.
+ *
+ * @param {PIXI.Graphics} g
+ * @param {object} def  - { gradTop, gradMid, gradBot }
+ */
+export function drawGradientBody(g, def) {
+  const top = def.gradTop ?? def.base;
+  const mid = def.gradMid ?? def.base;
+  const bot = def.gradBot ?? def.base;
+
+  for (let i = 0; i < 12; i++) {
+    const t   = i / 11;
+    const col = t <= 0.5
+      ? lerpColor(top, mid, t * 2)
+      : lerpColor(mid, bot, (t - 0.5) * 2);
+    g.beginFill(col);
+    g.drawRect(0, i * (CH / 12), CW, CH / 12 + 1);
+    g.endFill();
+  }
+}
+
 // ─── 수평 잎사귀 장식선 ──────────────────────────────────────
 export function drawOrnamentLine(parent, y, alpha = 0.35) {
   const g = new PIXI.Graphics();
@@ -55,18 +90,8 @@ export function buildFrontFace(def) {
   const g    = new PIXI.Graphics();
   const accent = ACCENT[def.type];
 
-  // 그라디언트 바디 (12 밴드)
-  const base = def.base;
-  const br = (base >> 16) & 0xff, bg = (base >> 8) & 0xff, bb = base & 0xff;
-  for (let i = 0; i < 12; i++) {
-    const f  = 1 + (i / 12) * 0.38;
-    const cr = Math.min(255, Math.round(br * f));
-    const cg = Math.min(255, Math.round(bg * f));
-    const cb = Math.min(255, Math.round(bb * f));
-    g.beginFill((cr << 16) | (cg << 8) | cb);
-    g.drawRect(0, i * (CH / 12), CW, CH / 12 + 1);
-    g.endFill();
-  }
+  // 그라디언트 바디 — CSV color_top/mid/bot 3색 보간
+  drawGradientBody(g, def);
 
   // 상단 타입 컬러 워시
   g.beginFill(accent, 0.1);
@@ -127,9 +152,10 @@ export function buildFrontFace(def) {
   descTxt.y = (28 + CH - 15) / 2 + 2;
   face.addChild(descTxt);
 
-  // 타입 레이블 (하단)
-  const typeTxt = new PIXI.Text(def.type.toUpperCase(), {
-    fontFamily: 'Georgia, serif', fontSize: 7, fontStyle: 'italic',
+  // 타입 레이블 (하단) — rawType 있으면 "ACTION · ATTACK" 형태로 표시
+  const typeLabel = (def.rawType ?? def.type).replace(/-/g, ' · ');
+  const typeTxt = new PIXI.Text(typeLabel.toUpperCase(), {
+    fontFamily: 'Georgia, serif', fontSize: 6, fontStyle: 'italic',
     fill: accent, alpha: 0.85,
   });
   typeTxt.anchor.set(0.5); typeTxt.x = CW / 2; typeTxt.y = CH - 8;

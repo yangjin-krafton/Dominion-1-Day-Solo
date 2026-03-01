@@ -1,0 +1,148 @@
+// ============================================================
+// data/cards.js — 카드 CSV 로더 · 파서 · 유틸리티
+//
+// ★ 카드 추가 방법
+//   1. 같은 세트: dominion_base_ko_cards.csv 에 행 추가
+//   2. 새 확장판: CSV 파일 추가 후 loadCards(['...base...', '...expansion...'])
+// ============================================================
+import { C } from '../config.js';
+
+// ── 타입 정규화 (CSV rawType → 게임 내부 type) ─────────────
+const TYPE_NORMALIZE = {
+  'Treasure':        'Treasure',
+  'Victory':         'Victory',
+  'Action':          'Action',
+  'Action-Attack':   'Action',
+  'Action-Reaction': 'Action',
+  'Curse':           'Curse',
+};
+
+// 타입별 카드 바디 기본색
+const TYPE_BASE = {
+  Action:   C.action,
+  Treasure: C.treasure,
+  Victory:  C.victory,
+  Curse:    C.curse,
+};
+
+// ── CSV 파서 ─────────────────────────────────────────────────
+function parseLine(line) {
+  const fields = [];
+  let field = '', inQuote = false;
+  for (const ch of line) {
+    if (ch === '"')              inQuote = !inQuote;
+    else if (ch === ',' && !inQuote) { fields.push(field); field = ''; }
+    else                         field += ch;
+  }
+  fields.push(field);
+  return fields;
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n').filter(l => l.trim());
+  const headers = parseLine(lines[0]).map(h => h.trim());
+  return lines.slice(1).map(line => {
+    const values = parseLine(line);
+    const row = {};
+    headers.forEach((h, i) => { row[h] = (values[i] ?? '').trim(); });
+    return row;
+  });
+}
+
+// ── hex 문자열 → 정수 색상값 ────────────────────────────────
+function parseHex(str) {
+  const n = parseInt((str ?? '').replace('#', ''), 16);
+  return isNaN(n) ? null : n;
+}
+
+// ── 행 → CardDef 변환 ────────────────────────────────────────
+function rowToCard(row) {
+  const rawType = row.type ?? 'Action';
+  const type    = TYPE_NORMALIZE[rawType] ?? 'Action';
+  const base    = TYPE_BASE[type] ?? C.action;
+
+  // Treasure 카드의 코인 값 자동 추출 ("+N 코인" 패턴)
+  let coins = 0;
+  if (type === 'Treasure') {
+    const m = (row.effect_ko ?? '').match(/\+(\d+)\s*코인/);
+    if (m) coins = parseInt(m[1], 10);
+  }
+
+  // CSV 그라디언트 컬러 파싱 (없으면 base 폴백)
+  const gradTop = parseHex(row.color_top) ?? base;
+  const gradMid = parseHex(row.color_mid) ?? base;
+  const gradBot = parseHex(row.color_bot) ?? base;
+
+  return {
+    id:      row.id,
+    name:    row.name_ko,
+    nameEn:  row.name_en,
+    set:     row.set,
+    type,
+    rawType,
+    cost:    parseInt(row.cost,   10) || 0,
+    points:  parseInt(row.points, 10) || 0,
+    coins,
+    desc:    row.effect_ko ?? '',
+    base,
+    gradTop,
+    gradMid,
+    gradBot,
+  };
+}
+
+// ── 공개 API ─────────────────────────────────────────────────
+
+/**
+ * CSV 파일(들)을 fetch로 로드 → id : CardDef Map 반환
+ * @param {string|string[]} urls  단일 URL 또는 URL 배열 (확장판 추가 시)
+ * @returns {Promise<Map<string, CardDef>>}
+ */
+export async function loadCards(urls = './data/dominion_base_ko_cards.csv') {
+  const list = Array.isArray(urls) ? urls : [urls];
+  const map  = new Map();
+
+  for (const url of list) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`카드 데이터 로드 실패: ${url} (${res.status})`);
+    const rows = parseCSV(await res.text());
+    rows.forEach(row => { if (row.id) map.set(row.id, rowToCard(row)); });
+  }
+
+  return map;
+}
+
+/**
+ * ID 배열 → CardDef 배열
+ * map에 없는 ID는 콘솔 경고 후 skip
+ * @param {Map<string, CardDef>} cardMap
+ * @param {string[]} ids
+ * @returns {CardDef[]}
+ */
+export function resolveCards(cardMap, ids) {
+  return ids.flatMap(id => {
+    const def = cardMap.get(id);
+    if (!def) { console.warn(`[cards] 등록되지 않은 카드 ID: "${id}"`); return []; }
+    return [def];
+  });
+}
+
+/**
+ * 세트 이름으로 카드 필터 (예: 'Base', 'Intrigue')
+ * @param {Map<string, CardDef>} cardMap
+ * @param {string} setName
+ * @returns {CardDef[]}
+ */
+export function filterBySet(cardMap, setName) {
+  return [...cardMap.values()].filter(c => c.set === setName);
+}
+
+/**
+ * 타입으로 카드 필터 (정규화 type 기준: 'Action' | 'Treasure' | 'Victory' | 'Curse')
+ * @param {Map<string, CardDef>} cardMap
+ * @param {string} type
+ * @returns {CardDef[]}
+ */
+export function filterByType(cardMap, type) {
+  return [...cardMap.values()].filter(c => c.type === type);
+}

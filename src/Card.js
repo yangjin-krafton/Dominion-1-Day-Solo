@@ -68,7 +68,7 @@ export class Card {
     this.container.cursor    = 'pointer';
 
     this.container.on('pointerover', () => {
-      if (this.area === AREAS.HAND && this.isFaceUp) this.setHovered(true);
+      if (this.isFaceUp) this.setHovered(true);
     });
     this.container.on('pointerout', () => this.setHovered(false));
     this.container.on('pointerdown', () => {
