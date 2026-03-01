@@ -81,9 +81,9 @@ function _buildLargeCard(def) {
 
   // 설명 텍스트
   const descTxt = new PIXI.Text(def.desc, {
-    fontFamily: 'Georgia, serif', fontSize: 18,
+    fontFamily: 'Georgia, serif', fontSize: 22,
     fill: C.cream, align: 'center',
-    wordWrap: true, wordWrapWidth: DW - 40, lineHeight: 26,
+    wordWrap: true, wordWrapWidth: DW - 40, lineHeight: 32,
   });
   descTxt.anchor.set(0.5);
   descTxt.x = DW / 2;

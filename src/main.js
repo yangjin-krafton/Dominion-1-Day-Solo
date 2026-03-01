@@ -13,8 +13,9 @@ import { drawCard, playCard, endTurn,
 
 // ── ui ─────────────────────────────────────────────────────
 import { Card }                                from './ui/Card.js';
-import { buildBackground, buildParticles,
-         buildUI, updateUI, applyProfile }     from './ui/scene.js';
+import { buildBackground,
+         buildUI, updateUI, applyProfile,
+         notifyBlocked }                       from './ui/scene.js';
 import { updateCardPositions,
          buildHandArrows,
          PILE_X, PILE_Y }                      from './ui/layout.js';
@@ -153,7 +154,10 @@ function _drawCardsVisual(n) {
 
 function _onPlayCard(card) {
   const result = playCard(gs, card);
-  if (!result.ok) return;
+  if (!result.ok) {
+    if (result.reason === 'no_actions') notifyBlocked('action');
+    return;
+  }
   gs.phase = gs.actions > 0 ? 'action' : 'buy';
   _sync();
 
@@ -171,7 +175,9 @@ function _onPlayCard(card) {
 function _onBuyCard(def) {
   const result = buyCard(gs, def, makeCard);
   if (!result.ok) {
-    console.log('[Buy] 실패:', result.reason);
+    if (result.reason === 'no_buys')            notifyBlocked('buy');
+    else if (result.reason === 'out_of_stock')  notifyBlocked('buy');
+    else if (result.reason === 'insufficient_coins') notifyBlocked('coin');
     return;
   }
   gs.phase = 'buy';
@@ -279,14 +285,12 @@ function _finishGame() {
 // ============================================================
 // 게임 루프
 // ============================================================
-const particles = buildParticles(lFx);
-let lastTime    = performance.now();
+let lastTime = performance.now();
 
 app.ticker.add(() => {
   const now = performance.now();
   const dt  = Math.min((now - lastTime) / 1000, 0.1);
   lastTime  = now;
-  particles.forEach(p => p.update(dt));
   [...gs.deck, ...gs.hand, ...gs.play, ...gs.discard, ...gs.trash]
     .forEach(c => c.update(dt));
 });

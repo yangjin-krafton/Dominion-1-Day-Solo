@@ -61,11 +61,15 @@ function rowToCard(row) {
   const type    = TYPE_NORMALIZE[rawType] ?? 'Action';
   const base    = TYPE_BASE[type] ?? C.action;
 
-  // Treasure 카드의 코인 값 자동 추출 ("+N 코인" 패턴)
+  // Treasure 카드의 코인 값 — effectCode의 "coin:N" 토큰에서 추출
+  // CSV effect_ko가 "+N원" 형식이라 정규식 매칭 불가 → effectCode가 신뢰 소스
   let coins = 0;
   if (type === 'Treasure') {
-    const m = (row.effect_ko ?? '').match(/\+(\d+)\s*코인/);
-    if (m) coins = parseInt(m[1], 10);
+    const coinPart = (row.effect_code ?? '')
+      .split('|')
+      .map(s => s.trim())
+      .find(s => s.startsWith('coin:'));
+    if (coinPart) coins = parseInt(coinPart.split(':')[1], 10) || 0;
   }
 
   // CSV 그라디언트 컬러 파싱 (없으면 base 폴백)

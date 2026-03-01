@@ -117,35 +117,240 @@ function makeIconBtn(label, x, y, onClick) {
   return btn;
 }
 
-// ─── 기본 스탯 칩 (행1) ──────────────────────────────────────
+// ─── 스탯 칩 이펙트 유틸 ─────────────────────────────────────
 const CHIP_W = 78;
 const CHIP_H = 24;
+
+/** 색상 역색 (XOR white) */
+function _invertColor(hex) {
+  return 0xFFFFFF ^ (hex & 0xFFFFFF);
+}
+
 /**
- * @returns {{ container: PIXI.Container, valueTxt: PIXI.Text }}
+ * 스탯 칩 생성 — 4종 애니메이션 포함
+ *
+ * animate(type) 타입:
+ *   'increase' — 값 증가: 역색 플래시 + 값 위 바운스 + 스케일 업
+ *   'decrease' — 값 감소: 역색 플래시 + 진동 회전 + 스케일 다운
+ *   'spawn'    — 칩 등장: 스프링 스케일 인 (0→1.2→1.0)
+ *   'destroy'  — 칩 소멸: 스케일·알파 페이드 아웃
+ *
+ * @returns {{ container, valueTxt, animate }}
  */
 function makeStatChip(label, value, accentColor) {
-  const chip = new PIXI.Container();
+  const outer = new PIXI.Container();  // 외부 위치 고정 컨테이너
+  const inner = new PIXI.Container();  // 애니메이션 대상
+  outer.addChild(inner);
 
+  const inv = _invertColor(accentColor);
+  const cx  = CHIP_W / 2;
+  const cy  = CHIP_H / 2;
+
+  // ── 배경 ──────────────────────────────────────────────────
   const bg = new PIXI.Graphics();
   bg.beginFill(C.dark, 0.92);
   bg.lineStyle(1.2, accentColor, 0.65);
   bg.drawRoundedRect(0, 0, CHIP_W, CHIP_H, 6);
   bg.endFill();
-  chip.addChild(bg);
+  inner.addChild(bg);
 
-  // 레이블 (밝은 흰색)
+  // ── 역색 플래시 오버레이 (increase/decrease용) ────────────
+  const flash = new PIXI.Graphics();
+  flash.beginFill(inv, 1.0);
+  flash.drawRoundedRect(1, 1, CHIP_W - 2, CHIP_H - 2, 5);
+  flash.endFill();
+  flash.alpha = 0;
+  inner.addChild(flash);
+
+  // ── 경고 플래시 오버레이 (blocked용, 빨간색) ──────────────
+  const warnFlash = new PIXI.Graphics();
+  warnFlash.beginFill(0xff2222, 1.0);
+  warnFlash.drawRoundedRect(1, 1, CHIP_W - 2, CHIP_H - 2, 5);
+  warnFlash.endFill();
+  warnFlash.alpha = 0;
+  inner.addChild(warnFlash);
+
+  // ── 레이블 ────────────────────────────────────────────────
   const labelTxt = makeText(label, 9, C.cream, { fontStyle: 'italic' });
   labelTxt.anchor.set(0, 0.5);
-  labelTxt.x = 8; labelTxt.y = CHIP_H / 2;
-  chip.addChild(labelTxt);
+  labelTxt.x = 8; labelTxt.y = cy;
+  inner.addChild(labelTxt);
 
-  // 값 (오른쪽 정렬, 밝은 골드 굵게)
+  // ── 값 ────────────────────────────────────────────────────
   const valueTxt = makeText(String(value), 15, C.goldHi, { fontWeight: 'bold' });
   valueTxt.anchor.set(1, 0.5);
-  valueTxt.x = CHIP_W - 7; valueTxt.y = CHIP_H / 2;
-  chip.addChild(valueTxt);
+  valueTxt.x = CHIP_W - 7; valueTxt.y = cy;
+  inner.addChild(valueTxt);
 
-  return { container: chip, valueTxt };
+  // ── 파티클 시스템 ─────────────────────────────────────────
+  /**
+   * 파티클 이펙트
+   *  increase → 역색 파티클이 위로 상승, 감속하며 사라짐
+   *  decrease → 칩 컬러 파티클이 아래로 추락, 중력 가속
+   */
+  function _spawnParticles(type) {
+    const count  = 9;
+    const pColor = type === 'increase' ? inv : accentColor;
+
+    for (let i = 0; i < count; i++) {
+      const r = 2.5 + Math.random() * 2;
+      const p = new PIXI.Graphics();
+      p.beginFill(pColor, 1.0);
+      p.drawCircle(0, 0, r);
+      p.endFill();
+      outer.addChild(p);
+      p.x = cx; p.y = cy;
+
+      const dur = 520 + Math.random() * 200;
+
+      if (type === 'increase') {
+        // ── 상승 ──────────────────────────────────────────────
+        // 위쪽 부채꼴로 날아오르며 감속 → 멈추듯 사라짐
+        const ang = -Math.PI * 0.8 + Math.random() * Math.PI * 0.6;  // 위 방향 扇
+        const spd = 65 + Math.random() * 60;
+        const vx  = Math.cos(ang) * spd;
+        const vy  = Math.sin(ang) * spd;   // 음수 = 위쪽
+
+        setTimeout(() => {
+          const t0 = Date.now();
+          const tick = () => {
+            const t  = Math.min((Date.now() - t0) / dur, 1);
+            const sc = 1 - t * 0.6;          // 감속 계수
+            p.x      = cx + vx * t * sc;
+            p.y      = cy + vy * t * sc;     // 중력 없음 → 계속 상승
+            p.alpha  = 1 - t * t;
+            p.scale.set(1 - t * 0.45);
+            if (t < 1) requestAnimationFrame(tick);
+            else { if (p.parent) p.parent.removeChild(p); p.destroy(); }
+          };
+          requestAnimationFrame(tick);
+        }, i * 24);
+
+      } else {
+        // ── 추락 ──────────────────────────────────────────────
+        // 살짝 옆으로 퍼지다가 중력으로 아래 추락
+        const vx     = (Math.random() - 0.5) * 70;   // 좌우 랜덤
+        const vy_ini = -(10 + Math.random() * 25);    // 약한 초기 상방
+        const grav   = 200 + Math.random() * 80;      // 강한 중력
+
+        setTimeout(() => {
+          const t0 = Date.now();
+          const tick = () => {
+            const t = Math.min((Date.now() - t0) / dur, 1);
+            p.x     = cx + vx * t;
+            p.y     = cy + vy_ini * t + grav * t * t;   // 포물선 추락
+            p.alpha = 1 - t * t;
+            p.scale.set(1 - t * 0.50);
+            if (t < 1) requestAnimationFrame(tick);
+            else { if (p.parent) p.parent.removeChild(p); p.destroy(); }
+          };
+          requestAnimationFrame(tick);
+        }, i * 24);
+      }
+    }
+  }
+
+  // ── 애니메이션 엔진 ───────────────────────────────────────
+  let _raf = null;
+
+  const _cancel = () => { if (_raf) { cancelAnimationFrame(_raf); _raf = null; } };
+
+  // 중앙 스케일 보정: sc배 스케일 시 top-left를 이동해 시각적 중심 유지
+  const _cx = (sc) => Math.round(cx * (1 - sc));
+  const _cy = (sc) => Math.round(cy * (1 - sc));
+
+  const _reset = () => {
+    flash.alpha      = 0;
+    warnFlash.alpha  = 0;
+    inner.rotation   = 0;
+    inner.alpha      = 1;
+    inner.scale.set(1);
+    inner.x = 0; inner.y = 0;   // pivot 없이 원점 복원
+    valueTxt.scale.set(1);
+    valueTxt.y     = cy;
+    valueTxt.tint  = 0xFFFFFF;
+  };
+
+  const _run = (dur, fn) => {
+    _cancel();
+    const t0 = Date.now();
+    const tick = () => {
+      const t = Math.min((Date.now() - t0) / dur, 1);
+      fn(t);
+      if (t < 1) { _raf = requestAnimationFrame(tick); }
+      else        { _raf = null; _reset(); }
+    };
+    _raf = requestAnimationFrame(tick);
+  };
+
+  function animate(type) {
+    _cancel(); _reset();
+
+    switch (type) {
+      case 'increase':
+        // 파티클 + 역색 플래시 + 숫자 위 바운스 + 칩 중앙 스케일 업
+        _spawnParticles('increase');
+        _run(380, t => {
+          const arc = Math.sin(Math.PI * t);
+          const sc  = 1 + arc * 0.26;
+          flash.alpha = arc * 0.72;
+          inner.scale.set(sc);
+          inner.x = _cx(sc); inner.y = _cy(sc);   // 중앙 기준 확장 보정
+          valueTxt.scale.set(1 + arc * 0.50);
+          valueTxt.y = cy - arc * 9;
+        });
+        break;
+
+      case 'decrease':
+        // 파티클 + 역색 플래시 + 진동 회전 + 칩 수축
+        _spawnParticles('decrease');
+        _run(320, t => {
+          const arc = Math.sin(Math.PI * t);
+          const sc  = 1 - arc * 0.18;
+          flash.alpha    = arc * 0.60;
+          inner.scale.set(sc);
+          inner.x = _cx(sc); inner.y = _cy(sc);
+          inner.rotation = Math.sin(t * Math.PI * 6) * 0.12 * (1 - t);
+          valueTxt.y     = cy + Math.sin(t * Math.PI * 8) * 3 * (1 - t);
+        });
+        break;
+
+      case 'spawn':
+        // 스프링 스케일 인 (0 → 1.2 → 1.0)
+        inner.alpha = 0; inner.scale.set(0);
+        _run(420, t => {
+          const sc = Math.max(0, t < 0.6 ? (t / 0.6) * 1.22 : 1.22 - (t - 0.6) / 0.4 * 0.22);
+          inner.scale.set(sc);
+          inner.x = _cx(sc); inner.y = _cy(sc);
+          inner.alpha = Math.min(1, t * 3);
+        });
+        break;
+
+      case 'destroy':
+        // 스케일 + 알파 페이드 아웃
+        _run(200, t => {
+          const sc = 1 - t * 0.7;
+          inner.scale.set(sc);
+          inner.x = _cx(sc); inner.y = _cy(sc);
+          inner.alpha = 1 - t;
+        });
+        break;
+
+      case 'blocked':
+        // 빨간 경고 플래시 + 강한 좌우 진동
+        _run(280, t => {
+          const arc = Math.sin(Math.PI * t);
+          warnFlash.alpha = arc * 0.85;
+          inner.rotation  = Math.sin(t * Math.PI * 9) * 0.16 * (1 - t);
+          const sc = 1 - arc * 0.06;
+          inner.scale.set(sc);
+          inner.x = _cx(sc); inner.y = _cy(sc);
+        });
+        break;
+    }
+  }
+
+  return { container: outer, valueTxt, animate };
 }
 
 // ─── 이펙트 태그 칩 (행2) ────────────────────────────────────
@@ -192,11 +397,8 @@ function buildPileArea(layer, gs) {
   const CARD_Y_OFF = 14;
   const py    = ZONE.PILES_Y + CARD_Y_OFF;
 
-  // 섹션 배경
+  // 섹션 상단 경계선만 (배경 fill 없음)
   const bg = new PIXI.Graphics();
-  bg.beginFill(0x06040f, 0.45);
-  bg.drawRect(0, ZONE.PILES_Y, W, ZONE.PILES_H);
-  bg.endFill();
   bg.lineStyle(0.8, C.goldDim, 0.3);
   bg.moveTo(0, ZONE.PILES_Y); bg.lineTo(W, ZONE.PILES_Y);
   layer.addChild(bg);
@@ -321,15 +523,6 @@ export function buildUI(layer, gs, profile = null) {
   //    행1: [⚔ 행동 N] [⊕ 구매 N] [● 코인 N]
   //    행2: 이펙트 태그 (카드 효과에 따라 동적 추가)
   // ══════════════════════════════════════════════════════════
-  const statBg = new PIXI.Graphics();
-  statBg.beginFill(0x080511, 0.97);
-  statBg.drawRect(0, ZONE.STAT_Y, W, ZONE.STAT_H);
-  statBg.endFill();
-  statBg.lineStyle(0.8, C.goldDim, 0.35);
-  statBg.moveTo(0, ZONE.STAT_Y);              statBg.lineTo(W, ZONE.STAT_Y);
-  statBg.moveTo(0, ZONE.STAT_Y + ZONE.STAT_H); statBg.lineTo(W, ZONE.STAT_Y + ZONE.STAT_H);
-  layer.addChild(statBg);
-
   // ── 행 1: 기본 스탯 칩 ──────────────────────────────────
   const R1_Y  = ZONE.STAT_Y + 5;
   const C_GAP = 6;
@@ -337,23 +530,25 @@ export function buildUI(layer, gs, profile = null) {
   const actionChip = makeStatChip('행동', 1, 0x3399ff);
   actionChip.container.x = 6; actionChip.container.y = R1_Y;
   layer.addChild(actionChip.container);
-  refs.actionVal = actionChip.valueTxt;
+  refs.actionVal   = actionChip.valueTxt;
+  refs.actionAnim  = actionChip.animate;
 
   const buyChip = makeStatChip('구매', 1, 0x228844);
   buyChip.container.x = 6 + CHIP_W + C_GAP; buyChip.container.y = R1_Y;
   layer.addChild(buyChip.container);
-  refs.buyVal = buyChip.valueTxt;
+  refs.buyVal   = buyChip.valueTxt;
+  refs.buyAnim  = buyChip.animate;
 
   const coinChip = makeStatChip('코인', 0, C.gold);
   coinChip.container.x = 6 + (CHIP_W + C_GAP) * 2; coinChip.container.y = R1_Y;
   layer.addChild(coinChip.container);
-  refs.coinVal = coinChip.valueTxt;
+  refs.coinVal   = coinChip.valueTxt;
+  refs.coinAnim  = coinChip.animate;
 
-  // 행1·행2 구분선
-  const divG = new PIXI.Graphics();
-  divG.lineStyle(0.5, C.goldDim, 0.2);
-  divG.moveTo(6, ZONE.STAT_Y + 32); divG.lineTo(W - 6, ZONE.STAT_Y + 32);
-  layer.addChild(divG);
+  // spawn 애니메이션 (게임 시작 시 칩 등장)
+  setTimeout(() => refs.actionAnim?.('spawn'), 60);
+  setTimeout(() => refs.buyAnim?.('spawn'),    120);
+  setTimeout(() => refs.coinAnim?.('spawn'),   180);
 
   // ── 행 2: 이펙트 태그 컨테이너 ──────────────────────────
   refs.tagsCont = new PIXI.Container();
@@ -371,6 +566,17 @@ export function buildUI(layer, gs, profile = null) {
   updateUI(gs);
 }
 
+// ─── 스탯 차단 피드백 ────────────────────────────────────────
+/**
+ * 특정 스탯이 0이어서 조작이 차단됐을 때 경고 애니메이션
+ * @param {'action'|'buy'|'coin'} stat
+ */
+export function notifyBlocked(stat) {
+  if (stat === 'action') refs.actionAnim?.('blocked');
+  else if (stat === 'buy') refs.buyAnim?.('blocked');
+  else if (stat === 'coin') refs.coinAnim?.('blocked');
+}
+
 // ─── 프로필 표시 갱신 ────────────────────────────────────────
 export function applyProfile(profile) {
   if (!profile) return;
@@ -384,10 +590,26 @@ export function updateUI(gs) {
   // 승점 (좌측 배지)
   if (refs.vpTxt) refs.vpTxt.text = String(gs.vp ?? 0);
 
-  // 행 1: 기본 스탯 칩
-  if (refs.actionVal) refs.actionVal.text = String(gs.actions ?? 0);
-  if (refs.buyVal)    refs.buyVal.text    = String(gs.buys    ?? 0);
-  if (refs.coinVal)   refs.coinVal.text   = String(gs.coins   ?? 0);
+  // 행 1: 기본 스탯 칩 — 값 변경 시 이펙트 트리거
+  const cur = { actions: gs.actions ?? 0, buys: gs.buys ?? 0, coins: gs.coins ?? 0 };
+  const prv = refs._prev ?? cur;
+
+  if (refs.actionVal) {
+    if (cur.actions !== prv.actions)
+      refs.actionAnim?.(cur.actions > prv.actions ? 'increase' : 'decrease');
+    refs.actionVal.text = String(cur.actions);
+  }
+  if (refs.buyVal) {
+    if (cur.buys !== prv.buys)
+      refs.buyAnim?.(cur.buys > prv.buys ? 'increase' : 'decrease');
+    refs.buyVal.text = String(cur.buys);
+  }
+  if (refs.coinVal) {
+    if (cur.coins !== prv.coins)
+      refs.coinAnim?.(cur.coins > prv.coins ? 'increase' : 'decrease');
+    refs.coinVal.text = String(cur.coins);
+  }
+  refs._prev = { ...cur };
 
   // 행 2: 이펙트 태그 재빌드
   if (refs.tagsCont) {
@@ -408,19 +630,40 @@ export function updateUI(gs) {
  * 추후 카드 효과 시스템 확장 시 여기에 조건 추가
  * @returns {{ text: string, color: number }[]}
  */
+/**
+ * 지속효과 태그 정의
+ *  key     = card.def.id
+ *  text    = 표시 텍스트
+ *  color   = 태그 색상
+ * 새 카드 추가 시 여기에만 추가하면 됨
+ */
+const BUFF_TAG_MAP = new Map([
+  ['moat',     { text: '공격방어', color: 0x44bbff }],   // 해자: 공격 방어
+  ['merchant', { text: '첫은화+1', color: C.gold   }],   // 상인: 첫 은화 코인 버프
+  ['workshop', { text: '비용4↓획득', color: 0xcc8833 }], // 작업장: 비용 4 이하 카드 획득
+]);
+
 function _collectEffectTags(gs) {
   const tags = [];
-  // 보유 코인이 기본 보화 외 추가 코인이 있을 때 (플레이한 재화 기준)
+
+  // 플레이된 재화 코인 합계 (재화 카드 플레이 현황)
   const playedTreasureCoins = (gs.play ?? [])
     .filter(c => c.def?.type === 'Treasure')
     .reduce((s, c) => s + (c.def.coins ?? 0), 0);
   if (playedTreasureCoins > 0) {
     tags.push({ text: `재화 ×${playedTreasureCoins}`, color: C.gold });
   }
-  // 낸 액션 카드
-  const playedActions = (gs.play ?? []).filter(c => c.def?.type === 'Action');
-  for (const card of playedActions) {
-    tags.push({ text: card.def.name, color: 0x9933cc });
+
+  // 지속효과 카드: BUFF_TAG_MAP에 등록된 카드만 표시 (중복 방지)
+  const seen = new Set();
+  for (const card of (gs.play ?? [])) {
+    const id   = card.def?.id;
+    const buff = BUFF_TAG_MAP.get(id);
+    if (buff && !seen.has(id)) {
+      tags.push({ text: buff.text, color: buff.color });
+      seen.add(id);
+    }
   }
+
   return tags;
 }

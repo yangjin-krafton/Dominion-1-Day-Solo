@@ -63,6 +63,11 @@ export function playCard(gs, card) {
   const idx = gs.hand.indexOf(card);
   if (idx === -1) return { ok: false, reason: 'not_in_hand' };
 
+  // 액션 카드는 행동 횟수가 남아 있어야 함
+  if (card.def.type === 'Action' && gs.actions <= 0) {
+    return { ok: false, reason: 'no_actions' };
+  }
+
   gs.hand.splice(idx, 1);
   gs.play.push(card);
   card.area = AREAS.PLAY;
