@@ -105,15 +105,19 @@ let _onPlayCard = null;
 
 let _bgmStarted = false;
 
-// 게임 캔버스(PIXI App)가 준비된 후 마우스/터치 시점(사용자 상호작용)에 BGM을 시작하도록 설정
+// 브라우저 정책(Autoplay Policy) 우회를 위해 가장 확실한 상호작용 이벤트(click, keydown 등) 사용
 function initBGM() {
   if (!_bgmStarted) {
+    // BGM.start()가 실패하면 내부에서 초기화 상태를 해제하게 되어 있으므로
+    // 여기서도 성공적으로 재생될 때까지만 리스너를 유지합니다.
     BGM.start();
+    
+    // 이벤트를 굳이 바로 지우지 않고 놔두면 
+    // 나중에 클릭할 때 (정책 통과 시점) 비로소 재생됩니다.
     _bgmStarted = true;
-    document.removeEventListener('pointerdown', initBGM);
   }
 }
-document.addEventListener('pointerdown', initBGM);
+['click', 'touchend', 'keydown'].forEach(ev => document.addEventListener(ev, initBGM));
 
 export function makeCard(def) {
   const c = new Card(def, _idSeq++, (card) => _onPlayCard?.(card));

@@ -90,23 +90,31 @@ const pluck2 = generateInstrument(12, makePluckPattern(12, 0.75, [880.00, 783.99
 const pluck3 = generateInstrument(12, makePluckPattern(12, 2.0, [659.25, 523.25, 587.33, 659.25, 783.99, 523.25], 1.0)); 
 
 // --- BASS Variations (Duration 20s) ---
-// Bass 1: Long C drone
+// Bass 1: Long C drone (Raised +1 Octave to C3, added saw/square harmonics)
 const bass1 = generateInstrument(20, (t, d) => {
-    let f1 = loopFreq(65.41, d); // C2
+    let f1 = loopFreq(130.81, d); // C3 (was 65.41)
     let env = Math.sin(Math.PI * (t / d)); // One huge swell
-    return (Math.sin(2 * Math.PI * f1 * t) * 0.8 + Math.sin(2 * Math.PI * f1 * 1.01 * t) * 0.2) * env * 0.4;
+    // Mix sine for fatness, small amount of square for audible buzz
+    let sine = Math.sin(2 * Math.PI * f1 * t);
+    let sq = Math.sign(Math.sin(2 * Math.PI * f1 * t));
+    return (sine * 0.7 + sq * 0.15 + Math.sin(2 * Math.PI * f1 * 1.01 * t) * 0.15) * env * 0.5;
 });
-// Bass 2: Pulsing A -> G
+// Bass 2: Pulsing A -> G (Raised +1 Octave to A2 -> G2)
 const bass2 = generateInstrument(20, (t, d) => {
-    let f1 = t < 10 ? loopFreq(55.00, d) : loopFreq(49.00, d); // A1 -> G1
+    let f1 = t < 10 ? loopFreq(110.00, d) : loopFreq(98.00, d); // A2 -> G2
     let env = Math.max(0, Math.sin(Math.PI * ((t % 10) / 10)));
-    return Math.sin(2 * Math.PI * f1 * t) * env * 0.5;
+    let sine = Math.sin(2 * Math.PI * f1 * t);
+    let saw = 2 * (t * f1 - Math.floor(t * f1 + 0.5));
+    return (sine * 0.7 + saw * 0.3) * env * 0.6;
 });
-// Bass 3: Deep Sub E 
+// Bass 3: Deep Sub E (Raised +1 Octave to E3)
 const bass3 = generateInstrument(20, (t, d) => {
-    let f1 = loopFreq(82.41, d); // E2
+    let f1 = loopFreq(164.81, d); // E3 (was 82.41)
     let env = Math.sin(2 * Math.PI * (t / d)); // Two swells
-    return Math.sin(2 * Math.PI * f1 * t) * Math.abs(env) * 0.4;
+    // Triangle + Sine for warmth and presence
+    let sine = Math.sin(2 * Math.PI * f1 * t);
+    let tri = Math.asin(Math.sin(2 * Math.PI * f1 * t)) * (2 / Math.PI);
+    return (sine * 0.6 + tri * 0.4) * Math.abs(env) * 0.6;
 });
 
 const outDir = path.join(__dirname, '..', 'src', 'asset', 'audio');

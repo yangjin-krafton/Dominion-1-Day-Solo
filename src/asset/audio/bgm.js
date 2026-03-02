@@ -21,7 +21,7 @@ const categories = {
         ]
     },
     bass: {
-        maxVol: 0.40,
+        maxVol: 0.50, // 베이스가 잘 들리도록 최대 볼륨을 0.40에서 0.50으로 상향
         stems: [
             { name: 'bgm_bass1', audio: null, currentVol: 0, targetVol: 0 },
             { name: 'bgm_bass2', audio: null, currentVol: 0, targetVol: 0 },
@@ -44,13 +44,16 @@ export const BGM = {
         // 1. Load and play all 9 stems at 0 volume
         Object.values(categories).forEach(cat => {
             cat.stems.forEach(stem => {
-                const a = new Audio(`./asset/audio/${stem.name}.wav`);
-                a.loop = true;
-                a.volume = 0;
-                stem.audio = a;
+                if (!stem.audio) {
+                    const a = new Audio(`./asset/audio/${stem.name}.wav`);
+                    a.loop = true;
+                    a.volume = 0;
+                    stem.audio = a;
+                }
                 // Trigger play immediately, catch user gesture policy
-                let p = a.play().catch(e => {
+                let p = stem.audio.play().catch(e => {
                      console.warn(`BGM start blocked for ${stem.name} - waiting for interaction.`, e);
+                     initialized = false; // 재생 실패 시 다음 클릭에 재시도하도록 설정
                      return false; 
                 });
                 canPlayPromises.push(p);
