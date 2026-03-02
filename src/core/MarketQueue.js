@@ -9,8 +9,11 @@
 //     3. pushNextMarketEvent(state, supply) → T+4 추가 (적용 후 상태 기반)
 // ============================================================
 
-/** Mulberry32 seeded PRNG — 같은 시드 → 같은 시퀀스 */
-function mulberry32(seed) {
+/**
+ * Mulberry32 seeded PRNG — 같은 시드 → 항상 같은 난수 시퀀스
+ * 다른 모듈에서 시드 RNG가 필요할 때 이 함수를 import해 사용.
+ */
+export function seededRng(seed) {
   let s = seed >>> 0;
   return function () {
     s = (s + 0x6d2b79f5) >>> 0;
@@ -87,7 +90,7 @@ export function generateMarketEvent(supply, rng) {
  * @returns {{ queue: object[], rng: function }}
  */
 export function initMarketQueue(supply, seed) {
-  const rng   = mulberry32(seed);
+  const rng   = seededRng(seed);
   const queue = [];
   for (let i = 0; i < 4; i++) queue.push(generateMarketEvent(supply, rng));
   return { queue, rng };

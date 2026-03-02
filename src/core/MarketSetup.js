@@ -6,6 +6,7 @@
 //  · basic (재화·승점, 저주 제외): 4~6장 랜덤
 //  · kingdom (액션): 나머지 슬롯, 비용 다양성 확보
 //  · 저주는 시장에 표시하지 않음 (공급에는 별도 추가)
+//  · rng 파라미터로 seededRng를 받으면 완전 재현 가능
 // ============================================================
 import { BASIC_POOL, KINGDOM_POOL } from '../config.js';
 
@@ -14,19 +15,22 @@ const MARKET_SIZE = 12;
 /**
  * 랜덤 시장 구성 생성
  * @param {Map<string, import('../data/cards.js').CardDef>} cardMap
+ * @param {function|null} rng  seededRng(seed) 결과물 또는 null (null이면 Math.random 사용)
  * @returns {{ marketIds: string[], kingdomIds: string[] }}
  *   marketIds  : 시장 12슬롯 순서 (basic → kingdom)
  *   kingdomIds : 선택된 킹덤 카드 ID만 (기록·홈 표시용)
  */
-export function buildMarketSetup(cardMap) {
+export function buildMarketSetup(cardMap, rng = null) {
+  const _r = rng ?? (() => Math.random());
+
   // ── 1. 기본 재화·승점: 4~6장 랜덤 ─────────────────────────
-  const basicCount = 4 + Math.floor(Math.random() * 3);  // 4 | 5 | 6
-  const basicIds   = _shuffle([...BASIC_POOL]).slice(0, basicCount);
+  const basicCount = 4 + Math.floor(_r() * 3);  // 4 | 5 | 6
+  const basicIds   = _shuffle([...BASIC_POOL], _r).slice(0, basicCount);
 
   // ── 2. 킹덤 카드: 나머지 슬롯, 비용 다양성 확보 ────────────
   const kingdomCount = MARKET_SIZE - basicCount;          // 6 | 7 | 8
   const pool         = KINGDOM_POOL.filter(id => cardMap.has(id));
-  const kingdomIds   = _selectDiverse(cardMap, pool, kingdomCount);
+  const kingdomIds   = _selectDiverse(cardMap, pool, kingdomCount, _r);
 
   // ── 3. 정렬: 재물 → 승점 → 행동, 같은 타입 내 비용 오름차순 ─
   const TYPE_ORDER = { Treasure: 0, Victory: 1, Action: 2, Curse: 3 };
@@ -47,7 +51,7 @@ export function buildMarketSetup(cardMap) {
  * Pass 1: 비용 tier(2/3/4/5/6)별로 최소 1장씩 고름
  * Pass 2: 남은 자리 랜덤 채우기
  */
-function _selectDiverse(cardMap, pool, count) {
+function _selectDiverse(cardMap, pool, count, rng) {
   // 비용별 그룹화
   const byCost = new Map();
   for (const id of pool) {
@@ -63,7 +67,7 @@ function _selectDiverse(cardMap, pool, count) {
   const tiers = [...byCost.keys()].sort((a, b) => a - b);
   for (const tier of tiers) {
     if (result.length >= count) break;
-    const candidates = _shuffle(byCost.get(tier).filter(id => !used.has(id)));
+    const candidates = _shuffle(byCost.get(tier).filter(id => !used.has(id)), rng);
     if (candidates.length > 0) {
       result.push(candidates[0]);
       used.add(candidates[0]);
@@ -71,7 +75,7 @@ function _selectDiverse(cardMap, pool, count) {
   }
 
   // Pass 2: 부족한 자리 나머지 풀에서 랜덤 채우기
-  const remaining = _shuffle(pool.filter(id => !used.has(id)));
+  const remaining = _shuffle(pool.filter(id => !used.has(id)), rng);
   while (result.length < count && remaining.length > 0) {
     result.push(remaining.pop());
   }
@@ -79,10 +83,12 @@ function _selectDiverse(cardMap, pool, count) {
   return result;
 }
 
-function _shuffle(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
+/** Fisher-Yates 셔플 (새 배열 반환, rng 주입 가능) */
+function _shuffle(arr, rng = Math.random) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
   }
-  return arr;
+  return a;
 }

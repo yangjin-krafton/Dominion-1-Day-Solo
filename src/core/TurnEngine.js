@@ -189,27 +189,50 @@ export function checkVictory(supply) {
 }
 
 /**
- * 공급 수량 초기화 (솔로 1인 기준)
+ * 공급 수량 초기화 — 솔로 1인, 시드 기반 랜덤 범위 배분
+ *
  * @param {Map<string,object>} cardMap  - id → CardDef
  * @param {string[]} marketIds          - 시장 12슬롯 카드 ID 배열
+ * @param {function} rng                - seededRng() 결과 (없으면 Math.random)
  * @returns {Map<string, {def, count}>}
- *   · marketIds 순서대로 Map에 추가 (시장 그리드가 앞 12장 표시)
- *   · 저주는 marketIds에 없어도 공급에 자동 추가 (게임 메카닉 유지)
+ *
+ * 수량 범위 설계 (솔로 기준):
+ *  - 기본 재화/승점: 적당히 넉넉하되 고갈 가능한 수준
+ *  - 킹덤 카드: 5~10장 (시장 이벤트 압박이 체감되는 수량)
+ *  - 저주: 시장에 없어도 공급에 항상 존재
  */
-export function initSupply(cardMap, marketIds) {
-  const COUNTS = {
-    copper: 46, silver: 40, gold: 30,
-    estate: 8,  duchy: 8,  province: 8, curse: 10,
+export function initSupply(cardMap, marketIds, rng = null) {
+  const _r = rng ?? Math.random;
+
+  // 카드별 [최소, 최대] 수량 범위
+  const RANGES = {
+    copper:   [32, 44],
+    silver:   [18, 28],
+    gold:     [10, 18],
+    estate:   [ 4,  7],
+    duchy:    [ 3,  6],
+    province: [ 4,  7],   // 적게 → 게임 압박 증가
+    curse:    [ 5,  9],
   };
+  const KINGDOM_RANGE = [5, 10];   // 킹덤 카드 공용 범위
+
+  const randBetween = (min, max) => min + Math.floor(_r() * (max - min + 1));
+
   const supply = new Map();
   for (const id of marketIds) {
     const def = cardMap.get(id);
-    if (def) supply.set(id, { def, count: COUNTS[id] ?? 10 });
+    if (!def) continue;
+    const [min, max] = RANGES[id] ?? KINGDOM_RANGE;
+    supply.set(id, { def, count: randBetween(min, max) });
   }
-  // 저주: 시장에 미포함이어도 공급에는 항상 존재 (curse_others 등 효과용)
+
+  // 저주: 시장에 없어도 공급에 항상 추가
   if (!supply.has('curse')) {
     const def = cardMap.get('curse');
-    if (def) supply.set('curse', { def, count: 10 });
+    if (def) {
+      const [min, max] = RANGES.curse;
+      supply.set('curse', { def, count: randBetween(min, max) });
+    }
   }
   return supply;
 }

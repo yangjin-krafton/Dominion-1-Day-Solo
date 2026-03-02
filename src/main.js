@@ -25,7 +25,8 @@ import { showGainCardOverlay }                 from './ui/GainCardOverlay.js';
 import { showDiscardSelectOverlay }            from './ui/DiscardSelectOverlay.js';
 import { Market }                              from './ui/Market.js';
 import { MarketTimeline }                      from './ui/MarketTimeline.js';
-import { initMarketQueue, popMarketEvent,
+import { seededRng, generateMarketEvent,
+         popMarketEvent,
          pushNextMarketEvent, applyMarketEvent } from './core/MarketQueue.js';
 import { ProfileScreen }                       from './ui/screens/ProfileScreen.js';
 import { HomeScreen }                          from './ui/screens/HomeScreen.js';
@@ -381,17 +382,26 @@ export function _startGame() {
   gs.handScroll = 0;
   _idSeq = 0;
   gs.turn = 1; gs.vp = 0; gs.actions = 1; gs.buys = 1; gs.coins = 0;
-  // 목표 승점 랜덤 배정 (10~20)
-  gs.vpTarget = 10 + Math.floor(Math.random() * 11);
+  // ── 게임 시드 확정 (모든 랜덤의 원천) ──────────────────────
+  // 같은 gameSeed → 시장 구성·공급 수량·이벤트 큐 모두 동일 재현
+  gs.gameSeed = (Date.now() ^ (Math.random() * 0x100000000)) >>> 0;
+
+  // 서브 시드: gameSeed를 XOR 변형해 독립 시퀀스 생성
+  const rngSetup  = seededRng(gs.gameSeed);                       // 시장 카드 선택
+  const rngSupply = seededRng((gs.gameSeed ^ 0x9e3779b9) >>> 0);  // 공급 수량
+  const rngEvents = seededRng((gs.gameSeed ^ 0x6c62272e) >>> 0);  // 시장 이벤트
+
+  // 목표 승점 (rngSetup 시퀀스 사용)
+  gs.vpTarget = 10 + Math.floor(rngSetup() * 11);   // 10~20
   gs.phase           = 'action';
   gs.pendingGain     = null;
   gs.pendingDiscard  = null;
 
-  // 공급 초기화 — HOME에서 미리 생성된 구성 사용 (없으면 신규 생성)
-  const setup       = _nextSetup ?? buildMarketSetup(_cardMap);
+  // 공급 초기화 — HOME에서 미리 생성된 구성 사용 (없으면 seeded 신규 생성)
+  const setup       = _nextSetup ?? buildMarketSetup(_cardMap, rngSetup);
   _nextSetup        = null;
   _activeKingdomIds = setup.kingdomIds;
-  gs.supply         = initSupply(_cardMap, setup.marketIds);
+  gs.supply         = initSupply(_cardMap, setup.marketIds, rngSupply);
 
   // 초기 덱 (Copper 7 + Estate 3)
   for (let i = 0; i < 7; i++) gs.deck.push(makeCard(_cardMap.get('copper')));
@@ -403,9 +413,13 @@ export function _startGame() {
   _market = new Market(lUI, _onBuyCard);
   _market.setSupply(gs.supply);
 
-  // 시장 이벤트 큐 초기화 (게임 시작 시 시드 고정)
-  gs.marketSeed = (Date.now() ^ (Math.random() * 0x100000000)) >>> 0;
-  _marketQueueState = initMarketQueue(gs.supply, gs.marketSeed);
+  // 시장 이벤트 큐 초기화 (rngEvents 서브시드 사용)
+  gs.marketSeed = (gs.gameSeed ^ 0x6c62272e) >>> 0;
+  const initQueue = [];
+  for (let i = 0; i < 4; i++) {
+    initQueue.push(generateMarketEvent(gs.supply, rngEvents));
+  }
+  _marketQueueState = { queue: initQueue, rng: rngEvents };
   _timeline?.destroy();
   _timeline = new MarketTimeline(lUI, _marketQueueState.queue);
 
