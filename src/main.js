@@ -82,8 +82,11 @@ const gs = {
   phase: 'action',
   deck: [], hand: [], play: [], discard: [], trash: [],
   supply: new Map(),
-  pendingGain:    null,   // { maxCost, dest } — 카드 획득 대기 (workshop 등)
-  pendingDiscard: null,   // { type, drawAfter } — 핸드 선택 버리기 대기 (cellar 등)
+  pendingGain:    null,   // { maxCost, dest }       — 카드 획득 대기 (workshop 등)
+  pendingDiscard: null,   // { type, drawAfter|exact } — 버리기 대기 (cellar, poacher)
+  pendingTrash:   null,   // { type, maxCount, filter } — 폐기 대기 (chapel, moneylender)
+  pendingPick:    null,   // { type, source }          — 단일 선택 대기 (harbinger, throne_room)
+  pendingTwoStep: null,   // { type }                  — 2단계 효과 대기 (remodel, mine, artisan)
   handScroll: 0,
   _handArrows: null,
   cardsContainer: lCards,

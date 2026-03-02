@@ -13,9 +13,16 @@
 
 // ─── 미구현 효과 스텁 헬퍼 ────────────────────────────────────
 function _stub(name) {
-  return (gs, n, engine, card) => {
+  return () => {
     console.log(`[TODO] ${name}: 아직 구현되지 않은 효과입니다.`);
   };
+}
+
+// ─── 빈 supply 더미 수 계산 ──────────────────────────────────
+function _countEmptyPiles(supply) {
+  let n = 0;
+  for (const { count } of supply.values()) if (count === 0) n++;
+  return n;
 }
 
 // ─── 효과 레지스트리 ─────────────────────────────────────────
@@ -31,23 +38,83 @@ export const EFFECT_REGISTRY = new Map([
   ['draw_others',  () => { /* solo: skip */ }],
   ['curse_others', () => { /* solo: skip */ }],
 
-  // ── 복잡 효과 (인터랙션 필요 — 추후 구현) ─────────────────
-  //  구현 시: _stub() 를 실제 함수로 교체
-  ['cellar',      (gs) => { gs.pendingDiscard = { type: 'cellar', drawAfter: true }; }],
-  ['chapel',      _stub('Chapel:    최대 4장 폐기')],
-  ['harbinger',   _stub('Harbinger: 버림더미→덱 위')],
-  ['merchant',    _stub('Merchant:  첫 Silver +1 코인')],
-  ['vassal',      _stub('Vassal:    덱 위 액션 플레이')],
-  ['workshop',    (gs) => { gs.pendingGain = { maxCost: 4, dest: 'discard' }; }],
-  ['bureaucrat',  _stub('Bureaucrat: Silver 획득, 공격')],
-  ['militia',     _stub('Militia:   손패 3장 공격')],
-  ['moneylender', _stub('Moneylender: 동전 폐기→+3코인')],
-  ['poacher',     _stub('Poacher:   빈 더미 수만큼 버리기')],
-  ['remodel',     _stub('Remodel:   폐기→비용+2 획득')],
-  ['throne_room', _stub('Throne Room: 액션 2회 플레이')],
-  ['bandit',      _stub('Bandit:    Gold 획득, 보물 폐기 공격')],
-  ['library',     _stub('Library:   손패 7장까지 뽑기')],
-  ['mine',        _stub('Mine:      보물→비용+3 보물 획득')],
-  ['sentry',      _stub('Sentry:    덱 위 2장 처리')],
-  ['artisan',     _stub('Artisan:   비용 5↓ 획득 + 덱 위 올리기')],
+  // ── 시장 연동 효과 (MarketEventQueue 에서 처리) ────────────
+  ['market_reduce',     _stub('market_reduce')],
+  ['market_reveal',     _stub('market_reveal')],
+  ['moat_market_delay', _stub('moat_market_delay')],
+  ['witch_market_blank',_stub('witch_market_blank')],
+  ['bandit_gold',       _stub('bandit_gold')],
+  ['bureaucrat_silver', _stub('bureaucrat_silver')],
+
+  // ── 오버레이 대기 효과 ─────────────────────────────────────
+  //    onPlayCard() 에서 gs.pending* 를 감지 → CardActionHandler 오버레이 표시
+
+  // 저장고: 손패 선택 버리기 → 같은 수 드로우
+  ['cellar', (gs) => {
+    gs.pendingDiscard = { type: 'cellar', drawAfter: true };
+  }],
+
+  // 예배당: 손패 최대 4장 폐기
+  ['chapel', (gs) => {
+    gs.pendingTrash = { type: 'chapel', maxCount: 4 };
+  }],
+
+  // 선구자: 버림더미 → 덱 위로 1장
+  ['harbinger', (gs) => {
+    if (gs.discard.length > 0)
+      gs.pendingPick = { type: 'harbinger', source: 'discard' };
+  }],
+
+  // 상인: 이번 턴 첫 은화 플레이 시 +1코인 (간이: 손패 은화 확인)
+  ['merchant', _stub('Merchant: 첫 Silver +1코인')],
+
+  // 신하: 덱 위 공개 → 액션이면 플레이 (추후 구현)
+  ['vassal', _stub('Vassal: 덱 위 액션 플레이')],
+
+  // 작업장: 비용 4 이하 카드 획득
+  ['workshop', (gs) => {
+    gs.pendingGain = { maxCost: 4, dest: 'discard' };
+  }],
+
+  // 대금업자: 동전 1장 폐기 → +3코인
+  ['moneylender', (gs) => {
+    const hasCoppers = gs.hand.some((c) => c.def.id === 'copper');
+    if (hasCoppers)
+      gs.pendingTrash = { type: 'moneylender', filter: 'copper', maxCount: 1 };
+  }],
+
+  // 밀렵꾼: 카드+1 행동+1 코인+1 후 빈 더미 수만큼 버리기
+  // (draw:1|action:1|coin:1 토큰이 먼저 실행된 뒤 이 토큰이 pending 세팅)
+  ['poacher', (gs) => {
+    const n = _countEmptyPiles(gs.supply);
+    if (n > 0) gs.pendingDiscard = { type: 'poacher', exact: n };
+  }],
+
+  // 개조: 1장 폐기 → 비용+2 이하 획득
+  ['remodel', (gs) => {
+    if (gs.hand.length > 0) gs.pendingTwoStep = { type: 'remodel' };
+  }],
+
+  // 알현실: 액션 1장을 두 번 플레이
+  ['throne_room', (gs) => {
+    const hasAction = gs.hand.some((c) => c.def.type === 'Action');
+    if (hasAction) gs.pendingPick = { type: 'throne_room', source: 'hand' };
+  }],
+
+  // 광산: 보물 폐기 → 비용+3 보물 획득(손으로)
+  ['mine', (gs) => {
+    const hasTreasure = gs.hand.some((c) => c.def.type === 'Treasure');
+    if (hasTreasure) gs.pendingTwoStep = { type: 'mine' };
+  }],
+
+  // 보초병: 덱 위 2장 처리 (추후 CardRevealOverlay 구현)
+  ['sentry', _stub('Sentry: 덱 위 2장 폐기/버리기/유지')],
+
+  // 도서관: 손패 7장까지 (추후 구현)
+  ['library', _stub('Library: 손패 7장까지 뽑기')],
+
+  // 장인: 비용 5 이하 획득→손 + 손패 1장 덱위
+  ['artisan', (gs) => {
+    gs.pendingTwoStep = { type: 'artisan' };
+  }],
 ]);
