@@ -153,6 +153,30 @@ export class Card {
     this.container.scale.y += (this.targetScale - this.container.scale.y) * s;
   }
 
+  // ── 어둡게 처리 (alpha 투명도 대신 검정 오버레이) ─────────
+
+  /**
+   * 카드 위에 검정 오버레이를 씌워 어둡게 표시 (container.alpha 미사용).
+   * on=true → 카드가 어두운 그림자 처리 (사용 불가 시각화)
+   * on=false → 오버레이 제거 (정상 표시)
+   */
+  setDim(on) {
+    if (on) {
+      if (!this._dimOverlay) {
+        const g = new PIXI.Graphics();
+        g.beginFill(0x000000, 0.60);
+        g.drawRect(0, 0, CW, CH);
+        g.endFill();
+        // 항상 최상단에 추가 → backFace/frontFace 위에 렌더링
+        this.container.addChild(g);
+        this._dimOverlay = g;
+      }
+      this._dimOverlay.visible = true;
+    } else {
+      if (this._dimOverlay) this._dimOverlay.visible = false;
+    }
+  }
+
   // ── 버프 배지 (코인/수치 임시 변동 표시) ──────────────────
 
   /**

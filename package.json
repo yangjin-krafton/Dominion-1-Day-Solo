@@ -5,7 +5,10 @@
   "scripts": {
     "dev": "cd src && python -m http.server 8080",
     "build": "echo 'No build step required for static site'",
-    "deploy": "gh-pages -d src"
+    "deploy": "gh-pages -d src",
+    "audio:encode": "node sandbox/encode_audio_ogg.js",
+    "audio:encode:keep-wav": "node sandbox/encode_audio_ogg.js --keep-wav",
+    "audio:regen": "node sandbox/generate_sfx.js && node sandbox/generate_bgm.js && npm run audio:encode"
   },
   "keywords": [
     "dominion",

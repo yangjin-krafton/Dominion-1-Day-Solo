@@ -141,15 +141,23 @@ function _sync() {
   _market?.refresh(gs.supply);
   _market?.setAffordable(gs.coins, gs.buys);
 
-  // 행동 0일때 핸드의 액션 카드 dim (alpha 낮춤)
-  const noActions = gs.actions === 0;
+  // 핸드 카드 사용 가능 여부에 따라 dim 처리 (검정 오버레이, alpha 미사용)
   gs.hand.forEach(card => {
-    const isDimTarget = noActions && card.isFaceUp && card.def.type === 'Action';
-    card.container.alpha = isDimTarget ? 0.38 : 1;
+    if (!card.isFaceUp) { card.setDim(false); return; }
+    const type = card.def.type;
+    let dim;
+    if (type === 'Treasure') {
+      dim = false;                      // 보물: 항상 사용 가능
+    } else if (type === 'Action') {
+      dim = gs.actions <= 0;            // 행동: 행동 소진 시 사용 불가
+    } else {
+      dim = true;                       // Victory / Curse: 핸드에서 사용 불가
+    }
+    card.setDim(dim);
   });
-  // 핸드 밖 카드는 항상 alpha 복원
+  // 핸드 밖 카드는 항상 dim 해제
   [...gs.deck, ...gs.play, ...gs.discard, ...gs.trash]
-    .forEach(card => { card.container.alpha = 1; });
+    .forEach(card => card.setDim(false));
 
   // Merchant 보너스 대기 중: 핸드의 Silver 카드에 "+1" 버프 배지 표시 (칩이 남아있을 때만)
   const mb = gs.merchantBonus ?? 0;

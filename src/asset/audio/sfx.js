@@ -1,11 +1,12 @@
 // sfx.js
-// Plays the generated .wav audio files
+// Plays compressed audio files first (ogg/mp3), with wav fallback.
+import { audioPath } from './audioFormat.js';
 
 const audioCache = {};
 
 function playSound(name) {
     if (!audioCache[name]) {
-        audioCache[name] = new Audio(`./asset/audio/${name}.wav`);
+        audioCache[name] = new Audio(audioPath(name));
     }
     // clone to allow overlapping sounds
     const sound = audioCache[name].cloneNode();
