@@ -166,22 +166,28 @@ export function showCardSelectOverlay(layer, opts) {
     canConfirmEmpty = true,
     cancelLabel    = null,
     allowDetail    = true,
+    maxCardW       = null,   // 카드 1장 최대 너비 (px) — 초과 시 중앙 정렬
     onConfirm,
     onCancel       = () => {},
   } = opts;
 
   const items      = filter ? rawItems.filter(filter) : rawItems;
-  const hasConfirm = mode === 'multi';
+  // single 모드에서 confirmLabel이 있으면 명시적 확인 버튼 표시
+  const hasConfirm = mode === 'multi' || (mode === 'single' && !!confirmLabel);
   const hasCancel  = !!cancelLabel;
 
   // ── 그리드 치수 사전 계산 (수직 중앙 정렬에 필요) ─────────
   const COLS   = items.length > 0 ? _bestCols(items.length) : 0;
   const ROWS   = items.length > 0 ? Math.ceil(items.length / COLS) : 0;
   const availW = W - 2 * PAD_X - Math.max(0, COLS - 1) * GAP;
-  const SW     = COLS > 0 ? Math.floor(availW / COLS) : 0;
+  const _rawSW = COLS > 0 ? Math.floor(availW / COLS) : 0;
+  const SW     = maxCardW != null ? Math.min(_rawSW, maxCardW) : _rawSW;
   const SCALE  = COLS > 0 ? SW / CARD_W : 1;
   const SH     = COLS > 0 ? Math.round(CARD_H * SCALE) : 0;
   const gridH  = ROWS > 0 ? ROWS * SH + (ROWS - 1) * GAP : 0;
+  // 그리드 수평 중앙 오프셋 (maxCardW 적용 시 카드가 화면 가운데로)
+  const gridW    = COLS > 0 ? COLS * SW + Math.max(0, COLS - 1) * GAP : 0;
+  const gridOffX = Math.round((W - gridW) / 2);
 
   // 버튼 블록 높이
   const btnBlockH = (hasConfirm ? 42 : 0)
@@ -360,9 +366,10 @@ export function showCardSelectOverlay(layer, opts) {
     const row = Math.floor(idx / COLS);
 
     const slot = new PIXI.Container();
-    slot.x     = PAD_X + col * (SW + GAP);
-    slot.y     = GY    + row * (SH + GAP);
-    slot.alpha = 0.5;   // 초기: 모든 카드 0.5 → 선택 시 1.0
+    slot.x     = gridOffX + col * (SW + GAP);
+    slot.y     = GY       + row * (SH + GAP);
+    // single+confirmLabel 모드: 카드는 표시 전용(alpha 1.0), 선택은 버튼으로
+    slot.alpha = (mode === 'single' && confirmLabel) ? 1.0 : 0.5;
 
     // 슬롯 베이스
     const slotBg = new PIXI.Graphics();
@@ -437,10 +444,11 @@ export function showCardSelectOverlay(layer, opts) {
       if (!_timer) return;
       clearTimeout(_timer); _timer = null;
 
-      if (mode === 'single') {
+      if (mode === 'single' && !confirmLabel) {
+        // 기본 single: 카드 탭 → 즉시 confirm
         _close();
         onConfirm([item]);
-      } else {
+      } else if (mode !== 'single') {
         if (selected.has(item)) {
           selected.delete(item);
           _setSelected(false);   // slot.alpha = 0.5
@@ -473,7 +481,8 @@ export function showCardSelectOverlay(layer, opts) {
       confirmEl.btn.scale.set(1);
       if (!_isEnabled()) return;
       _close();
-      onConfirm([...selected]);
+      // single+confirmLabel: 선택 없이 items 그대로 전달
+      onConfirm(mode === 'single' ? items : [...selected]);
     });
     overlay.addChild(confirmEl.btn);
   }

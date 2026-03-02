@@ -58,13 +58,15 @@ export function handleVassal(_pd, ctx) {
 
       // 액션 카드: 사용 여부 선택 오버레이
       showCardSelectOverlay(lUI, {
-        title:      '신하',
-        effectDesc: `「${card.def.name}」이(가) 공개되었습니다`,
-        subtitle:   '행동 소모 없이 사용하거나, 버림더미에 남길 수 있습니다',
-        items:      [card],
-        mode:       'single',
-        allowDetail: true,
-        cancelLabel: '버림더미에 남기기',
+        title:        '신하',
+        effectDesc:   `「${card.def.name}」이(가) 공개되었습니다`,
+        subtitle:     '행동 소모 없이 사용하거나, 버림더미에 남길 수 있습니다',
+        items:        [card],
+        mode:         'single',
+        maxCardW:     160,
+        confirmLabel: '사용하기',
+        cancelLabel:  '버림더미에 남기기',
+        allowDetail:  true,
         onConfirm: ([picked]) => {
           // 버림더미 → play 영역 이동
           const idx = gs.discard.indexOf(picked);
