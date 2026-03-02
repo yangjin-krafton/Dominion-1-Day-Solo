@@ -14,7 +14,7 @@ import { drawCard, playCard, endTurn,
 
 // ── ui ─────────────────────────────────────────────────────
 import { Card }                                from './ui/Card.js';
-import { buildBackground,
+import { buildBackground, buildPileStaticBg,
          buildUI, updateUI, applyProfile,
          notifyBlocked }                       from './ui/scene.js';
 import { updateCardPositions,
@@ -34,9 +34,12 @@ import { loadCards, resolveCards } from './data/cards.js';
 // ============================================================
 // PixiJS 앱
 // ============================================================
+// resolution = DPR × CSS스케일 → canvas 버퍼가 물리 픽셀과 1:1 매칭되어 PC에서도 선명
+const _dpr      = window.devicePixelRatio || 1;
+const _fitScale = Math.min(window.innerWidth / W, window.innerHeight / H);
 const app = new PIXI.Application({
   width: W, height: H, backgroundColor: 0x0d0a18,
-  resolution: window.devicePixelRatio || 1,
+  resolution: _dpr * _fitScale,
   autoDensity: true, antialias: true,
 });
 document.querySelector('#app').appendChild(app.view);
@@ -401,6 +404,7 @@ app.ticker.add(() => {
 // 부트
 // ============================================================
 buildBackground(lBg);
+buildPileStaticBg(lBg);
 
 // 프로필 로드 후 buildUI 호출 (applyProfile로 갱신 가능)
 const _initProfile = Storage.getProfile();

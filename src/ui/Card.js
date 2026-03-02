@@ -160,7 +160,7 @@ export class Card {
    * n = 0 or 1 → 배지 숨김 / n ≥ 2 → "×N" 배지 표시
    */
   setStackCount(n) {
-    if (n > 1) {
+    if (n > 1 && this.area === AREAS.HAND) {
       if (!this._stackBadge) this._createStackBadge();
       this._stackBadgeText.text = `×${n}`;
       this._stackBadge.visible  = true;

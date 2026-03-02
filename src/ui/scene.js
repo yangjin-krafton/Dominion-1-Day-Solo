@@ -380,30 +380,27 @@ function makeEffectTag(text, color = C.dimCream) {
   return tag;
 }
 
-// ─── 더미 영역 + 턴 종료 버튼 통합 패널 (5등분) ─────────────
+// ─── 더미 슬롯 배경 (카드 아래 레이어용 — main.js에서 lBg에 추가) ────
 /**
- * 5등분 컬럼: [덱] [버림] [낸카드] [패기더미] [턴종료버튼]
- * layout.js의 PILE 위치 계산과 동일한 상수 사용 (COL_M=4, COL_G=3)
+ * 더미 슬롯 외곽선 + 이름 레이블을 카드 아래 레이어(lBg)에 렌더링
+ * buildUI보다 먼저, lBg에 직접 추가해야 카드 아래에 표시됨
  */
-function buildPileArea(layer, gs) {
-  const PW = Math.round(CARD_W * PILE_SCALE);   // 63px
-  const PH = Math.round(CARD_H * PILE_SCALE);   // 95px
-
-  // 5등분 컬럼 레이아웃 (4더미 + 1버튼)
-  const COL_M = 4;   // 좌우 여백
-  const COL_G = 3;   // 컬럼 사이 간격
-  const COL_W = Math.floor((W - COL_M * 2 - COL_G * 4) / 5);  // 74px
+export function buildPileStaticBg(layer) {
+  const PW = Math.round(CARD_W * PILE_SCALE);
+  const PH = Math.round(CARD_H * PILE_SCALE);
+  const COL_M = 4;
+  const COL_G = 3;
+  const COL_W = Math.floor((W - COL_M * 2 - COL_G * 4) / 5);
   const colX  = i => COL_M + i * (COL_W + COL_G);
-  const CARD_Y_OFF = 14;
-  const py    = ZONE.PILES_Y + CARD_Y_OFF;
+  const py    = ZONE.PILES_Y + 14;
 
-  // 섹션 상단 경계선만 (배경 fill 없음)
-  const bg = new PIXI.Graphics();
-  bg.lineStyle(0.8, C.goldDim, 0.3);
-  bg.moveTo(0, ZONE.PILES_Y); bg.lineTo(W, ZONE.PILES_Y);
-  layer.addChild(bg);
+  // 섹션 상단 경계선
+  const border = new PIXI.Graphics();
+  border.lineStyle(0.8, C.goldDim, 0.3);
+  border.moveTo(0, ZONE.PILES_Y); border.lineTo(W, ZONE.PILES_Y);
+  layer.addChild(border);
 
-  // 4개 더미 (컬럼 0–3): 외곽선 + 이름 레이블
+  // 4개 더미 슬롯: 외곽선 + 이름 레이블 (슬롯 안쪽 상단)
   ['덱', '버림', '낸카드', '패기'].forEach((name, i) => {
     const cx = colX(i);
     const px = cx + Math.floor((COL_W - PW) / 2);
@@ -413,12 +410,27 @@ function buildPileArea(layer, gs) {
     outline.drawRect(px, py, PW, PH);
     layer.addChild(outline);
 
-    const lbl = makeText(name, 7, C.dimCream, { fontStyle: 'italic' });
-    lbl.anchor.set(0.5, 0);
-    lbl.x = cx + COL_W / 2;
-    lbl.y = py + PH + 3;
+    const lbl = makeText(name, 14, C.dimCream, { fontStyle: 'italic' });
+    lbl.anchor.set(0.5, 0.5);
+    lbl.x = px + PW / 2;
+    lbl.y = py + PH / 2;
     layer.addChild(lbl);
   });
+}
+
+// ─── 더미 영역 + 턴 종료 버튼 통합 패널 (5등분) ─────────────
+/**
+ * 5등분 컬럼 중 버튼 영역만 담당 (슬롯 외곽선/레이블은 buildPileStaticBg로 분리)
+ * layout.js의 PILE 위치 계산과 동일한 상수 사용 (COL_M=4, COL_G=3)
+ */
+function buildPileArea(layer, gs) {
+  const PH = Math.round(CARD_H * PILE_SCALE);
+
+  const COL_M = 4;
+  const COL_G = 3;
+  const COL_W = Math.floor((W - COL_M * 2 - COL_G * 4) / 5);
+  const colX  = i => COL_M + i * (COL_W + COL_G);
+  const py    = ZONE.PILES_Y + 14;
 
   // 턴 종료 버튼 (컬럼 4)
   const BTN_X = colX(4) + 2;
@@ -436,8 +448,22 @@ function buildPileArea(layer, gs) {
   });
   btn.addChild(btnBg);
 
-  const btnTxt = makeText('턴\n종료', 12, C.gold, { fontWeight: 'bold', align: 'center' });
-  btnTxt.anchor.set(0.5); btnTxt.x = BTN_W / 2; btnTxt.y = BTN_H / 2;
+  // 턴 카운터 (상단)
+  const turnNumTxt = makeText('1턴', 11, C.goldHi, { fontWeight: 'bold', align: 'center' });
+  turnNumTxt.anchor.set(0.5, 0.5);
+  turnNumTxt.x = BTN_W / 2; turnNumTxt.y = BTN_H * 0.30;
+  btn.addChild(turnNumTxt);
+  refs.turnNumTxt = turnNumTxt;
+
+  // 구분선
+  const btnDiv = new PIXI.Graphics();
+  btnDiv.lineStyle(0.5, C.goldDim, 0.5);
+  btnDiv.moveTo(6, BTN_H * 0.52); btnDiv.lineTo(BTN_W - 6, BTN_H * 0.52);
+  btn.addChild(btnDiv);
+
+  // 종료 텍스트 (하단)
+  const btnTxt = makeText('종료', 12, C.gold, { fontWeight: 'bold', align: 'center' });
+  btnTxt.anchor.set(0.5, 0.5); btnTxt.x = BTN_W / 2; btnTxt.y = BTN_H * 0.73;
   btn.addChild(btnTxt);
 
   btn.x = BTN_X; btn.y = BTN_Y;
@@ -592,6 +618,9 @@ export function applyProfile(profile) {
 
 // ─── 게임 상태 변경 시 UI 텍스트 갱신 ───────────────────────
 export function updateUI(gs) {
+  // 턴 카운터
+  if (refs.turnNumTxt) refs.turnNumTxt.text = `${gs.turn ?? 1}턴`;
+
   // 승점 칩 + 목표
   const curVP = gs.vp ?? 0;
   const prvVP = refs._prevVP ?? curVP;
