@@ -73,12 +73,6 @@ export function buildHandArrows(layer) {
   function makeIndicator(dir, x) {
     const cont = new PIXI.Container();
 
-    const bg = new PIXI.Graphics();
-    bg.beginFill(0x07050f, 0.6);
-    bg.drawRect(0, 0, ARROW_W, CH);
-    bg.endFill();
-    cont.addChild(bg);
-
     const t = new PIXI.Text(dir === 'left' ? '‹' : '›', {
       fontSize: 16, fill: C.gold, fontWeight: 'bold',
     });
@@ -162,56 +156,48 @@ export function updateCardPositions(gs) {
   });
 
   // ══════════════════════════════════════════════════════════
-  // 핸드 카드 (그룹화 + 좌우 스크롤)
+  // 핸드 카드 (연속 캐러셀 — 픽셀 오프셋 기반)
+  // gs.handScroll = px 오프셋 (0=왼쪽 끝, 음수=오른쪽으로 스크롤)
   // ══════════════════════════════════════════════════════════
-  const handGroups   = _groupByDefId(hand);
-  const totalGroups  = handGroups.length;
-  const scrollOffset = Math.max(
-    0,
-    Math.min(gs.handScroll ?? 0, Math.max(0, totalGroups - HAND_MAX_VIS)),
-  );
-  gs.handScroll = scrollOffset;   // 범위 클램프 반영
+  const handGroups  = _groupByDefId(hand);
+  const n           = handGroups.length;
 
-  const needScroll  = totalGroups > HAND_MAX_VIS;
-  const visGroups   = needScroll
-    ? handGroups.slice(scrollOffset, scrollOffset + HAND_MAX_VIS)
-    : handGroups;
+  // 그룹 간격: HAND_MAX_VIS 기준으로 화면에 딱 맞게
+  const spacing = n > 1
+    ? Math.min(HAND_SPACING, (W - 16 - CW) / Math.min(n - 1, HAND_MAX_VIS - 1))
+    : 0;
+  const totalW     = spacing * (n - 1) + CW;
+  const needsScroll = totalW > W - 16;
 
-  // 화살표 표시 갱신
+  // 픽셀 오프셋 클램프
+  const minOff  = needsScroll ? -(totalW - (W - 16)) : 0;
+  let scrollPx  = Math.max(minOff, Math.min(0, gs.handScroll ?? 0));
+  gs.handScroll = scrollPx;
+
+  const totalOff = scrollPx + (gs._handDragOffset ?? 0);
+
+  // 카드 열 기준 X (스크롤 없으면 중앙 정렬)
+  const baseX = needsScroll ? (8 + totalOff) : ((W - totalW) / 2);
+
+  // 화살표 방향 표시자 갱신
   if (gs._handArrows) {
-    gs._handArrows.left.visible  = needScroll && scrollOffset > 0;
-    gs._handArrows.right.visible = needScroll && scrollOffset + HAND_MAX_VIS < totalGroups;
+    gs._handArrows.left.visible  = needsScroll && totalOff < -10;
+    gs._handArrows.right.visible = needsScroll && baseX + totalW > W - 10;
   }
 
-  // 화면 밖 그룹 숨기기
-  handGroups.forEach((group, gi) => {
-    const inWindow = !needScroll
-      || (gi >= scrollOffset && gi < scrollOffset + HAND_MAX_VIS);
-    group.forEach(card => { card.container.visible = inWindow; });
-  });
-
-  // 보이는 그룹 배치
-  const areaW  = needScroll ? (W - ARROW_W * 2 - 12) : (W - 16);
-  const areaX  = needScroll ? (ARROW_W + 6)           : 8;
-  const n      = visGroups.length;
-  const spacing = n > 1
-    ? Math.min(HAND_SPACING, (areaW - CW) / (n - 1))
-    : 0;
-  const totalW  = spacing * (n - 1) + CW;
-  const startX  = areaX + (areaW - totalW) / 2;
-
-  const dragOff = gs._handDragOffset ?? 0;
-
-  visGroups.forEach((group, gIdx) => {
+  // 전체 그룹 배치 — 화면 밖은 숨겨 렌더링 최소화
+  handGroups.forEach((group, gIdx) => {
     const stackN = group.length;
-    const baseX  = startX + gIdx * spacing;
+    const groupX = baseX + gIdx * spacing;
+    const inView = groupX + CW > 0 && groupX < W;
 
     group.forEach((card, cIdx) => {
       const isTop = cIdx === stackN - 1;
       const off   = (stackN - 1 - cIdx) * STACK_OFF;
 
-      card.area = AREAS.HAND;
-      card.moveTo(baseX + off + dragOff, HAND_START_Y + off, 0, 1);
+      card.area                = AREAS.HAND;
+      card.container.visible   = inView;
+      card.moveTo(groupX + off, HAND_START_Y + off, 0, 1);
       card.container.zIndex    = 100 + gIdx * 20 + cIdx;
       card.container.eventMode = isTop ? 'static' : 'none';
       card.container.cursor    = isTop ? 'pointer' : 'default';

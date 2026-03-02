@@ -431,13 +431,12 @@ gs._handArrows = buildHandArrows(lUI);
 
 CardDetail.init(lUI);
 
-// ── 핸드 드래그 스크롤 (실시간 추적 + 스냅) ─────────────────
+// ── 핸드 드래그 스크롤 (연속 캐러셀 + 그룹 스냅) ─────────────
 // ‣ pointermove: 손가락 따라 카드 즉시 이동 (lerp 우회)
-// ‣ pointerup:   오프셋 리셋 후 _sync() → lerp이 스냅 애니메이션 처리
-// ‣ Card.js는 8px 이상 이동 시 _timer=null → onPlay 미호출 (카드 실수 플레이 없음)
+// ‣ pointerup:   가장 가까운 그룹 경계로 스냅 후 lerp 애니메이션
+// ‣ Card.js 8px+ 이동 시 _timer=null → onPlay 미호출 (카드 실수 플레이 없음)
 {
-  const DEAD_ZONE    = 5;   // 이 미만 이동은 탭으로 간주 (px)
-  const SNAP_DIST    = 40;  // 이 이상 드래그 시 한 그룹 스크롤 (px)
+  const DEAD_ZONE = 5;  // 이 미만 이동은 탭으로 간주 (px)
 
   let _hdStartX = 0, _hdActive = false;
 
@@ -457,7 +456,7 @@ CardDetail.init(lUI);
     if (Math.abs(dx) < DEAD_ZONE) return;
 
     gs._handDragOffset = dx;
-    // 카드 위치 즉시 반영 (lerp 우회)
+    // 카드 위치 즉시 반영 (lerp 우회 — 손가락 추적)
     updateCardPositions(gs);
     gs.hand.forEach(c => { c.container.x = c.targetX; });
     gs.cardsContainer?.sortChildren();
@@ -468,12 +467,19 @@ CardDetail.init(lUI);
     const dx = e.global.x - _hdStartX;
     gs._handDragOffset = 0;
 
-    if (dx < -SNAP_DIST) {
-      gs.handScroll = (gs.handScroll ?? 0) + 1;
-    } else if (dx > SNAP_DIST) {
-      gs.handScroll = Math.max(0, (gs.handScroll ?? 0) - 1);
+    // 그룹 간격 재산출 (layout.js와 동일 공식)
+    const nGroups = new Set(gs.hand.map(c => c.def.id)).size;
+    const sp = nGroups > 1
+      ? Math.min(98, (W - 16 - 90) / Math.min(nGroups - 1, 3))
+      : 0;
+
+    if (sp > 0) {
+      // 드래그 적용 후 가장 가까운 그룹 경계로 스냅
+      gs.handScroll = Math.round(((gs.handScroll ?? 0) + dx) / sp) * sp;
+      // 범위 클램프는 updateCardPositions에서 처리
     }
-    // _sync() → updateCardPositions(offset=0) → targetX 갱신 → lerp이 스냅
+
+    // _sync() → updateCardPositions(dragOff=0) → targetX 갱신 → lerp 스냅 애니메이션
     gs.onScrollHand?.();
     _hdActive = false;
   };
