@@ -13,7 +13,8 @@ import {
 
 // ── 더미(Pile) 크기 & 5등분 컬럼 레이아웃 ───────────────────
 // scene.js buildPileArea와 동일한 상수 (COL_M=4, COL_G=3)
-const PW       = Math.round(CW * PILE_SCALE);    // 63px
+const PW       = Math.round(CW * PILE_SCALE);
+const PH       = Math.round(CH * PILE_SCALE);
 const COL_M    = 4;
 const COL_G    = 3;
 const COL_W    = Math.floor((W - COL_M * 2 - COL_G * 4) / 5);  // 74px
@@ -34,6 +35,16 @@ const STACK_OFF     = 4;                   // 동일 카드 중첩 오프셋
 // ─── 유틸: 카드 ID 기반 결정적 난수 (0~1) — 매 sync 지터 방지 ──────
 // salt로 더미별 회전 분포를 분리
 const _pileRand = (id, salt = 0) => ((id * 1337 + salt * 997) % 1000) / 1000;
+
+// ─── 유틸: 중심 기준 회전 위치 보정 ────────────────────────────
+// PixiJS pivot=(0,0)이라 기본은 좌상단 기준 회전.
+// 카드 중심(PW/2, PH/2)이 화면 (cx, cy)에 고정된 채 회전하도록 container 위치를 보정.
+// 수식: container.pos = center - R(rot) * (PW/2, PH/2)
+const _centerRotPos = (cx, cy, rot) => {
+  const hw = PW / 2, hh = PH / 2;
+  const c = Math.cos(rot), s = Math.sin(rot);
+  return { x: cx - hw * c + hh * s, y: cy - hw * s - hh * c };
+};
 
 // ─── 유틸: def.id 기준 그룹화 ────────────────────────────────
 function _groupByDefId(cards) {
@@ -126,33 +137,36 @@ export function updateCardPositions(gs) {
     card.container.zIndex = i;
   });
 
-  // ② 버림더미 (면 위) — PILE 1 : 불규칙 회전 중첩
+  // ② 버림더미 (면 위) — PILE 1 : 불규칙 회전 중첩 (카드 중심 기준)
   discard.forEach((card, i) => {
     card.area = AREAS.DISCARD;
     card.setStackCount(0);
     const off = Math.min(i * 0.4, 4);
-    const rot = (_pileRand(card.id, 1) - 0.5) * 0.55;   // ±0.275 rad (~±16°)
-    card.moveTo(PILE_X[1] + off, PILE_Y + off, rot, PILE_SCALE);
+    const rot = (_pileRand(card.id, 1) - 0.5) * 0.55;
+    const { x, y } = _centerRotPos(PILE_X[1] + off + PW / 2, PILE_Y + off + PH / 2, rot);
+    card.moveTo(x, y, rot, PILE_SCALE);
     card.container.zIndex = 20 + i;
   });
 
-  // ③ 낸카드더미 (플레이) — PILE 2 : 불규칙 회전 중첩
+  // ③ 낸카드더미 (플레이) — PILE 2 : 불규칙 회전 중첩 (카드 중심 기준)
   play.forEach((card, i) => {
     card.area = AREAS.PLAY;
     card.setStackCount(0);
     const off = Math.min(i * 0.4, 4);
     const rot = (_pileRand(card.id, 2) - 0.5) * 0.55;
-    card.moveTo(PILE_X[2] + off, PILE_Y + off, rot, PILE_SCALE);
+    const { x, y } = _centerRotPos(PILE_X[2] + off + PW / 2, PILE_Y + off + PH / 2, rot);
+    card.moveTo(x, y, rot, PILE_SCALE);
     card.container.zIndex = 40 + i;
   });
 
-  // ④ 패기더미 — PILE 3 : 불규칙 회전 중첩
+  // ④ 패기더미 — PILE 3 : 불규칙 회전 중첩 (카드 중심 기준)
   trash.forEach((card, i) => {
     card.area = AREAS.TRASH;
     card.setStackCount(0);
     const off = Math.min(i * 0.4, 4);
     const rot = (_pileRand(card.id, 3) - 0.5) * 0.55;
-    card.moveTo(PILE_X[3] + off, PILE_Y + off, rot, PILE_SCALE);
+    const { x, y } = _centerRotPos(PILE_X[3] + off + PW / 2, PILE_Y + off + PH / 2, rot);
+    card.moveTo(x, y, rot, PILE_SCALE);
     card.container.zIndex = 60 + i;
   });
 
