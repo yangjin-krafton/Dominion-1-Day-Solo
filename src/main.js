@@ -302,18 +302,35 @@ function _onEndTurn() {
 
   // ── 시장 이벤트 처리 ─────────────────────────────────
   if (_marketQueueState && _timeline) {
-    // Step1: T+1 이벤트 꺼내기
+    // Step1: T+1 이벤트 꺼내기 & 경고 이펙트 해제
+    _market?.clearWarning();
     const executed = popMarketEvent(_marketQueueState);
 
     // Step2: 공급에 적용 (drain이면 resolvedCardId 기록됨)
-    applyMarketEvent(executed, gs.supply);
+    //        curse_player이면 플레이어 버림더미에 저주 추가
+    if (executed.type === 'curse_player') {
+      const curseDef = gs.supply.get('curse')?.def ?? _cardMap?.get('curse');
+      if (curseDef) {
+        const curseCard = makeCard(curseDef);
+        curseCard.area          = 'discard';
+        curseCard.isFaceUp      = true;
+        curseCard.frontFace.visible = true;
+        curseCard.backFace.visible  = false;
+        gs.discard.push(curseCard);
+        _sync();
+      }
+    } else {
+      applyMarketEvent(executed, gs.supply);
+    }
 
     // Step3: 새 T+4 이벤트 생성 (적용 후 시장 상태 기반)
     pushNextMarketEvent(_marketQueueState, gs.supply);
 
-    // Step4: 연출 — 타임라인 스크롤 + 영향 카드 플래시 동시 실행
+    // Step4: 연출 — 쉐이킹 + 타임라인 스크롤 + 플래시 동시 실행
     const flashId = executed.cardId ?? executed.resolvedCardId ?? null;
-    if (flashId) {
+    if (flashId) _market?.shakeCard(flashId);   // 모든 이벤트에 쉐이킹
+
+    if (flashId && executed.type !== 'curse_player') {
       _market?.vanishFlash(flashId, () => {
         _market?.refresh(gs.supply);
         _market?.setAffordable(gs.coins, gs.buys);
@@ -321,11 +338,13 @@ function _onEndTurn() {
     }
 
     _timeline.scroll(_marketQueueState.queue, () => {
-      // 플래시가 없었던 경우 여기서 공급 갱신
-      if (!flashId) {
+      if (!flashId || executed.type === 'curse_player') {
         _market?.refresh(gs.supply);
         _market?.setAffordable(gs.coins, gs.buys);
       }
+      // 새 T+1 카드에 경고 이펙트 표시
+      const newT1 = _marketQueueState.queue[0];
+      _market?.setWarningCard(newT1?.cardId ?? null);
     });
   }
 
@@ -422,6 +441,10 @@ export function _startGame() {
   _marketQueueState = { queue: initQueue, rng: rngEvents };
   _timeline?.destroy();
   _timeline = new MarketTimeline(lUI, _marketQueueState.queue);
+
+  // 게임 시작 시 T+1 이벤트 대상 카드에 경고 이펙트 표시
+  const firstT1 = initQueue[0];
+  _market.setWarningCard(firstT1?.cardId ?? null);
 
   _gameStart = Date.now();
   _sync();

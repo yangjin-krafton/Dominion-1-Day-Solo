@@ -200,6 +200,44 @@ export class Market {
     }
   }
 
+  // ── T+1 경고 이펙트 (소멸 예정 카드 위에 깜빡이는 눈 아이콘) ────
+  /**
+   * 지정 카드 슬롯에 눈 아이콘 오버레이를 붙이고 깜빡임 시작
+   * @param {string|null} id  경고 표시할 카드 ID (null이면 clearWarning)
+   */
+  setWarningCard(id) {
+    this.clearWarning();
+    if (!id) return;
+    const slot = this.slots.get(id);
+    if (!slot || slot.getCurCount() <= 0) return;
+
+    // PNG 자체 알파채널 활용 — 1:1 비율, 현재 크기의 50%, 카드 중앙 배치
+    const eye = PIXI.Sprite.from('./asset/eye_effect.png');
+    const sz       = Math.round(MW * 0.50);   // 1:1 정사각형 (MW의 50%)
+    eye.width      = sz;
+    eye.height     = sz;
+    eye.anchor.set(0.5);
+    eye.x          = MW / 2;
+    eye.y          = MH / 2;
+    eye.blendMode  = PIXI.BLEND_MODES.NORMAL;
+    eye.alpha      = 0.85;
+
+    slot.container.addChild(eye);
+    this._warnOv   = eye;   // Sprite 직접 참조 (Container 불필요)
+    this._warnId   = id;
+    this._warnTime = 0;
+  }
+
+  /** 경고 오버레이 제거 */
+  clearWarning() {
+    if (this._warnOv?.parent) {
+      this._warnOv.parent.removeChild(this._warnOv);
+      this._warnOv.destroy({ children: true });
+    }
+    this._warnOv = null;
+    this._warnId = null;
+  }
+
   // ── 시장 이벤트 소멸 연출 ────────────────────────────────
   /**
    * 지정 카드 슬롯에 빨간 플래시 → 페이드 아웃 후 콜백
@@ -233,8 +271,41 @@ export class Market {
     requestAnimationFrame(tick);
   }
 
-  // ── (호환성 유지) ──────────────────────────────────────────
-  update(_dt) {}
+  // ── 슬롯 쉐이킹 (이벤트 발생 시 흔들림 연출) ──────────────
+  /**
+   * 지정 카드 슬롯을 좌우 감쇠 진동으로 흔들기 (380ms)
+   * @param {string} id  - supply 카드 ID
+   */
+  shakeCard(id) {
+    const slot = this.slots.get(id);
+    if (!slot) return;
+
+    const ct    = slot.container;
+    const origX = ct.x;
+    const DUR   = 380;   // ms
+    const AMP   = 5;     // 진폭 px
+    const FREQ  = 5;     // 반주기 횟수
+    const t0    = Date.now();
+
+    const tick = () => {
+      const t = Math.min((Date.now() - t0) / DUR, 1);
+      // 감쇠 sin: 처음에 크게, 끝에 수렴
+      ct.x = origX + Math.sin(t * Math.PI * FREQ * 2) * AMP * (1 - t);
+      if (t < 1) requestAnimationFrame(tick);
+      else        ct.x = origX;
+    };
+    requestAnimationFrame(tick);
+  }
+
+  // ── 게임루프 업데이트 ─────────────────────────────────────
+  update(dt) {
+    if (!this._warnOv?.parent) return;
+    this._warnTime = (this._warnTime ?? 0) + dt;
+    // 0.7Hz 깜빡임: 0.0 ~ 1.0 (sin² 곡선 — 자연스러운 fade in/out)
+    // PNG 자체 알파가 살아있으므로 전체 alpha만 조절하면 됨
+    const s = Math.sin(this._warnTime * Math.PI * 0.7);
+    this._warnOv.alpha = s * s;   // sin² → 항상 ≥0, 부드럽게 나타났다 사라짐
+  }
 
   // ── 정리 ──────────────────────────────────────────────────
   destroy() {

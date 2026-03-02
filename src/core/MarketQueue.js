@@ -32,14 +32,27 @@ const TYPE_POOL = ['vanish', 'vanish', 'vanish', 'drain', 'surge'];
  * @param {function} rng
  * @returns {object} event
  */
+// 저주 카드는 시장 이벤트 대상에서 제외 — 대신 'curse_player' 이벤트로 처리
+const EXCLUDED_FROM_EVENTS = new Set(['curse']);
+
 export function generateMarketEvent(supply, rng) {
-  const available = [...supply.entries()].filter(([, v]) => v.count > 0);
+  // 저주를 제외한 재고 있는 카드 목록
+  const available = [...supply.entries()].filter(
+    ([id, v]) => v.count > 0 && !EXCLUDED_FROM_EVENTS.has(id),
+  );
+
+  // 저주 공급이 남아 있으면 낮은 확률로 'curse_player' 이벤트 발생
+  const curseCount = supply.get('curse')?.count ?? 0;
+  if (curseCount > 0 && rng() < 0.18) {
+    return { type: 'curse_player', cardId: 'curse', cardType: '저주', cardName: '저주', count: 1 };
+  }
+
   if (available.length === 0) return { type: 'skip' };
 
   const type = TYPE_POOL[Math.floor(rng() * TYPE_POOL.length)];
 
   if (type === 'vanish') {
-    // 재고 비례 가중 선택 (재고 많은 카드일수록 선택 확률 높음)
+    // 재고 비례 가중 선택 (저주 제외)
     const total = available.reduce((s, [, v]) => s + v.count, 0);
     let r = rng() * total;
     let target = available[available.length - 1];
@@ -59,9 +72,10 @@ export function generateMarketEvent(supply, rng) {
   }
 
   if (type === 'drain') {
-    // 가장 재고 합계 많은 타입 그룹에서 1장 제거
+    // 저주 타입 제외한 그룹에서 가장 재고 많은 타입 1장 제거
     const typeSum = {};
     for (const [, v] of available) {
+      if (v.def.type === '저주' || v.def.type === 'Curse') continue;
       typeSum[v.def.type] = (typeSum[v.def.type] ?? 0) + v.count;
     }
     const topType = Object.entries(typeSum).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '행동';
@@ -69,6 +83,7 @@ export function generateMarketEvent(supply, rng) {
   }
 
   if (type === 'surge') {
+    // 저주 제외한 카드에서 급등 대상 선택
     const idx = Math.floor(rng() * available.length);
     const [id, { def }] = available[idx];
     return {
