@@ -8,21 +8,16 @@ import { SCREEN_W as W, SCREEN_H as H, KINGDOM_POOL, BASIC_IDS } from './config.
 import { buildMarketSetup } from './core/MarketSetup.js';
 import { GameFlow, STATES }                from './core/GameFlow.js';
 import * as Storage                        from './core/Storage.js';
-import { drawCard, playCard, endTurn,
-         shuffle, checkVictory, initSupply,
-         buyCard, gainCard }               from './core/TurnEngine.js';
+import { endTurn, shuffle,
+         checkVictory, initSupply }        from './core/TurnEngine.js';
 
 // ── ui ─────────────────────────────────────────────────────
 import { Card }                                from './ui/Card.js';
 import { buildBackground, buildPileStaticBg,
-         buildUI, updateUI, applyProfile,
-         notifyBlocked }                       from './ui/scene.js';
+         buildUI, updateUI, applyProfile }     from './ui/scene.js';
 import { updateCardPositions,
-         buildHandArrows,
-         PILE_X, PILE_Y }                      from './ui/layout.js';
+         buildHandArrows }                      from './ui/layout.js';
 import * as CardDetail                         from './ui/CardDetail.js';
-import { showGainCardOverlay }                 from './ui/GainCardOverlay.js';
-import { showDiscardSelectOverlay }            from './ui/DiscardSelectOverlay.js';
 import { Market }                              from './ui/Market.js';
 import { MarketTimeline }                      from './ui/MarketTimeline.js';
 import { seededRng, generateMarketEvent,
@@ -34,6 +29,13 @@ import { ResultScreen }                        from './ui/screens/ResultScreen.j
 
 // ── data ───────────────────────────────────────────────────
 import { loadCards, resolveCards } from './data/cards.js';
+
+// ── motion & handlers ──────────────────────────────────────
+import { createCardMotion }        from './ui/CardMotion.js';
+import { createCardActionHandler } from './ui/CardActionHandler.js';
+
+// ── debug ──────────────────────────────────────────────────
+import { initDebug } from './debug/DebugAPI.js';
 
 // ============================================================
 // PixiJS 앱
@@ -92,8 +94,11 @@ const gs = {
   onOpenVolume:   () => console.log('[UI] 음량설정 (준비 중)'),
 };
 
+// _onPlayCard는 createCardActionHandler 호출 후 설정 (늦은 바인딩)
+let _onPlayCard = null;
+
 export function makeCard(def) {
-  const c = new Card(def, _idSeq++, _onPlayCard);
+  const c = new Card(def, _idSeq++, (card) => _onPlayCard?.(card));
   lCards.addChild(c.container);
   return c;
 }
@@ -122,172 +127,14 @@ function _sync() {
     .forEach(card => { card.container.alpha = 1; });
 }
 
-// ── 재셔플 애니메이션 ──────────────────────────────────────
-let _reshuffling = false;
-
-/**
- * 버림더미 카드들을 뒷면으로 뒤집고 덱 위치로 이동시키는 모션
- * @param {function} onDone 애니메이션 완료 후 콜백
- */
-function _reshuffleAnim(onDone) {
-  // 버림더미 카드 모두 뒷면으로 즉시 전환
-  for (const card of gs.discard) {
-    card.isFaceUp          = false;
-    card.frontFace.visible = false;
-    card.backFace.visible  = true;
-  }
-  // 카드마다 살짝 지연하며 덱 위치로 이동 (스태거 효과)
-  gs.discard.forEach((card, i) => {
-    setTimeout(() => {
-      const jitter = (Math.random() - 0.5) * 0.14;
-      card.moveTo(PILE_X[0], PILE_Y, jitter, card.container.scale.y);
-    }, i * 18);
-  });
-  // lerp 수렴 대기 후 콜백
-  setTimeout(onDone, 380);
-}
-
-function _drawCardVisual() {
-  if (_reshuffling) {
-    // 재셔플 진행 중: 잠시 후 재시도
-    setTimeout(_drawCardVisual, 80);
-    return;
-  }
-
-  if (gs.deck.length === 0 && gs.discard.length > 0) {
-    // 덱 소진 → 재셔플 모션 후 드로우
-    _reshuffling = true;
-    _reshuffleAnim(() => {
-      _reshuffling = false;
-      _doSingleDraw();
-    });
-  } else {
-    _doSingleDraw();
-  }
-}
-
-function _doSingleDraw() {
-  const card = drawCard(gs);
-  if (!card) return;
-  // 버림→덱 재활용 카드: 앞면 상태일 경우 뒷면 강제 리셋
-  if (card.isFaceUp) {
-    card.isFaceUp          = false;
-    card.frontFace.visible = false;
-    card.backFace.visible  = true;
-  }
-  _sync();
-  setTimeout(() => card.flip(), 180);
-}
-
-function _drawCardsVisual(n) {
-  for (let i = 0; i < n; i++) setTimeout(_drawCardVisual, i * 140);
-}
-
-function _onPlayCard(card) {
-  const result = playCard(gs, card);
-  if (!result.ok) {
-    if (result.reason === 'no_actions') notifyBlocked('action');
-    return;
-  }
-  gs.phase = gs.actions > 0 ? 'action' : 'buy';
-  _sync();
-
-  // 액션 효과로 드로우된 카드: 뒷면 상태로 핸드에 있으면 flip
-  gs.hand.forEach((c, i) => {
-    if (!c.isFaceUp) {
-      c.isFaceUp          = false;
-      c.frontFace.visible = false;
-      c.backFace.visible  = true;
-      setTimeout(() => c.flip(), 150 + i * 70);
-    }
-  });
-
-  // 카드 획득 대기 효과 처리 (workshop 등)
-  if (gs.pendingGain) {
-    const { maxCost, dest = 'discard' } = gs.pendingGain;
-    gs.pendingGain = null;
-    _handleGainCard(maxCost, dest);
-  }
-
-  // 핸드 선택 버리기 효과 처리 (cellar 등)
-  if (gs.pendingDiscard) {
-    const pd = gs.pendingDiscard;
-    gs.pendingDiscard = null;
-    _handleDiscardSelect(pd);
-  }
-}
-
-/** 핸드에서 선택한 카드들을 버리고 같은 수만큼 드로우 */
-function _handleDiscardSelect(pd) {
-  let _ov = null;
-
-  const close = () => { _ov?.close(); _ov = null; _sync(); };
-
-  _ov = showDiscardSelectOverlay(
-    lUI,
-    [...gs.hand],          // 현재 손패 스냅샷 (원본 참조 유지)
-    (selectedCards) => {
-      // 선택한 카드들을 손패에서 제거 → 버림더미로
-      for (const card of selectedCards) {
-        const idx = gs.hand.indexOf(card);
-        if (idx !== -1) {
-          gs.hand.splice(idx, 1);
-          card.area          = 'discard';
-          card.isFaceUp      = true;
-          card.frontFace.visible = true;
-          card.backFace.visible  = false;
-          gs.discard.push(card);
-        }
-      }
-      const drawN = selectedCards.length;
-      close();
-      // 버린 수만큼 드로우
-      if (pd.drawAfter && drawN > 0) {
-        _drawCardsVisual(drawN);
-      }
-    },
-    close,
-  );
-}
-
-/** 카드 획득 오버레이 표시 — workshop 등 gainCard 효과 공용 진입점 */
-function _handleGainCard(maxCost, dest) {
-  let _ov = null;
-
-  const close = () => {
-    _ov?.close();
-    _ov = null;
-    _sync();
-  };
-
-  _ov = showGainCardOverlay(
-    lUI,
-    gs.supply,
-    maxCost,
-    (def) => {
-      // 카드 획득 → 버림더미(또는 핸드)
-      gainCard(gs, def, makeCard, dest);
-      close();
-    },
-    close,
-  );
-}
-
-function _onBuyCard(def) {
-  const result = buyCard(gs, def, makeCard);
-  if (!result.ok) {
-    if (result.reason === 'no_buys')            notifyBlocked('buy');
-    else if (result.reason === 'out_of_stock')  notifyBlocked('buy');
-    else if (result.reason === 'insufficient_coins') notifyBlocked('coin');
-    return;
-  }
-  gs.phase = 'buy';
-  _sync();
-
-  if (checkVictory(gs.supply) || gs.vp >= gs.vpTarget) {
-    _finishGame();
-  }
-}
+// ── 카드 모션 & 액션 핸들러 연결 ──────────────────────────
+const { drawCardsVisual: _drawCardsVisual } = createCardMotion({ gs, sync: _sync });
+const { onPlayCard, onBuyCard: _onBuyCard } = createCardActionHandler({
+  gs, lUI, makeCard, sync: _sync,
+  drawCardsVisual: _drawCardsVisual,
+  onVictory: _finishGame,
+});
+_onPlayCard = onPlayCard;
 
 function _onEndTurn() {
   endTurn(gs);
@@ -502,6 +349,9 @@ CardDetail.init(lUI);
     const profile = Storage.getProfile();
     if (profile) applyProfile(profile);
     flow.go(profile ? STATES.HOME : STATES.PROFILE_SETUP);
+
+    // ── 콘솔 디버그 API ──────────────────────────────────────
+    initDebug({ cardMap: _cardMap, gs, makeCard, sync: _sync });
 
   } catch (err) {
     console.error('[main] 초기화 실패:', err);
