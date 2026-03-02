@@ -128,6 +128,10 @@ function _sync() {
   // 핸드 밖 카드는 항상 alpha 복원
   [...gs.deck, ...gs.play, ...gs.discard, ...gs.trash]
     .forEach(card => { card.container.alpha = 1; });
+
+  // 해자(Moat)가 핸드에 있으면 타임라인에 지속 아이스 이펙트
+  const hasMoatInHand = gs.hand.some(c => c.def.id === 'moat');
+  _timeline?.setFrozen(hasMoatInHand);
 }
 
 // ── 카드 모션 & 액션 핸들러 연결 ──────────────────────────
@@ -140,6 +144,9 @@ const { onPlayCard, onBuyCard: _onBuyCard } = createCardActionHandler({
 _onPlayCard = onPlayCard;
 
 function _onEndTurn() {
+  // 해자(Moat) 확인 — endTurn()이 손패를 버림더미로 보내기 전에 체크
+  const hasMoat = gs.hand.some(c => c.def.id === 'moat');
+
   endTurn(gs);
   gs.handScroll = 0;
   gs.phase      = 'action';
@@ -152,50 +159,64 @@ function _onEndTurn() {
 
   // ── 시장 이벤트 처리 ─────────────────────────────────
   if (_marketQueueState && _timeline) {
-    // Step1: T+1 이벤트 꺼내기 & 경고 이펙트 해제
     _market?.clearWarning();
-    const executed = popMarketEvent(_marketQueueState);
 
-    // Step2: 공급에 적용 (drain이면 resolvedCardId 기록됨)
-    //        curse_player이면 플레이어 버림더미에 저주 추가
-    if (executed.type === 'curse_player') {
-      const curseDef = gs.supply.get('curse')?.def ?? _cardMap?.get('curse');
-      if (curseDef) {
-        const curseCard = makeCard(curseDef);
-        curseCard.area          = 'discard';
-        curseCard.isFaceUp      = true;
-        curseCard.frontFace.visible = true;
-        curseCard.backFace.visible  = false;
-        gs.discard.push(curseCard);
-        _sync();
-      }
+    if (hasMoat) {
+      // ── 해자 차단: 이벤트 효과 없이 큐만 전진 ────────
+      popMarketEvent(_marketQueueState);                   // T+1 소멸 (공급 적용 없음)
+      pushNextMarketEvent(_marketQueueState, gs.supply);   // T+4 추가
+
+      // 타임라인 얼림 연출 (scroll 대신 freeze)
+      _timeline.freeze(_marketQueueState.queue, () => {
+        const newT1 = _marketQueueState.queue[0];
+        _market?.setWarningCard(newT1?.cardId ?? null);
+      });
+
     } else {
-      applyMarketEvent(executed, gs.supply);
-    }
+      // ── 일반 시장 이벤트 처리 ─────────────────────────
+      // Step1: T+1 이벤트 꺼내기
+      const executed = popMarketEvent(_marketQueueState);
 
-    // Step3: 새 T+4 이벤트 생성 (적용 후 시장 상태 기반)
-    pushNextMarketEvent(_marketQueueState, gs.supply);
+      // Step2: 공급에 적용 (drain이면 resolvedCardId 기록됨)
+      //        curse_player이면 플레이어 버림더미에 저주 추가
+      if (executed.type === 'curse_player') {
+        const curseDef = gs.supply.get('curse')?.def ?? _cardMap?.get('curse');
+        if (curseDef) {
+          const curseCard = makeCard(curseDef);
+          curseCard.area          = 'discard';
+          curseCard.isFaceUp      = true;
+          curseCard.frontFace.visible = true;
+          curseCard.backFace.visible  = false;
+          gs.discard.push(curseCard);
+          _sync();
+        }
+      } else {
+        applyMarketEvent(executed, gs.supply);
+      }
 
-    // Step4: 연출 — 쉐이킹 + 타임라인 스크롤 + 플래시 동시 실행
-    const flashId = executed.cardId ?? executed.resolvedCardId ?? null;
-    if (flashId) _market?.shakeCard(flashId);   // 모든 이벤트에 쉐이킹
+      // Step3: 새 T+4 이벤트 생성 (적용 후 시장 상태 기반)
+      pushNextMarketEvent(_marketQueueState, gs.supply);
 
-    if (flashId && executed.type !== 'curse_player') {
-      _market?.vanishFlash(flashId, () => {
-        _market?.refresh(gs.supply);
-        _market?.setAffordable(gs.coins, gs.buys);
+      // Step4: 연출 — 쉐이킹 + 타임라인 스크롤 + 플래시 동시 실행
+      const flashId = executed.cardId ?? executed.resolvedCardId ?? null;
+      if (flashId) _market?.shakeCard(flashId);
+
+      if (flashId && executed.type !== 'curse_player') {
+        _market?.vanishFlash(flashId, () => {
+          _market?.refresh(gs.supply);
+          _market?.setAffordable(gs.coins, gs.buys);
+        });
+      }
+
+      _timeline.scroll(_marketQueueState.queue, () => {
+        if (!flashId || executed.type === 'curse_player') {
+          _market?.refresh(gs.supply);
+          _market?.setAffordable(gs.coins, gs.buys);
+        }
+        const newT1 = _marketQueueState.queue[0];
+        _market?.setWarningCard(newT1?.cardId ?? null);
       });
     }
-
-    _timeline.scroll(_marketQueueState.queue, () => {
-      if (!flashId || executed.type === 'curse_player') {
-        _market?.refresh(gs.supply);
-        _market?.setAffordable(gs.coins, gs.buys);
-      }
-      // 새 T+1 카드에 경고 이펙트 표시
-      const newT1 = _marketQueueState.queue[0];
-      _market?.setWarningCard(newT1?.cardId ?? null);
-    });
   }
 
   setTimeout(() => _drawCardsVisual(5), 500);

@@ -73,7 +73,7 @@ export const EFFECT_REGISTRY = new Map([
 
   // 작업장: 비용 4 이하 카드 획득
   ['workshop', (gs) => {
-    gs.pendingGain = { maxCost: 4, dest: 'discard' };
+    gs.pendingGain = { type: 'gain', maxCost: 4, dest: 'discard' };
   }],
 
   // 대금업자: 동전 1장 폐기 → +3코인
@@ -117,4 +117,7 @@ export const EFFECT_REGISTRY = new Map([
   ['artisan', (gs) => {
     gs.pendingTwoStep = { type: 'artisan' };
   }],
+
+  // pendingGain 사용 시 type: 'gain' 필드 포함 필수
+  // gs.pendingGain = { type: 'gain', maxCost: N, dest: 'discard'|'hand' }
 ]);

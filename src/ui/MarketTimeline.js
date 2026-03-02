@@ -9,6 +9,69 @@
 // ============================================================
 import { C, SCREEN_W as W, ZONE } from '../config.js';
 
+// ── 아이스 GLSL 프래그먼트 쉐이더 ────────────────────────────
+// 해자(Moat) 차단 시 타임라인에 적용되는 ICE 이펙트
+const ICE_FRAG = `
+precision mediump float;
+varying vec2 vTextureCoord;
+uniform sampler2D uSampler;
+uniform float uTime;
+uniform float uStrength;
+
+float rand(vec2 n) {
+  return fract(sin(dot(n, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+float noise(vec2 p) {
+  vec2 ip = floor(p);
+  vec2 u  = fract(p);
+  u = u * u * (3.0 - 2.0 * u);
+  float a = rand(ip);
+  float b = rand(ip + vec2(1.0, 0.0));
+  float c = rand(ip + vec2(0.0, 1.0));
+  float d = rand(ip + vec2(1.0, 1.0));
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+void main() {
+  vec2  uv = vTextureCoord;
+  // 얼음 굴절 왜곡
+  float n  = (noise(uv * 7.0 + uTime * 0.4) - 0.5) * 0.009 * uStrength;
+  vec4  col = texture2D(uSampler, clamp(uv + vec2(n, n * 0.6), 0.001, 0.999));
+  // 얼음 파란 틴트
+  vec3  ice = vec3(0.52, 0.83, 1.0);
+  col.rgb = mix(col.rgb, ice, 0.48 * uStrength);
+  // 결정 반짝임
+  float sp = pow(max(0.0, noise(uv * 22.0 + uTime * 1.5) - 0.62), 2.8) * 2.2 * uStrength;
+  col.rgb += vec3(sp * 0.65, sp * 0.82, sp);
+  // 가장자리 프로스트
+  float ex = max(0.0, 1.0 - min(uv.x, 1.0 - uv.x) * 6.0);
+  float ey = max(0.0, 1.0 - min(uv.y, 1.0 - uv.y) * 6.0);
+  col.rgb += ice * (ex + ey) * 0.22 * uStrength;
+  gl_FragColor = col;
+}
+`;
+
+// ── 눈결정 그리기 헬퍼 ────────────────────────────────────────
+function _drawSnowflake(g, cx, cy, r, color, alpha) {
+  g.lineStyle(0.7, color, alpha);
+  for (let i = 0; i < 6; i++) {
+    const a  = (i * Math.PI) / 3;
+    const ex = cx + Math.cos(a) * r;
+    const ey = cy + Math.sin(a) * r;
+    g.moveTo(cx, cy);
+    g.lineTo(ex, ey);
+    // 작은 가지
+    const mx = cx + Math.cos(a) * r * 0.55;
+    const my = cy + Math.sin(a) * r * 0.55;
+    g.moveTo(mx, my);
+    g.lineTo(mx + Math.cos(a + Math.PI / 3) * r * 0.28, my + Math.sin(a + Math.PI / 3) * r * 0.28);
+    g.moveTo(mx, my);
+    g.lineTo(mx + Math.cos(a - Math.PI / 3) * r * 0.28, my + Math.sin(a - Math.PI / 3) * r * 0.28);
+  }
+  g.lineStyle(0);
+}
+
 // ── 레이아웃 ───────────────────────────────────────────────
 const TL_Y       = ZONE.MARKET_Y + 2;    // 시장 섹션 Y + 2px 여백
 export const TL_H = 26;                   // Market.js CARD_Y0 계산에 사용
@@ -340,6 +403,107 @@ export class MarketTimeline {
     }
   }
 
+  // ── 해자(Moat) 지속 아이스 효과 ──────────────────────
+  /**
+   * 핸드에 Moat 카드가 있는 동안 타임라인에 은은한 얼음 이펙트를 지속 표시.
+   * @param {boolean} active  true=활성화, false=해제
+   */
+  setFrozen(active) {
+    if (this._isFreezeAnim) return;   // freeze() 애니메이션 진행 중엔 무시
+
+    if (active && !this._frozenFilter) {
+      // ── 필터 생성 ─────────────────────────────────────
+      this._frozenFilter = new PIXI.Filter(null, ICE_FRAG);
+      this._frozenFilter.uniforms.uTime     = 0.0;
+      this._frozenFilter.uniforms.uStrength = 0.0;
+      this.container.filters = [this._frozenFilter];
+
+      // ── 오버레이 그래픽 ─────────────────────────────────
+      this._frozenG   = new PIXI.Graphics();
+      this._frozenTxt = new PIXI.Text('❄ 해자 보호 중', {
+        fontFamily: 'Malgun Gothic, NanumGothic, sans-serif',
+        fontSize:   10.5,
+        fill:       0xb8e8ff,
+        dropShadow: true,
+        dropShadowColor: 0x003366,
+        dropShadowDistance: 1,
+      });
+      this._frozenTxt.anchor.set(0.5, 0.5);
+      this._frozenTxt.x = W / 2;
+      this._frozenTxt.y = TL_Y + TL_H / 2;
+      this._frozenTxt.alpha = 0;
+      this.layer.addChild(this._frozenG, this._frozenTxt);
+
+      // ── 틱 루프 (부드럽게 fade-in 후 shimmer 유지) ──────
+      const FADE_DUR = 500;
+      const startT   = Date.now();
+      this._frozenTick = () => {
+        if (!this._frozenFilter) return;   // 이미 해제됨
+        const elapsed  = Date.now() - startT;
+        const strength = Math.min(elapsed / FADE_DUR, 1.0) * 0.38;  // 은은하게 38%
+
+        this._frozenFilter.uniforms.uTime     = elapsed * 0.001;
+        this._frozenFilter.uniforms.uStrength = strength;
+
+        this._frozenG.clear();
+        // 반투명 아이스 틴트
+        this._frozenG.beginFill(0x66bbff, 0.06 * (strength / 0.38));
+        this._frozenG.drawRect(0, TL_Y - 1, W, TL_H + 4);
+        this._frozenG.endFill();
+        // 상하 라인
+        this._frozenG.lineStyle(0.6, 0x99ccff, 0.35 * (strength / 0.38));
+        this._frozenG.moveTo(0, TL_Y);
+        this._frozenG.lineTo(W, TL_Y);
+        this._frozenG.moveTo(0, TL_Y + TL_H + 2);
+        this._frozenG.lineTo(W, TL_Y + TL_H + 2);
+        this._frozenG.lineStyle(0);
+        // 눈결정 3개 (양 끝 + 중앙)
+        const ratio = strength / 0.38;
+        _drawSnowflake(this._frozenG, START_X + 12,           CAP_Y + CAP_H / 2, 4, 0x99ccff, 0.30 * ratio);
+        _drawSnowflake(this._frozenG, START_X + TOTAL_W / 2,  CAP_Y + CAP_H / 2, 5, 0xaaddff, 0.35 * ratio);
+        _drawSnowflake(this._frozenG, START_X + TOTAL_W - 12, CAP_Y + CAP_H / 2, 4, 0x99ccff, 0.30 * ratio);
+
+        this._frozenTxt.alpha = 0.65 * (strength / 0.38);
+
+        requestAnimationFrame(this._frozenTick);
+      };
+      requestAnimationFrame(this._frozenTick);
+
+    } else if (!active && this._frozenFilter) {
+      // ── 페이드아웃 후 해제 ───────────────────────────────
+      const filter = this._frozenFilter;
+      const g      = this._frozenG;
+      const txt    = this._frozenTxt;
+      this._frozenFilter = null;
+      this._frozenTick   = null;
+
+      const FADE_DUR = 300;
+      const startT   = Date.now();
+      const fade = () => {
+        const t = Math.min((Date.now() - startT) / FADE_DUR, 1.0);
+        const s = 0.38 * (1.0 - t);
+        filter.uniforms.uTime     = Date.now() * 0.001;
+        filter.uniforms.uStrength = s;
+        if (g.parent) {
+          g.clear();
+          g.beginFill(0x66bbff, 0.06 * (1 - t));
+          g.drawRect(0, TL_Y - 1, W, TL_H + 4);
+          g.endFill();
+        }
+        if (txt.parent) txt.alpha = 0.65 * (1 - t);
+
+        if (t < 1.0) {
+          requestAnimationFrame(fade);
+        } else {
+          this.container.filters = null;
+          g.parent?.removeChild(g);   g.destroy();
+          txt.parent?.removeChild(txt); txt.destroy();
+        }
+      };
+      requestAnimationFrame(fade);
+    }
+  }
+
   // ── 턴 종료 스크롤 연출 ──────────────────────────────
   /**
    * T+1이 왼쪽으로 퇴장, 나머지 좌이동, 새 T+4가 오른쪽에서 진입
@@ -415,8 +579,129 @@ export class MarketTimeline {
     requestAnimationFrame(tick);
   }
 
+  // ── 해자 차단: 타임라인 얼림 전환 애니메이션 ──────────
+  /**
+   * 해자 차단 시: scroll() 대신 호출.
+   * 얼음 쉐이더 + 결정 오버레이를 보여준 뒤 새 큐 상태로 전환.
+   * @param {object[]} newQueue  - roll 후 새 큐 [T+1…T+4]
+   * @param {function} onDone
+   */
+  freeze(newQueue, onDone) {
+    this._isFreezeAnim = true;
+
+    // 기존 setFrozen 지속 효과가 있으면 즉시 제거 (freeze가 대신 처리)
+    if (this._frozenFilter) {
+      this.container.filters = null;
+      this._frozenFilter = null;
+      this._frozenTick   = null;
+      this._frozenG?.parent?.removeChild(this._frozenG);
+      this._frozenG?.destroy();
+      this._frozenG = null;
+      this._frozenTxt?.parent?.removeChild(this._frozenTxt);
+      this._frozenTxt?.destroy();
+      this._frozenTxt = null;
+    }
+
+    const DUR_IN   = 380;
+    const DUR_HOLD = 750;
+    const DUR_OUT  = 460;
+    const TOTAL    = DUR_IN + DUR_HOLD + DUR_OUT;
+    const t0       = Date.now();
+
+    // ── 아이스 쉐이더 필터 ──────────────────────────────
+    const iceFilter = new PIXI.Filter(null, ICE_FRAG);
+    iceFilter.uniforms.uTime     = 0.0;
+    iceFilter.uniforms.uStrength = 0.0;
+    this.container.filters = [iceFilter];
+
+    // ── 오버레이 그래픽 & 텍스트 ─────────────────────────
+    const overlayG   = new PIXI.Graphics();
+    const overlayTxt = new PIXI.Text('❄  해자 — 시장 이벤트 봉인', {
+      fontFamily: 'Malgun Gothic, NanumGothic, sans-serif',
+      fontSize:   8,
+      fill:       0xd8f4ff,
+      dropShadow: true,
+      dropShadowColor:    0x003880,
+      dropShadowDistance: 1,
+    });
+    overlayTxt.anchor.set(0.5, 0.5);
+    overlayTxt.x = W / 2;
+    overlayTxt.y = TL_Y + TL_H / 2;
+    overlayTxt.alpha = 0;
+    this.layer.addChild(overlayG, overlayTxt);
+
+    const drawOverlay = (strength) => {
+      overlayG.clear();
+      if (strength <= 0.001) return;
+
+      // 반투명 얼음 배경
+      overlayG.beginFill(0x88ccff, 0.13 * strength);
+      overlayG.drawRect(0, TL_Y - 1, W, TL_H + 4);
+      overlayG.endFill();
+
+      // 가장자리 반짝 라인
+      overlayG.lineStyle(0.8, 0xbbdeff, 0.55 * strength);
+      overlayG.moveTo(0, TL_Y); overlayG.lineTo(W, TL_Y);
+      overlayG.moveTo(0, TL_Y + TL_H + 2); overlayG.lineTo(W, TL_Y + TL_H + 2);
+      overlayG.lineStyle(0);
+
+      // 스노우플레이크 결정들
+      const pts = [
+        [START_X + 18,            CAP_Y + CAP_H / 2, 5],
+        [START_X + TOTAL_W * 0.5, CAP_Y + CAP_H / 2, 7],
+        [START_X + TOTAL_W - 18,  CAP_Y + CAP_H / 2, 5],
+        [START_X + TOTAL_W * 0.27, TL_Y + 5,         3],
+        [START_X + TOTAL_W * 0.73, TL_Y + 5,         3],
+      ];
+      for (const [cx, cy, r] of pts) {
+        _drawSnowflake(overlayG, cx, cy, r, 0xaaddff, 0.50 * strength);
+      }
+      overlayTxt.alpha = strength;
+    };
+
+    const easeOut = t => 1 - (1 - t) ** 3;
+    const easeIn  = t => t * t;
+
+    const tick = () => {
+      const elapsed = Date.now() - t0;
+      let strength;
+      if      (elapsed < DUR_IN)                     strength = easeOut(elapsed / DUR_IN);
+      else if (elapsed < DUR_IN + DUR_HOLD)          strength = 1.0;
+      else {
+        const p = (elapsed - DUR_IN - DUR_HOLD) / DUR_OUT;
+        strength = easeIn(1.0 - Math.min(p, 1.0));
+      }
+      strength = Math.max(0, Math.min(1, strength));
+
+      iceFilter.uniforms.uTime     = elapsed * 0.001;
+      iceFilter.uniforms.uStrength = strength;
+      drawOverlay(strength);
+
+      if (elapsed < TOTAL) {
+        requestAnimationFrame(tick);
+      } else {
+        // ── 정리 & 새 큐 상태 반영 ──────────────────────
+        this.container.filters = null;
+        overlayG.parent?.removeChild(overlayG);   overlayG.destroy();
+        overlayTxt.parent?.removeChild(overlayTxt); overlayTxt.destroy();
+        this._isFreezeAnim = false;
+        this.refresh(newQueue);
+        onDone?.();
+      }
+    };
+    requestAnimationFrame(tick);
+  }
+
   // ── 정리 ──────────────────────────────────────────────
   destroy() {
+    // 지속 아이스 효과 정리
+    this._frozenFilter = null;
+    this._frozenTick   = null;
+    this._frozenG?.parent?.removeChild(this._frozenG);
+    this._frozenG?.destroy();
+    this._frozenTxt?.parent?.removeChild(this._frozenTxt);
+    this._frozenTxt?.destroy();
+
     if (this._panelG?.parent) this._panelG.parent.removeChild(this._panelG);
     this._panelG?.destroy();
     if (this._maskG?.parent) this._maskG.parent.removeChild(this._maskG);
