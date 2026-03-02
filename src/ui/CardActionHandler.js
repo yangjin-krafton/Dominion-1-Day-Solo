@@ -70,15 +70,36 @@ function _showMerchantBurst(lUI, card, amount) {
 
 export function createCardActionHandler({ gs, lUI, makeCard, sync, drawCardsVisual, onVictory }) {
 
+  /** 현재 컨텍스트 객체 (모든 핸들러에 전달) */
+  function _ctx() {
+    return { gs, lUI, makeCard, sync, drawCardsVisual, dispatchPending: _tryDispatch };
+  }
+
   /** pending 상태를 레지스트리로 디스패치 */
   function _dispatch(type, pd) {
     const handler = EFFECT_HANDLERS.get(type);
     if (handler) {
-      handler(pd, { gs, lUI, makeCard, sync, drawCardsVisual });
+      handler(pd, _ctx());
     } else {
       console.warn(`[CardActionHandler] 미등록 핸들러: "${type}"`);
       sync();
     }
+  }
+
+  /**
+   * gs.pending* 필드를 순회하여 첫 번째 pending 효과를 처리
+   * @returns {boolean} pending 효과가 발견되어 디스패치됐으면 true
+   */
+  function _tryDispatch() {
+    for (const { field, typeOf } of PENDING_KEYS) {
+      if (gs[field]) {
+        const pd = gs[field];
+        gs[field] = null;
+        _dispatch(typeOf(pd), pd);
+        return true;
+      }
+    }
+    return false;
   }
 
   /** 카드 플레이 */
@@ -109,14 +130,7 @@ export function createCardActionHandler({ gs, lUI, makeCard, sync, drawCardsVisu
     });
 
     // pending 효과 순차 처리 (첫 번째 발견 즉시 처리 후 return)
-    for (const { field, typeOf } of PENDING_KEYS) {
-      if (gs[field]) {
-        const pd = gs[field];
-        gs[field] = null;
-        _dispatch(typeOf(pd), pd);
-        return;
-      }
-    }
+    _tryDispatch();
   }
 
   /** 시장에서 카드 구매 */

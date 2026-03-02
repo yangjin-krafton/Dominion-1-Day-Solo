@@ -71,8 +71,10 @@ export const EFFECT_REGISTRY = new Map([
     gs.merchantBonus = (gs.merchantBonus ?? 0) + 1;
   }],
 
-  // 신하: 덱 위 공개 → 액션이면 플레이 (추후 구현)
-  ['vassal', _stub('Vassal: 덱 위 액션 플레이')],
+  // 신하: 덱 위 공개 → 버림더미, 액션이면 플레이 선택 (vassal.js 핸들러)
+  ['vassal', (gs) => {
+    gs.pendingPick = { type: 'vassal' };
+  }],
 
   // 작업장: 비용 4 이하 카드 획득
   ['workshop', (gs) => {

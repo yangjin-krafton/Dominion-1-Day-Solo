@@ -22,6 +22,7 @@ import { handleThroneRoom } from './throne_room.js';
 import { handleRemodel }    from './remodel.js';
 import { handleMine }       from './mine.js';
 import { handleArtisan }    from './artisan.js';
+import { handleVassal }     from './vassal.js';
 
 /**
  * 카드 type → 핸들러 함수 Map
@@ -42,6 +43,7 @@ export const EFFECT_HANDLERS = new Map([
   // ── 단일 선택 ───────────────────────────────────────────
   ['harbinger',   handleHarbinger],
   ['throne_room', handleThroneRoom],
+  ['vassal',      handleVassal],
 
   // ── 2단계 효과 ──────────────────────────────────────────
   ['remodel',     handleRemodel],
