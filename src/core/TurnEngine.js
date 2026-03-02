@@ -5,6 +5,7 @@
 // ============================================================
 import { AREAS } from '../config.js';
 import { executeCardEffect } from './CardEffect.js';
+import { SFX } from '../asset/audio/sfx.js';
 
 // ─── 유틸 ─────────────────────────────────────────────────────
 /** Fisher-Yates 셔플 (in-place) */
@@ -27,6 +28,7 @@ export function drawCard(gs) {
     if (gs.discard.length === 0) return null;
     gs.deck    = [...gs.discard];
     gs.discard = [];
+    SFX.shuffle();
     shuffle(gs.deck);
     // 덱 재생성 시 카드 area 복원
     gs.deck.forEach(c => { c.area = AREAS.DECK; });
@@ -81,6 +83,7 @@ export function playCard(gs, card) {
   }
 
   if (card.def.type === 'Treasure') {
+    SFX.gainCoin();
     gs.coins += card.def.coins ?? 0;
     // Merchant 트리거: Silver 플레이마다 칩 1개 소모 → +1코인
     if (card.def.id === 'silver' && (gs.merchantBonus ?? 0) > 0) {

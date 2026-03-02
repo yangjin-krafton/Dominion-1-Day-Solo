@@ -14,6 +14,7 @@ import { playCard, buyCard, checkVictory } from '../core/TurnEngine.js';
 import { notifyBlocked }   from './scene.js';
 import { EFFECT_HANDLERS } from '../card-effects/index.js';
 import { CARD_W } from '../config.js';
+import { SFX } from '../asset/audio/sfx.js';
 
 // pending 필드 → type 키 추출 규칙
 // pendingGain은 type 필드가 없으므로 'gain'으로 고정
@@ -68,11 +69,18 @@ function _showMerchantBurst(lUI, card, amount) {
   })();
 }
 
-export function createCardActionHandler({ gs, lUI, makeCard, sync, drawCardsVisual, onVictory }) {
+export function createCardActionHandler({
+  gs, lUI, makeCard, sync, drawCardsVisual, onVictory,
+  getTimeline, getMarketQueueState,
+}) {
 
   /** 현재 컨텍스트 객체 (모든 핸들러에 전달) */
   function _ctx() {
-    return { gs, lUI, makeCard, sync, drawCardsVisual, dispatchPending: _tryDispatch };
+    return {
+      gs, lUI, makeCard, sync, drawCardsVisual, dispatchPending: _tryDispatch,
+      timeline:         getTimeline?.(),
+      marketQueueState: getMarketQueueState?.(),
+    };
   }
 
   /** pending 상태를 레지스트리로 디스패치 */
@@ -109,9 +117,11 @@ export function createCardActionHandler({ gs, lUI, makeCard, sync, drawCardsVisu
 
     const result = playCard(gs, card);
     if (!result.ok) {
+      SFX.error();
       if (result.reason === 'no_actions') notifyBlocked('action');
       return;
     }
+    SFX.playCard();
     gs.phase = gs.actions > 0 ? 'action' : 'buy';
     sync();
 
@@ -137,11 +147,13 @@ export function createCardActionHandler({ gs, lUI, makeCard, sync, drawCardsVisu
   function onBuyCard(def) {
     const result = buyCard(gs, def, makeCard);
     if (!result.ok) {
+      SFX.error();
       if (result.reason === 'no_buys')             notifyBlocked('buy');
       else if (result.reason === 'out_of_stock')   notifyBlocked('buy');
       else if (result.reason === 'insufficient_coins') notifyBlocked('coin');
       return;
     }
+    SFX.buyCard();
     gs.phase = 'buy';
     sync();
 

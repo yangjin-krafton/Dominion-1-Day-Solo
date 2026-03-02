@@ -398,9 +398,161 @@ export class MarketTimeline {
   // ── 즉시 갱신 (애니메이션 없음) ──────────────────────
   /** @param {object[]} queue */
   refresh(queue) {
+    const bonus = this._revealBonus ?? 0;
     for (let i = 0; i < 4; i++) {
-      this._caps[i]?.update(queue[i] ?? null, i);
+      this._caps[i]?.update(queue[i] ?? null, Math.max(0, i - bonus));
     }
+  }
+
+  // ── 관료(Bureaucrat) 시장 공개 파티클 이펙트 ──────────
+  /**
+   * market_reveal 효과: 황금 스캔라인이 타임라인을 가로질러 숨겨진 정보 공개.
+   * @param {number}   n       공개 보너스 (reveal 단계 감소량)
+   * @param {object[]} queue   현재 큐
+   * @param {function} onDone  완료 콜백
+   */
+  revealUnlock(n, queue, onDone) {
+    this._revealBonus = n;
+
+    // 캡슐 즉시 갱신 (애니메이션과 동시에 내용 변경)
+    this.refresh(queue);
+
+    const DUR_SWEEP = 500;   // 스캔라인 이동
+    const DUR_HOLD  = 380;   // 유지
+    const DUR_OUT   = 280;   // 페이드아웃
+    const TOTAL     = DUR_SWEEP + DUR_HOLD + DUR_OUT;
+    const t0        = Date.now();
+
+    // ── 오버레이 레이어 ────────────────────────────────
+    const overlayG   = new PIXI.Graphics();
+    const overlayTxt = new PIXI.Text('官  시장 정보 공개', {
+      fontFamily: 'Georgia, serif',
+      fontSize:   9,
+      fontStyle:  'italic',
+      fill:       0xffe090,
+      dropShadow: true,
+      dropShadowColor:    0x5c2800,
+      dropShadowDistance: 1,
+    });
+    overlayTxt.anchor.set(0.5, 0.5);
+    overlayTxt.x = W / 2;
+    overlayTxt.y = TL_Y + TL_H / 2;
+    overlayTxt.alpha = 0;
+    this.layer.addChild(overlayG, overlayTxt);
+
+    // ── 파티클 초기화 (황금 먼지) ────────────────────
+    const PARTICLE_COUNT = 28;
+    const particles = Array.from({ length: PARTICLE_COUNT }, (_, k) => ({
+      x:     START_X + (k / PARTICLE_COUNT) * TOTAL_W,
+      y:     CAP_Y + CAP_H * (0.3 + Math.random() * 0.4),
+      vx:    (Math.random() - 0.5) * 22,
+      vy:    -(8 + Math.random() * 20),
+      life:  0,
+      maxL:  0.55 + Math.random() * 0.45,
+      r:     0.8 + Math.random() * 1.4,
+      delay: (k / PARTICLE_COUNT) * (DUR_SWEEP * 0.001) + Math.random() * 0.08,
+    }));
+
+    const easeOut = t => 1 - (1 - t) ** 3;
+    let lastMs = t0;
+
+    const tick = () => {
+      const now     = Date.now();
+      const dt      = (now - lastMs) / 1000;
+      lastMs        = now;
+      const elapsed = now - t0;
+      const sweepT  = Math.min(elapsed / DUR_SWEEP, 1);
+      const scanX   = START_X + easeOut(sweepT) * TOTAL_W;
+
+      overlayG.clear();
+
+      // ── 황금 스캔라인 ──────────────────────────────
+      if (elapsed < DUR_SWEEP + 60) {
+        const sa = (1 - sweepT * 0.7) * 0.85;
+        for (let g = 4; g >= 0; g--) {
+          const gAlpha = (sa * (0.45 - g * 0.09));
+          if (gAlpha <= 0) continue;
+          overlayG.beginFill(0xffe090, gAlpha);
+          overlayG.drawRect(scanX - g * 2.2, TL_Y - 1, g * 2.2 + 2, TL_H + 4);
+          overlayG.endFill();
+        }
+        // 선두 다이아몬드 포인트
+        if (sa > 0.1) {
+          overlayG.beginFill(0xfff4b0, sa * 0.9);
+          overlayG.drawPolygon([
+            scanX,     CAP_Y + CAP_H / 2 - 4,
+            scanX + 3, CAP_Y + CAP_H / 2,
+            scanX,     CAP_Y + CAP_H / 2 + 4,
+            scanX - 3, CAP_Y + CAP_H / 2,
+          ]);
+          overlayG.endFill();
+        }
+      }
+
+      // ── 전체 황금 틴트 오버레이 ────────────────────
+      const holdT = elapsed < DUR_SWEEP ? sweepT * 0.12
+                  : elapsed < DUR_SWEEP + DUR_HOLD ? 0.12
+                  : 0.12 * (1 - Math.min((elapsed - DUR_SWEEP - DUR_HOLD) / DUR_OUT, 1));
+      if (holdT > 0.001) {
+        overlayG.beginFill(0xffe090, holdT);
+        overlayG.drawRect(0, TL_Y - 1, W, TL_H + 4);
+        overlayG.endFill();
+      }
+
+      // ── 상하 황금 테두리 라인 ──────────────────────
+      const lineA = Math.max(0, holdT * 4);
+      if (lineA > 0.01) {
+        overlayG.lineStyle(0.9, 0xffe090, Math.min(lineA, 0.7));
+        overlayG.moveTo(0, TL_Y); overlayG.lineTo(W, TL_Y);
+        overlayG.moveTo(0, TL_Y + TL_H + 2); overlayG.lineTo(W, TL_Y + TL_H + 2);
+        overlayG.lineStyle(0);
+      }
+
+      // ── 파티클 업데이트 ────────────────────────────
+      for (const p of particles) {
+        if (p.delay > 0) { p.delay -= dt; continue; }
+        if (p.life < p.maxL) p.life = Math.min(p.life + dt * 1.8, p.maxL);
+
+        p.x  += p.vx * dt;
+        p.y  += p.vy * dt;
+        p.vy += 55 * dt;   // 중력
+
+        const fade = p.life > 0.01 ? Math.min(p.life * 3, 1) * (1 - elapsed / TOTAL) : 0;
+        if (fade > 0.01) {
+          overlayG.beginFill(0xffe8a0, fade * 0.9);
+          overlayG.drawCircle(p.x, p.y, p.r);
+          overlayG.endFill();
+          // 작은 다이아 장식
+          overlayG.beginFill(0xfff4c0, fade * 0.6);
+          overlayG.drawPolygon([
+            p.x,           p.y - p.r * 1.8,
+            p.x + p.r * 1.2, p.y,
+            p.x,           p.y + p.r * 1.8,
+            p.x - p.r * 1.2, p.y,
+          ]);
+          overlayG.endFill();
+        }
+      }
+
+      // ── 텍스트 페이드인/아웃 ───────────────────────
+      const txtIn  = elapsed > DUR_SWEEP * 0.5
+                   ? Math.min((elapsed - DUR_SWEEP * 0.5) / (DUR_SWEEP * 0.5 + DUR_HOLD * 0.5), 1)
+                   : 0;
+      const txtOut = elapsed > DUR_SWEEP + DUR_HOLD
+                   ? Math.min((elapsed - DUR_SWEEP - DUR_HOLD) / DUR_OUT, 1)
+                   : 0;
+      overlayTxt.alpha = txtIn * 0.78 * (1 - txtOut);
+
+      if (elapsed < TOTAL) {
+        requestAnimationFrame(tick);
+      } else {
+        overlayG.parent?.removeChild(overlayG);   overlayG.destroy();
+        overlayTxt.parent?.removeChild(overlayTxt); overlayTxt.destroy();
+        this.refresh(queue);
+        onDone?.();
+      }
+    };
+    requestAnimationFrame(tick);
   }
 
   // ── 해자(Moat) 지속 아이스 효과 ──────────────────────
@@ -511,6 +663,7 @@ export class MarketTimeline {
    * @param {function} onDone
    */
   scroll(newQueue, onDone) {
+    this._revealBonus = 0;   // 턴 종료 시 공개 보너스 초기화
     const DUR = 460;
     const t0  = Date.now();
 
@@ -587,6 +740,7 @@ export class MarketTimeline {
    * @param {function} onDone
    */
   freeze(newQueue, onDone) {
+    this._revealBonus  = 0;   // 턴 종료 시 공개 보너스 초기화
     this._isFreezeAnim = true;
 
     // 기존 setFrozen 지속 효과가 있으면 즉시 제거 (freeze가 대신 처리)

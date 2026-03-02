@@ -40,11 +40,13 @@ export const EFFECT_REGISTRY = new Map([
 
   // ── 시장 연동 효과 (MarketEventQueue 에서 처리) ────────────
   ['market_reduce',     _stub('market_reduce')],
-  ['market_reveal',     _stub('market_reveal')],
+  // 관료: 다음 N턴 시장 정보 공개 — gs.marketRevealBonus 누적 후 bureaucrat 핸들러에서 처리
+  ['market_reveal',     (gs, n) => { gs.marketRevealBonus = (gs.marketRevealBonus ?? 0) + n; }],
   ['moat_market_delay', _stub('moat_market_delay')],
   ['witch_market_blank',_stub('witch_market_blank')],
   ['bandit_gold',       _stub('bandit_gold')],
-  ['bureaucrat_silver', _stub('bureaucrat_silver')],
+  // 관료: 은화 덱 위 획득 + 시장 공개 연출 (bureaucrat.js 핸들러)
+  ['bureaucrat_silver', (gs) => { gs.pendingGain = { type: 'bureaucrat' }; }],
 
   // ── 오버레이 대기 효과 ─────────────────────────────────────
   //    onPlayCard() 에서 gs.pending* 를 감지 → CardActionHandler 오버레이 표시

@@ -145,8 +145,10 @@ function _sync() {
 const { drawCardsVisual: _drawCardsVisual } = createCardMotion({ gs, sync: _sync });
 const { onPlayCard, onBuyCard: _onBuyCard } = createCardActionHandler({
   gs, lUI, makeCard, sync: _sync,
-  drawCardsVisual: _drawCardsVisual,
-  onVictory: _finishGame,
+  drawCardsVisual:     _drawCardsVisual,
+  onVictory:           _finishGame,
+  getTimeline:         () => _timeline,
+  getMarketQueueState: () => _marketQueueState,
 });
 _onPlayCard = onPlayCard;
 
