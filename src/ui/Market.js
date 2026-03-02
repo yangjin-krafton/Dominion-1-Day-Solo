@@ -10,6 +10,7 @@ import {
 } from '../config.js';
 import { buildFrontFace } from './CardArt.js';
 import * as CardDetail    from './CardDetail.js';
+import { TL_H }           from './MarketTimeline.js';
 
 // ── 마켓 카드 크기 ──────────────────────────────────────────
 const MW    = Math.round(CARD_W * MARKET_SCALE);   // 90px
@@ -23,8 +24,8 @@ const MAX_SLOTS = COLS * ROWS;   // 12슬롯
 const GRID_W  = COLS * MW + (COLS - 1) * GAP;      // 4*63+3*5=267px
 const START_X = Math.round((W - GRID_W) / 2);      // 61px
 
-// 카드 상단 y (섹션 라벨 14px + 4px 여백)
-const CARD_Y0 = ZONE.MARKET_Y + 18;
+// 카드 상단 y (타임라인 영역 TL_H + 4px 여백)
+const CARD_Y0 = ZONE.MARKET_Y + TL_H + 4;
 
 // 그리드 실제 하단 y (섹션 bg·경계선에 사용)
 const MARKET_SECTION_END = CARD_Y0 + ROWS * MH + (ROWS - 1) * GAP + 8;  // ~383
@@ -63,16 +64,7 @@ export class Market {
 
     this.container.addChild(g);
 
-    // 섹션 타이틀
-    const lbl = new PIXI.Text('— 시  장 —', {
-      fontFamily: 'Georgia, serif',
-      fontSize: 9, fontStyle: 'italic',
-      fill: C.dimCream,
-    });
-    lbl.anchor.set(0.5, 0);
-    lbl.x = W / 2;
-    lbl.y = ZONE.MARKET_Y + 3;
-    this.container.addChild(lbl);
+    // 섹션 타이틀은 MarketTimeline으로 대체됨
   }
 
   // ── 공급 세팅 (게임 시작 시 1회) ───────────────────────────
@@ -206,6 +198,39 @@ export class Market {
       const affordable = buys > 0 && slot.getCurCount() > 0 && slot.def.cost <= coins;
       slot.dimOverlay.visible = !affordable;
     }
+  }
+
+  // ── 시장 이벤트 소멸 연출 ────────────────────────────────
+  /**
+   * 지정 카드 슬롯에 빨간 플래시 → 페이드 아웃 후 콜백
+   * @param {string}   id     - supply 카드 ID
+   * @param {function} onDone - 애니메이션 완료 콜백
+   */
+  vanishFlash(id, onDone) {
+    const slot = this.slots.get(id);
+    if (!slot) { onDone?.(); return; }
+
+    const flash = new PIXI.Graphics();
+    flash.beginFill(0xff2222, 0.6);
+    flash.drawRect(0, 0, MW, MH);
+    flash.endFill();
+    slot.container.addChild(flash);
+
+    const DUR = 500;
+    const t0  = Date.now();
+    const tick = () => {
+      const t = Math.min((Date.now() - t0) / DUR, 1);
+      // sin 곡선: 빠르게 밝아졌다가 천천히 사라짐
+      flash.alpha = 0.6 * Math.sin(Math.PI * t);
+      if (t < 1) {
+        requestAnimationFrame(tick);
+      } else {
+        if (flash.parent) flash.parent.removeChild(flash);
+        flash.destroy();
+        onDone?.();
+      }
+    };
+    requestAnimationFrame(tick);
   }
 
   // ── (호환성 유지) ──────────────────────────────────────────

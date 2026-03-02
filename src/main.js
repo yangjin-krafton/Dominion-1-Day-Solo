@@ -24,6 +24,9 @@ import * as CardDetail                         from './ui/CardDetail.js';
 import { showGainCardOverlay }                 from './ui/GainCardOverlay.js';
 import { showDiscardSelectOverlay }            from './ui/DiscardSelectOverlay.js';
 import { Market }                              from './ui/Market.js';
+import { MarketTimeline }                      from './ui/MarketTimeline.js';
+import { initMarketQueue, popMarketEvent,
+         pushNextMarketEvent, applyMarketEvent } from './core/MarketQueue.js';
 import { ProfileScreen }                       from './ui/screens/ProfileScreen.js';
 import { HomeScreen }                          from './ui/screens/HomeScreen.js';
 import { ResultScreen }                        from './ui/screens/ResultScreen.js';
@@ -68,6 +71,8 @@ let _gameStart = 0;
 let _market    = null;   // Market 인스턴스
 let _nextSetup         = null;   // 다음 게임 랜덤 시장 구성 (buildMarketSetup 결과)
 let _activeKingdomIds  = [];     // 현재 게임에 사용 중인 킹덤 카드 IDs
+let _marketQueueState  = null;   // { queue, rng } — 시장 이벤트 롤링 큐
+let _timeline          = null;   // MarketTimeline 인스턴스
 
 const gs = {
   turn: 1, vp: 0, vpTarget: 15, actions: 1, buys: 1, coins: 0,
@@ -293,6 +298,36 @@ function _onEndTurn() {
     _finishGame();
     return;
   }
+
+  // ── 시장 이벤트 처리 ─────────────────────────────────
+  if (_marketQueueState && _timeline) {
+    // Step1: T+1 이벤트 꺼내기
+    const executed = popMarketEvent(_marketQueueState);
+
+    // Step2: 공급에 적용 (drain이면 resolvedCardId 기록됨)
+    applyMarketEvent(executed, gs.supply);
+
+    // Step3: 새 T+4 이벤트 생성 (적용 후 시장 상태 기반)
+    pushNextMarketEvent(_marketQueueState, gs.supply);
+
+    // Step4: 연출 — 타임라인 스크롤 + 영향 카드 플래시 동시 실행
+    const flashId = executed.cardId ?? executed.resolvedCardId ?? null;
+    if (flashId) {
+      _market?.vanishFlash(flashId, () => {
+        _market?.refresh(gs.supply);
+        _market?.setAffordable(gs.coins, gs.buys);
+      });
+    }
+
+    _timeline.scroll(_marketQueueState.queue, () => {
+      // 플래시가 없었던 경우 여기서 공급 갱신
+      if (!flashId) {
+        _market?.refresh(gs.supply);
+        _market?.setAffordable(gs.coins, gs.buys);
+      }
+    });
+  }
+
   setTimeout(() => _drawCardsVisual(5), 500);
 }
 
@@ -367,6 +402,12 @@ export function _startGame() {
   _market?.destroy();
   _market = new Market(lUI, _onBuyCard);
   _market.setSupply(gs.supply);
+
+  // 시장 이벤트 큐 초기화 (게임 시작 시 시드 고정)
+  gs.marketSeed = (Date.now() ^ (Math.random() * 0x100000000)) >>> 0;
+  _marketQueueState = initMarketQueue(gs.supply, gs.marketSeed);
+  _timeline?.destroy();
+  _timeline = new MarketTimeline(lUI, _marketQueueState.queue);
 
   _gameStart = Date.now();
   _sync();
