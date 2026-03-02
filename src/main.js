@@ -113,6 +113,9 @@ function _sync() {
   // 현재 보유 승점 실시간 계산 (덱+손패+낸카드+버림더미)
   const allCards = [...gs.deck, ...gs.hand, ...gs.play, ...gs.discard];
   gs.vp = allCards.reduce((s, c) => s + (c.def.points ?? 0), 0);
+  // 정원(Gardens): 보유 카드 10장당 +1점 (내림)
+  const gardensCount = allCards.filter(c => c.def.id === 'gardens').length;
+  if (gardensCount > 0) gs.vp += gardensCount * Math.floor(allCards.length / 10);
 
   updateCardPositions(gs);
   updateUI(gs);
@@ -335,7 +338,10 @@ export function _startGame() {
 function _finishGame() {
   const durationSec = Math.round((Date.now() - _gameStart) / 1000);
   const allCards    = [...gs.deck, ...gs.hand, ...gs.play, ...gs.discard];
-  const totalVP     = allCards.reduce((s, c) => s + (c.def.points ?? 0), 0);
+  let   totalVP     = allCards.reduce((s, c) => s + (c.def.points ?? 0), 0);
+  // 정원(Gardens): 보유 카드 10장당 +1점 (내림)
+  const gardensCount = allCards.filter(c => c.def.id === 'gardens').length;
+  if (gardensCount > 0) totalVP += gardensCount * Math.floor(allCards.length / 10);
 
   const record  = Storage.addRecord({
     turns: gs.turn, vp: totalVP, durationSec,
