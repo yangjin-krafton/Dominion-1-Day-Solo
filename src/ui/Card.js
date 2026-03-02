@@ -153,6 +153,56 @@ export class Card {
     this.container.scale.y += (this.targetScale - this.container.scale.y) * s;
   }
 
+  // ── 버프 배지 (코인/수치 임시 변동 표시) ──────────────────
+
+  /**
+   * 카드에 버프 배지 표시/갱신
+   * text = null → 배지 숨김
+   * text = "+N"  → 카드 설명 하단에 골드 필 표시
+   * @param {string|null} text  - 표시할 텍스트 (예: "+2")
+   * @param {number}       [color=0xffe09a] - 텍스트 색상
+   */
+  setBuffBadge(text, color = 0xffe09a) {
+    if (!text) {
+      if (this._buffBadge) this._buffBadge.visible = false;
+      return;
+    }
+    if (!this._buffBadge) this._createBuffBadge();
+    this._buffBadgeText.text  = text;
+    this._buffBadgeText.style.fill = color;
+    this._buffBadge.visible = true;
+  }
+
+  /** 버프 배지 초기 생성 (lazy) */
+  _createBuffBadge() {
+    // 설명 영역 하단 중앙 — BAND(~28)와 CH-BSEP(~93) 사이 아래쪽
+    const centerX = Math.round(CW * 0.5);
+    const centerY = Math.round(CH * 0.80);   // 카드 높이 80% 지점
+    const PW = Math.round(CW * 0.54);        // 필 너비
+    const PH = Math.round(CH * 0.11);        // 필 높이
+    const PR = Math.round(PH * 0.45);        // 라운드 반경
+
+    const bg = new PIXI.Graphics();
+    bg.lineStyle(1, 0xffe09a, 0.75);
+    bg.beginFill(0x1a1400, 0.82);
+    bg.drawRoundedRect(-PW / 2, -PH / 2, PW, PH, PR);
+    bg.endFill();
+
+    this._buffBadgeText = new PIXI.Text('+1', {
+      fontFamily: 'Georgia, serif',
+      fontSize: Math.max(7, Math.round(8 * (CW / 72))),
+      fontWeight: 'bold',
+      fill: 0xffe09a,
+    });
+    this._buffBadgeText.anchor.set(0.5);
+
+    this._buffBadge = new PIXI.Container();
+    this._buffBadge.addChild(bg, this._buffBadgeText);
+    this._buffBadge.x = centerX;
+    this._buffBadge.y = centerY;
+    this.container.addChild(this._buffBadge);
+  }
+
   // ── 중첩 배지 ─────────────────────────────────────────────
 
   /**

@@ -82,6 +82,11 @@ export function playCard(gs, card) {
 
   if (card.def.type === 'Treasure') {
     gs.coins += card.def.coins ?? 0;
+    // Merchant 트리거: Silver 플레이마다 칩 1개 소모 → +1코인
+    if (card.def.id === 'silver' && (gs.merchantBonus ?? 0) > 0) {
+      gs.coins += 1;
+      gs.merchantBonus -= 1;
+    }
   }
 
   return { ok: true };
@@ -161,9 +166,10 @@ export function endTurn(gs) {
   gs.play    = [];
   gs.hand    = [];
   gs.turn++;
-  gs.actions = 1;
-  gs.buys    = 1;
-  gs.coins   = 0;
+  gs.actions             = 1;
+  gs.buys                = 1;
+  gs.coins               = 0;
+  gs.merchantBonus = 0;
 }
 
 // ─── 승리 조건 ────────────────────────────────────────────────

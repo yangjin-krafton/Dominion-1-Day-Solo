@@ -680,8 +680,8 @@ export function updateUI(gs) {
  */
 const BUFF_TAG_MAP = new Map([
   ['moat',     { text: '공격방어', color: 0x44bbff }],   // 해자: 공격 방어
-  ['merchant', { text: '첫은화+1', color: C.gold   }],   // 상인: 첫 은화 코인 버프
   ['workshop', { text: '비용4↓획득', color: 0xcc8833 }], // 작업장: 비용 4 이하 카드 획득
+  // merchant는 _collectEffectTags에서 merchantBonus 기반으로 동적 처리
 ]);
 
 function _collectEffectTags(gs) {
@@ -693,6 +693,11 @@ function _collectEffectTags(gs) {
     .reduce((s, c) => s + (c.def.coins ?? 0), 0);
   if (playedTreasureCoins > 0) {
     tags.push({ text: `재화 ×${playedTreasureCoins}`, color: C.gold });
+  }
+
+  // Merchant 트리거 대기 중: 남은 칩 수만큼 표시 (Silver 플레이마다 1개씩 소멸)
+  for (let i = 0; i < (gs.merchantBonus ?? 0); i++) {
+    tags.push({ text: '은화+1', color: C.gold });
   }
 
   // 지속효과 카드: BUFF_TAG_MAP에 등록된 카드만 표시 (중복 방지)

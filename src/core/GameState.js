@@ -27,6 +27,10 @@ export function createGameState() {
     // ── 공급 (id → { def, count }) ──────────────────────────
     supply: new Map(),
 
+    // ── Merchant 트리거 상태 ─────────────────────────────────
+    /** 남은 Merchant 코인 트리거 수 (Silver 플레이마다 1씩 소모 → +1코인) */
+    merchantBonus: 0,
+
     // ── UI 연결 콜백 (main.js에서 주입) ─────────────────────
     /** @type {PIXI.Container|null} */
     cardsContainer: null,
@@ -37,9 +41,10 @@ export function createGameState() {
 
 /** 턴 자원 초기화 */
 export function resetResources(gs) {
-  gs.actions = 1;
-  gs.buys    = 1;
-  gs.coins   = 0;
+  gs.actions             = 1;
+  gs.buys                = 1;
+  gs.coins               = 0;
+  gs.merchantBonus = 0;
 }
 
 /** VP 합산 (덱 전체 기준) */

@@ -13,6 +13,7 @@
 import { playCard, buyCard, checkVictory } from '../core/TurnEngine.js';
 import { notifyBlocked }   from './scene.js';
 import { EFFECT_HANDLERS } from '../card-effects/index.js';
+import { CARD_W } from '../config.js';
 
 // pending 필드 → type 키 추출 규칙
 // pendingGain은 type 필드가 없으므로 'gain'으로 고정
@@ -23,6 +24,49 @@ const PENDING_KEYS = [
   { field: 'pendingPick',    typeOf: (pd) => pd.type },
   { field: 'pendingTwoStep', typeOf: (pd) => pd.type },
 ];
+
+// ── Merchant 보너스 팝업 ──────────────────────────────────────
+/**
+ * Silver 플레이 시 Merchant 보너스 발동 → 카드 위에 "+N" 부유 텍스트 표시
+ * @param {PIXI.Container} lUI   - UI 레이어 (lCards와 좌표계 공유)
+ * @param {Card}           card  - 플레이된 Silver 카드
+ * @param {number}         amount - 보너스 코인 수
+ */
+function _showMerchantBurst(lUI, card, amount) {
+  const label = new PIXI.Text(`+${amount}`, {
+    fontFamily: 'Georgia, serif',
+    fontSize: 17,
+    fontWeight: 'bold',
+    fill: 0xffe09a,
+    stroke: 0x6b3300,
+    strokeThickness: 3,
+    dropShadow: true,
+    dropShadowColor: 0x000000,
+    dropShadowBlur: 3,
+    dropShadowDistance: 1,
+  });
+  label.anchor.set(0.5, 1);
+  label.x = card.container.x + CARD_W * 0.5;
+  label.y = card.container.y;
+  lUI.addChild(label);
+
+  const startY    = label.y;
+  const endY      = startY - 48;
+  const startTime = Date.now();
+  const duration  = 900; // ms
+
+  (function animate() {
+    const t = Math.min((Date.now() - startTime) / duration, 1);
+    label.y     = startY + (endY - startY) * t;
+    label.alpha = 1 - t * t;
+    if (t < 1) {
+      requestAnimationFrame(animate);
+    } else {
+      lUI.removeChild(label);
+      label.destroy();
+    }
+  })();
+}
 
 export function createCardActionHandler({ gs, lUI, makeCard, sync, drawCardsVisual, onVictory }) {
 
@@ -39,6 +83,9 @@ export function createCardActionHandler({ gs, lUI, makeCard, sync, drawCardsVisu
 
   /** 카드 플레이 */
   function onPlayCard(card) {
+    // Merchant 트리거 감지: playCard() 전후 merchantBonus 비교
+    const merchantBonusBefore = gs.merchantBonus ?? 0;
+
     const result = playCard(gs, card);
     if (!result.ok) {
       if (result.reason === 'no_actions') notifyBlocked('action');
@@ -46,6 +93,11 @@ export function createCardActionHandler({ gs, lUI, makeCard, sync, drawCardsVisu
     }
     gs.phase = gs.actions > 0 ? 'action' : 'buy';
     sync();
+
+    // Silver 플레이 시 칩 1개가 소모됐으면 "+1" 팝업 표시
+    if (merchantBonusBefore > (gs.merchantBonus ?? 0)) {
+      _showMerchantBurst(lUI, card, 1);
+    }
 
     // 드로우된 카드 flip 애니메이션
     gs.hand.forEach((c, i) => {

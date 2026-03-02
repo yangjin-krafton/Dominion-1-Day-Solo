@@ -129,6 +129,13 @@ function _sync() {
   [...gs.deck, ...gs.play, ...gs.discard, ...gs.trash]
     .forEach(card => { card.container.alpha = 1; });
 
+  // Merchant 보너스 대기 중: 핸드의 Silver 카드에 "+1" 버프 배지 표시 (칩이 남아있을 때만)
+  const mb = gs.merchantBonus ?? 0;
+  const silverBuff = mb > 0 ? '+1' : null;
+  gs.hand.forEach(card => {
+    if (card.def.id === 'silver') card.setBuffBadge(silverBuff);
+  });
+
   // 해자(Moat)가 핸드에 있으면 타임라인에 지속 아이스 이펙트
   const hasMoatInHand = gs.hand.some(c => c.def.id === 'moat');
   _timeline?.setFrozen(hasMoatInHand);
@@ -272,6 +279,7 @@ export function _startGame() {
   gs.handScroll = 0;
   _idSeq = 0;
   gs.turn = 1; gs.vp = 0; gs.actions = 1; gs.buys = 1; gs.coins = 0;
+  gs.merchantBonus = 0;
   // ── 게임 시드 확정 (모든 랜덤의 원천) ──────────────────────
   // 같은 gameSeed → 시장 구성·공급 수량·이벤트 큐 모두 동일 재현
   gs.gameSeed = (Date.now() ^ (Math.random() * 0x100000000)) >>> 0;

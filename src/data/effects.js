@@ -65,8 +65,11 @@ export const EFFECT_REGISTRY = new Map([
       gs.pendingPick = { type: 'harbinger', source: 'discard' };
   }],
 
-  // 상인: 이번 턴 첫 은화 플레이 시 +1코인 (간이: 손패 은화 확인)
-  ['merchant', _stub('Merchant: 첫 Silver +1코인')],
+  // 상인: 이번 턴 첫 Silver 플레이 시, 플레이한 Merchant 수만큼 +코인
+  // Silver 실제 플레이 시 TurnEngine.playCard()에서 트리거 발동
+  ['merchant', (gs) => {
+    gs.merchantBonus = (gs.merchantBonus ?? 0) + 1;
+  }],
 
   // 신하: 덱 위 공개 → 액션이면 플레이 (추후 구현)
   ['vassal', _stub('Vassal: 덱 위 액션 플레이')],
