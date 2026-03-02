@@ -24,6 +24,7 @@ import { handleMine }       from './mine.js';
 import { handleArtisan }    from './artisan.js';
 import { handleVassal }     from './vassal.js';
 import { handleBureaucrat } from './bureaucrat.js';
+import { handleMilitia }    from './militia.js';
 
 /**
  * 카드 type → 핸들러 함수 Map
@@ -33,6 +34,7 @@ export const EFFECT_HANDLERS = new Map([
   // ── 카드 획득 ───────────────────────────────────────────
   ['gain',        handleGain],
   ['bureaucrat',  handleBureaucrat],
+  ['militia',     handleMilitia],
 
   // ── 버리기 ──────────────────────────────────────────────
   ['cellar',      handleCellar],

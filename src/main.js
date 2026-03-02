@@ -37,6 +37,9 @@ import { createCardActionHandler } from './ui/CardActionHandler.js';
 // ── debug ──────────────────────────────────────────────────
 import { initDebug } from './debug/DebugAPI.js';
 
+// ── audio ──────────────────────────────────────────────────
+import { BGM } from './asset/audio/bgm.js';
+
 // ============================================================
 // PixiJS 앱
 // ============================================================
@@ -99,6 +102,18 @@ const gs = {
 
 // _onPlayCard는 createCardActionHandler 호출 후 설정 (늦은 바인딩)
 let _onPlayCard = null;
+
+let _bgmStarted = false;
+
+// 게임 캔버스(PIXI App)가 준비된 후 마우스/터치 시점(사용자 상호작용)에 BGM을 시작하도록 설정
+function initBGM() {
+  if (!_bgmStarted) {
+    BGM.start();
+    _bgmStarted = true;
+    document.removeEventListener('pointerdown', initBGM);
+  }
+}
+document.addEventListener('pointerdown', initBGM);
 
 export function makeCard(def) {
   const c = new Card(def, _idSeq++, (card) => _onPlayCard?.(card));
@@ -188,6 +203,17 @@ function _onEndTurn() {
       // ── 일반 시장 이벤트 처리 ─────────────────────────
       // Step1: T+1 이벤트 꺼내기
       const executed = popMarketEvent(_marketQueueState);
+
+      // Step2-pre: 민병대(Militia) 시장 피해 감소 적용
+      const reduce = gs.marketReduce ?? 0;
+      gs.marketReduce = 0;
+      if (reduce > 0) {
+        if (executed.type === 'vanish') {
+          executed.count = Math.max(0, (executed.count ?? 0) - reduce);
+        } else if (executed.type === 'drain') {
+          executed.type = 'skip';   // drain(1장 제거)을 완전히 무력화
+        }
+      }
 
       // Step2: 공급에 적용 (drain이면 resolvedCardId 기록됨)
       //        curse_player이면 플레이어 버림더미에 저주 추가
@@ -284,7 +310,9 @@ export function _startGame() {
   gs.handScroll = 0;
   _idSeq = 0;
   gs.turn = 1; gs.vp = 0; gs.actions = 1; gs.buys = 1; gs.coins = 0;
-  gs.merchantBonus = 0;
+  gs.merchantBonus     = 0;
+  gs.marketReduce      = 0;
+  gs.marketRevealBonus = 0;
   // ── 게임 시드 확정 (모든 랜덤의 원천) ──────────────────────
   // 같은 gameSeed → 시장 구성·공급 수량·이벤트 큐 모두 동일 재현
   gs.gameSeed = (Date.now() ^ (Math.random() * 0x100000000)) >>> 0;

@@ -411,7 +411,7 @@ export class MarketTimeline {
    * @param {object[]} queue   현재 큐
    * @param {function} onDone  완료 콜백
    */
-  revealUnlock(n, queue, onDone) {
+  revealUnlock(n, queue, onDone, label = '官  시장 정보 공개') {
     this._revealBonus = n;
 
     // 캡슐 즉시 갱신 (애니메이션과 동시에 내용 변경)
@@ -425,7 +425,7 @@ export class MarketTimeline {
 
     // ── 오버레이 레이어 ────────────────────────────────
     const overlayG   = new PIXI.Graphics();
-    const overlayTxt = new PIXI.Text('官  시장 정보 공개', {
+    const overlayTxt = new PIXI.Text(label, {
       fontFamily: 'Georgia, serif',
       fontSize:   9,
       fontStyle:  'italic',

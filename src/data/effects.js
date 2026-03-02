@@ -39,7 +39,11 @@ export const EFFECT_REGISTRY = new Map([
   ['curse_others', () => { /* solo: skip */ }],
 
   // ── 시장 연동 효과 (MarketEventQueue 에서 처리) ────────────
-  ['market_reduce',     _stub('market_reduce')],
+  // 민병대: 이번 턴 시장 이벤트 소멸 수량 감소 — turn-end에 gs.marketReduce 적용
+  ['market_reduce', (gs, n) => {
+    gs.marketReduce = (gs.marketReduce ?? 0) + n;
+    gs.pendingGain  = { type: 'militia' };   // 타임라인 연출 트리거
+  }],
   // 관료: 다음 N턴 시장 정보 공개 — gs.marketRevealBonus 누적 후 bureaucrat 핸들러에서 처리
   ['market_reveal',     (gs, n) => { gs.marketRevealBonus = (gs.marketRevealBonus ?? 0) + n; }],
   ['moat_market_delay', _stub('moat_market_delay')],
