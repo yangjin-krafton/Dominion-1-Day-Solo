@@ -44,7 +44,7 @@ export function createCardMotion({ gs, sync }) {
       card.backFace.visible  = true;
     }
     sync();
-    setTimeout(() => card.flip(), 180);
+    setTimeout(() => card.flip(0.3, sync), 180);
   }
 
   /** 카드 1장 드로우 (덱 소진 시 재셔플 모션 포함) */

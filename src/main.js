@@ -4,7 +4,7 @@
 // ============================================================
 
 // ── config & core ──────────────────────────────────────────
-import { SCREEN_W as W, SCREEN_H as H, KINGDOM_POOL, BASIC_IDS } from './config.js';
+import { SCREEN_W as W, SCREEN_H as H, CARD_H as CH, ZONE, KINGDOM_POOL, BASIC_IDS } from './config.js';
 import { buildMarketSetup } from './core/MarketSetup.js';
 import { GameFlow, STATES }                from './core/GameFlow.js';
 import * as Storage                        from './core/Storage.js';
@@ -91,6 +91,7 @@ const gs = {
   pendingPick:    null,   // { type, source }          — 단일 선택 대기 (harbinger, throne_room)
   pendingTwoStep: null,   // { type }                  — 2단계 효과 대기 (remodel, mine, artisan)
   handScroll: 0,
+  _handDragOffset: 0,
   _handArrows: null,
   cardsContainer: lCards,
   onEndTurn:    null,
@@ -182,7 +183,12 @@ const { onPlayCard, onBuyCard: _onBuyCard } = createCardActionHandler({
 });
 _onPlayCard = onPlayCard;
 
+let _isEndingTurn = false;
+
 function _onEndTurn() {
+  if (_isEndingTurn) return;
+  _isEndingTurn = true;
+
   // 해자(Moat) 확인 — endTurn()이 손패를 버림더미로 보내기 전에 체크
   const hasMoat = gs.hand.some(c => c.def.id === 'moat');
 
@@ -192,6 +198,7 @@ function _onEndTurn() {
   _sync();
 
   if (checkVictory(gs.supply) || gs.vp >= gs.vpTarget) {
+    _isEndingTurn = false;
     _finishGame();
     return;
   }
@@ -269,7 +276,10 @@ function _onEndTurn() {
     }
   }
 
-  setTimeout(() => _drawCardsVisual(5), 500);
+  setTimeout(() => {
+    _drawCardsVisual(5);
+    setTimeout(() => { _isEndingTurn = false; }, 800);
+  }, 500);
 }
 
 gs.onEndTurn    = _onEndTurn;
@@ -320,6 +330,7 @@ export function _startGame() {
   lCards.removeChildren();
   gs.deck = []; gs.hand = []; gs.play = []; gs.discard = []; gs.trash = [];
   gs.handScroll = 0;
+  gs._handDragOffset = 0;
   _idSeq = 0;
   gs.turn = 1; gs.vp = 0; gs.actions = 1; gs.buys = 1; gs.coins = 0;
   gs.merchantBonus     = 0;
@@ -415,10 +426,61 @@ buildPileStaticBg(lBg);
 const _initProfile = Storage.getProfile();
 buildUI(lUI, gs, _initProfile);
 
-// 핸드 스크롤 화살표 (UI 레이어에 배치)
-gs._handArrows = buildHandArrows(lUI, gs);
+// 핸드 스크롤 방향 표시자 (시각 전용)
+gs._handArrows = buildHandArrows(lUI);
 
 CardDetail.init(lUI);
+
+// ── 핸드 드래그 스크롤 (실시간 추적 + 스냅) ─────────────────
+// ‣ pointermove: 손가락 따라 카드 즉시 이동 (lerp 우회)
+// ‣ pointerup:   오프셋 리셋 후 _sync() → lerp이 스냅 애니메이션 처리
+// ‣ Card.js는 8px 이상 이동 시 _timer=null → onPlay 미호출 (카드 실수 플레이 없음)
+{
+  const DEAD_ZONE    = 5;   // 이 미만 이동은 탭으로 간주 (px)
+  const SNAP_DIST    = 40;  // 이 이상 드래그 시 한 그룹 스크롤 (px)
+
+  let _hdStartX = 0, _hdActive = false;
+
+  app.stage.eventMode = 'static';
+
+  app.stage.on('pointerdown', (e) => {
+    if (e.global.y >= ZONE.HAND_Y && e.global.y <= ZONE.HAND_Y + CH) {
+      _hdActive = true;
+      _hdStartX = e.global.x;
+      gs._handDragOffset = 0;
+    }
+  });
+
+  app.stage.on('pointermove', (e) => {
+    if (!_hdActive) return;
+    const dx = e.global.x - _hdStartX;
+    if (Math.abs(dx) < DEAD_ZONE) return;
+
+    gs._handDragOffset = dx;
+    // 카드 위치 즉시 반영 (lerp 우회)
+    updateCardPositions(gs);
+    gs.hand.forEach(c => { c.container.x = c.targetX; });
+    gs.cardsContainer?.sortChildren();
+  });
+
+  const _hdFinish = (e) => {
+    if (!_hdActive) return;
+    const dx = e.global.x - _hdStartX;
+    gs._handDragOffset = 0;
+
+    if (dx < -SNAP_DIST) {
+      gs.handScroll = (gs.handScroll ?? 0) + 1;
+    } else if (dx > SNAP_DIST) {
+      gs.handScroll = Math.max(0, (gs.handScroll ?? 0) - 1);
+    }
+    // _sync() → updateCardPositions(offset=0) → targetX 갱신 → lerp이 스냅
+    gs.onScrollHand?.();
+    _hdActive = false;
+  };
+
+  app.stage.on('pointerup',        _hdFinish);
+  app.stage.on('pointerupoutside', _hdFinish);
+}
 
 (async () => {
   try {

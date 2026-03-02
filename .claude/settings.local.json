@@ -47,7 +47,8 @@
       "Bash(/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -ExecutionPolicy Bypass -File /tmp/replace.ps1)",
       "Bash(/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -ExecutionPolicy Bypass -File /tmp/replace1.ps1)",
       "Bash(/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -ExecutionPolicy Bypass -File 'd:\\\\Weeks\\\\Clocktower-Pocket\\\\replace1.ps1')",
-      "WebFetch(domain:wiki.bloodontheclocktower.com)"
+      "WebFetch(domain:wiki.bloodontheclocktower.com)",
+      "Bash(ffmpeg -version)"
     ],
     "additionalDirectories": [
       "\\tmp"

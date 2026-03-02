@@ -1,346 +1,350 @@
-﻿const fs = require('fs');
-const path = require('path');
+/**
+ * generate_bgm.js — Classical / Baroque BGM Stems for Dominion
+ *
+ * 4 channels × 4 variations = 16 stems → MP3 only (128 kbps)
+ *
+ *   drone  → Cello basso continuo   (bowed, pizzicato bass)
+ *   lute   → Classical Guitar       (nylon-string ornamental arpeggios)
+ *   flute  → Baroque flute          (lyrical lead melody)
+ *   perc   → Timpani                (soft orchestral pulse)
+ *
+ * Key: D Dorian (D E F G A B C)  |  Tempo: BPM 120 (4/4)
+ */
+
+'use strict';
+const fs           = require('fs');
+const path         = require('path');
+const os           = require('os');
+const { execSync } = require('child_process');
 
 const SAMPLE_RATE = 44100;
 const TAU = Math.PI * 2;
 
-function writeWav(filename, samples) {
-    const buffer = Buffer.alloc(44 + samples.length * 2);
+// ── Timing (BPM = 120) ────────────────────────────────────────
+const T16 = 0.125;   // 16th note
+const T8  = 0.25;    // 8th  note
+const T4  = 0.50;    // quarter note
 
-    buffer.write('RIFF', 0);
-    buffer.writeUInt32LE(36 + samples.length * 2, 4);
-    buffer.write('WAVE', 8);
-    buffer.write('fmt ', 12);
-    buffer.writeUInt32LE(16, 16);
-    buffer.writeUInt16LE(1, 20);
-    buffer.writeUInt16LE(1, 22);
-    buffer.writeUInt32LE(SAMPLE_RATE, 24);
-    buffer.writeUInt32LE(SAMPLE_RATE * 2, 28);
-    buffer.writeUInt16LE(2, 32);
-    buffer.writeUInt16LE(16, 34);
-    buffer.write('data', 36);
-    buffer.writeUInt32LE(samples.length * 2, 40);
-
+// ── WAV buffer + MP3 writer ────────────────────────────────────
+function buildWavBuffer(samples) {
+    const buf = Buffer.alloc(44 + samples.length * 2);
+    buf.write('RIFF', 0);
+    buf.writeUInt32LE(36 + samples.length * 2, 4);
+    buf.write('WAVE', 8);
+    buf.write('fmt ', 12);
+    buf.writeUInt32LE(16, 16);
+    buf.writeUInt16LE(1,  20);  // PCM
+    buf.writeUInt16LE(1,  22);  // mono
+    buf.writeUInt32LE(SAMPLE_RATE,     24);
+    buf.writeUInt32LE(SAMPLE_RATE * 2, 28);
+    buf.writeUInt16LE(2,  32);  // block align
+    buf.writeUInt16LE(16, 34);  // 16-bit
+    buf.write('data', 36);
+    buf.writeUInt32LE(samples.length * 2, 40);
     for (let i = 0; i < samples.length; i++) {
-        const sample = Math.max(-1, Math.min(1, samples[i]));
-        buffer.writeInt16LE(Math.floor(sample * 32767), 44 + i * 2);
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        buf.writeInt16LE(Math.floor(s * 32767), 44 + i * 2);
     }
-
-    fs.writeFileSync(filename, buffer);
-    console.log(`Generated ${filename}`);
+    return buf;
 }
 
-const loopFreq = (freq, duration) => Math.round(freq * duration) / duration;
-const softClip = (x) => Math.tanh(x * 1.15);
-const sine = (f, t) => Math.sin(TAU * f * t);
-
-function generateInstrument(duration, renderLogic) {
-    const samples = new Float32Array(SAMPLE_RATE * duration);
-    for (let i = 0; i < samples.length; i++) {
-        samples[i] = renderLogic(i / SAMPLE_RATE, duration);
+function writeStem(outDir, name, samples) {
+    const tmp = path.join(os.tmpdir(), `${name}_tmp.wav`);
+    fs.writeFileSync(tmp, buildWavBuffer(samples));
+    try {
+        execSync(
+            `ffmpeg -y -loglevel error -i "${tmp}" -c:a libmp3lame -b:a 128k "${path.join(outDir, name + '.mp3')}"`,
+            { stdio: 'inherit' }
+        );
+    } finally {
+        fs.unlinkSync(tmp);
     }
-    return samples;
+    console.log(`  ✓ ${name}.mp3`);
 }
 
-// D Dorian palette for medieval court / guild mood.
+// ── D Dorian frequency table ──────────────────────────────────
 const N = {
-    D3: 146.83,
-    F3: 174.61,
-    G3: 196.00,
-    A3: 220.00,
-    B3: 246.94,
-    C4: 261.63,
-    D4: 293.66,
-    E4: 329.63,
-    F4: 349.23,
-    G4: 392.00,
-    A4: 440.00,
-    C5: 523.25,
-    D5: 587.33,
-    E5: 659.25
+    D3: 146.83, E3: 164.81, F3: 174.61, G3: 196.00,
+    A3: 220.00, B3: 246.94, C4: 261.63, D4: 293.66,
+    E4: 329.63, F4: 349.23, G4: 392.00, A4: 440.00,
+    B4: 493.88, C5: 523.25, D5: 587.33, E5: 659.25,
+    F5: 698.46,
 };
 
-function pluck(freq, noteT, duration, decay = 6.5, tone = 0.27) {
-    if (freq <= 0) return 0;
-    const f = loopFreq(freq, duration);
-    const env = Math.exp(-noteT * decay);
-    if (env < 0.0008) return 0;
+// ── Primitives ────────────────────────────────────────────────
+const lf       = (f, dur) => Math.round(f * dur) / dur;          // loop-align freq
+const softClip = (x)      => Math.tanh(x * 0.70) / Math.tanh(0.70);
+const sine     = (f, t)   => Math.sin(TAU * f * t);
 
-    const body =
-        sine(f, noteT) +
-        sine(f * 2.01, noteT) * 0.42 +
-        sine(f * 3.02, noteT) * 0.2;
-    const pick = sine(1750, noteT) * Math.exp(-noteT * 30) * 0.05;
-    return softClip((body * tone + pick) * env);
+// Pseudo-noise for breath and bow transients (stateless hash)
+function nz(t, rate = 8000) {
+    let s = (Math.floor(t * rate) * 1664525 + 1013904223) | 0;
+    s = Math.imul(s ^ (s >>> 16), 0x45d9f3b | 0) ^ (s >>> 11);
+    return (s & 0xffff) / 32768.0 - 1.0;
 }
 
-function bowed(freq, t, vibHz = 4.8, vibDepth = 0.0035) {
-    const v = 1 + Math.sin(TAU * vibHz * t) * vibDepth;
-    const f = freq * v;
-    return sine(f, t) * 0.7 + sine(f * 2, t) * 0.22 + sine(f * 3, t) * 0.1;
+// Smooth ADSR envelope  (nt = time since note onset, len = note duration)
+function adsr(nt, len, atk, dcy, sus, rel = 0.05) {
+    if (nt < 0 || nt >= len) return 0;
+    if (nt < atk) return nt / atk;
+    if (nt < atk + dcy) return 1 - (1 - sus) * (nt - atk) / dcy;
+    if (nt > len - rel) return sus * Math.max(0, (len - nt) / rel);
+    return sus;
 }
 
-function flute(freq, t, breath = 0.08) {
-    const body = sine(freq, t) * 0.78 + sine(freq * 2, t) * 0.14 + sine(freq * 3, t) * 0.06;
-    const airy = sine(1700, t) * breath;
-    return body + airy;
+function gen(duration, fn) {
+    const n = Math.round(SAMPLE_RATE * duration);
+    const out = new Float32Array(n);
+    for (let i = 0; i < n; i++) out[i] = fn(i / SAMPLE_RATE);
+    return out;
 }
 
-function noteByStep(pattern, step) {
-    return pattern[step % pattern.length];
+// Step-sequencer helpers
+function step(pat, t, iv)  { return pat[Math.floor((t % (pat.length * iv)) / iv)]; }
+function stepT(pat, t, iv) {
+    const loc = t % (pat.length * iv);
+    return loc - Math.floor(loc / iv) * iv;
 }
 
-function makeStepMelody(duration, beatSec, notes, voiceFn, gain = 0.20, offset = 0) {
-    return generateInstrument(duration, (t, d) => {
-        const local = (t + offset) % d;
-        const step = Math.floor(local / beatSec);
-        const noteT = local - step * beatSec;
-        const freq = noteByStep(notes, step);
-        if (freq <= 0) return 0;
+// ════════════════════════════════════════════════════════════
+//  Instrument synthesis
+// ════════════════════════════════════════════════════════════
 
-        const atk = Math.min(1, noteT / 0.07);
-        const rel = Math.exp(-noteT * 1.8);
-        const env = atk * rel;
+// CLASSICAL GUITAR: nylon-string pluck — warm, rounded overtones
+function classicalGuitar(f, nt) {
+    const partials = [1.0, 0.45, 0.28, 0.18, 0.10, 0.06, 0.03];
+    let v = 0;
+    for (let i = 0; i < partials.length; i++) v += sine(f * (i + 1), nt) * partials[i];
+    // Warmer, slower decay than harpsichord (nylon string, finger pluck)
+    const env   = Math.exp(-nt * 4.8) * 0.32 + Math.exp(-nt * 1.2) * 0.68;
+    const pluck = nz(nt, 2500) * Math.exp(-nt * 60) * 0.06;  // finger-nail transient
+    return softClip((v * env + pluck) / 2.1);
+}
 
-        return softClip(voiceFn(loopFreq(freq, d), noteT) * env * gain);
+// BAROQUE FLUTE: breathy, pure tone with gentle vibrato
+function baroqueFlute(f, nt, vibHz = 5.5) {
+    const vib  = 1 + sine(vibHz, nt) * 0.006 * Math.min(1, nt * 6);
+    const fv   = f * vib;
+    const body = sine(fv, nt) * 0.72 + sine(fv * 2, nt) * 0.17 + sine(fv * 3, nt) * 0.07;
+    return body + nz(nt, 9500) * 0.020;  // breath noise
+}
+
+// CELLO: deeper bowed tone, warm low-register color
+function cello(f, nt) {
+    const vib = 1 + sine(4.8, nt) * 0.004 * Math.min(1, nt * 6);
+    const fv  = f * vib;
+    return softClip(
+        sine(fv, nt) * 0.65 + sine(fv * 2, nt) * 0.28 +
+        sine(fv * 3, nt) * 0.14 + sine(fv * 4, nt) * 0.07
+    );
+}
+
+// ════════════════════════════════════════════════════════════
+//  1. DRONE — Cello basso continuo
+// ════════════════════════════════════════════════════════════
+function makeCello(duration, pattern, interval, gain = 0.32) {
+    return gen(duration, (t) => {
+        const f  = step(pattern, t, interval);
+        if (!f) return 0;
+        const nt = stepT(pattern, t, interval);
+        const e  = adsr(nt, interval, 0.012, 0.06, 0.74, 0.05);
+        return cello(lf(f, duration), nt) * e * gain;
     });
 }
 
-function makeDrone(duration, tones, lfoHz, gain) {
-    return generateInstrument(duration, (t, d) => {
-        const lfo = 0.62 + 0.38 * Math.sin(TAU * loopFreq(lfoHz, d) * t + 0.9);
+// drone1: Walking continuo bass, 8th notes (16 × T8 = 4 s → 6 loops in 24 s)
+const drone1 = makeCello(24, [
+    N.D3, N.F3, N.A3, N.G3,   N.F3, N.E3, N.F3, N.A3,
+    N.C4, N.A3, N.G3, N.A3,   N.D3, N.E3, N.F3, N.D3,
+], T8, 0.34);
+
+// drone2: Melodic bass, stepwise motion (16 × T8 = 4 s → 6 loops)
+const drone2 = makeCello(24, [
+    N.A3, N.G3, N.F3, N.E3,   N.D3, N.E3, N.F3, N.G3,
+    N.A3, N.C4, N.D4, N.C4,   N.A3, N.G3, N.A3, N.D3,
+], T8, 0.30);
+
+// drone3: Quarter-note pizzicato bass (8 × T4 = 4 s → 6 loops)
+const drone3 = makeCello(24, [
+    N.D3, N.A3, N.G3, N.A3,   N.F3, N.G3, N.A3, N.D3,
+], T4, 0.36);
+
+
+// ════════════════════════════════════════════════════════════
+//  2. LUTE — Classical Guitar ornamental arpeggios
+// ════════════════════════════════════════════════════════════
+function makeGuitar(duration, pattern, interval, gain = 0.20) {
+    return gen(duration, (t) => {
+        const f  = step(pattern, t, interval);
+        if (!f) return 0;
+        const nt = stepT(pattern, t, interval);
+        return classicalGuitar(lf(f, duration), nt) * gain;
+    });
+}
+
+// lute1: 16th-note arpeggio figures (32 × T16 = 4 s → 4 loops in 16 s)
+const lute1 = makeGuitar(16, [
+    N.D4, N.F4, N.A4, N.D5,   N.C5, N.A4, N.F4, N.D4,
+    N.E4, N.G4, N.C5, N.G4,   N.E4, N.C4, N.E4, N.G4,
+    N.F4, N.A4, N.D5, N.A4,   N.F4, N.D4, N.F4, N.A4,
+    N.G4, N.B3, N.D4, N.G4,   N.D4, N.B3, N.G3, N.B3,
+], T16, 0.22);
+
+// lute2: Scalar runs ascending and descending (32 × T8 = 8 s → 2 loops)
+const lute2 = makeGuitar(16, [
+    N.D4, N.E4, N.F4, N.G4,   N.A4, N.B4, N.C5, N.D5,
+    N.E5, N.D5, N.C5, N.B4,   N.A4, N.G4, N.F4, N.E4,
+    N.D4, N.F4, N.E4, N.D4,   N.E4, N.F4, N.G4, N.A4,
+    N.B4, N.A4, N.G4, N.F4,   N.E4, N.D4, N.C4, N.D4,
+], T8, 0.20);
+
+// lute3: Alberti-bass keyboard texture (32 × T8 = 8 s → 2 loops)
+const lute3 = makeGuitar(16, [
+    N.D4, N.A4, N.F4, N.A4,   N.D4, N.A4, N.F4, N.A4,
+    N.C4, N.G4, N.E4, N.G4,   N.C4, N.G4, N.E4, N.G4,
+    N.F3, N.C4, N.A3, N.C4,   N.F3, N.C4, N.A3, N.C4,
+    N.G3, N.D4, N.B3, N.D4,   N.G3, N.D4, N.B3, N.D4,
+], T8, 0.18);
+
+
+// ════════════════════════════════════════════════════════════
+//  3. FLUTE — Baroque flute lyrical lead
+// ════════════════════════════════════════════════════════════
+function makeFlute(duration, pattern, interval, gain = 0.22) {
+    return gen(duration, (t) => {
+        const f  = step(pattern, t, interval);
+        if (!f) return 0;
+        const nt = stepT(pattern, t, interval);
+        const e  = adsr(nt, interval * 0.90, 0.018, 0.06, 0.80, 0.04);
+        return softClip(baroqueFlute(lf(f, duration), nt) * e * gain);
+    });
+}
+
+// flute1: Flowing D-Dorian theme, quarter notes (20 × T4 = 10 s → 2 loops in 20 s)
+const flute1 = makeFlute(20, [
+    N.D5, N.E5, N.F5, N.E5,   N.D5, N.C5, N.B4, N.A4,
+    N.G4, N.A4, N.B4, N.C5,   N.D5, N.C5, N.B4, N.A4,
+    N.G4, N.F4, N.E4, N.D4,
+], T4, 0.24);
+
+// flute2: Running 8th-note scalar passage (40 × T8 = 10 s → 2 loops)
+const flute2 = makeFlute(20, [
+    N.D4, N.E4, N.F4, N.G4,   N.A4, N.B4, N.C5, N.D5,
+    N.E5, N.D5, N.C5, N.B4,   N.A4, N.G4, N.F4, N.E4,
+    N.D4, N.F4, N.E4, N.D4,   N.E4, N.F4, N.G4, N.A4,
+    N.B4, N.A4, N.G4, N.F4,   N.E4, N.D4, N.C4, N.D4,
+    N.E4, N.G4, N.F4, N.E4,   N.D4, N.C4, N.D4, N.E4,
+], T8, 0.22);
+
+// flute3: Ornamented motif (trill-like neighbour notes), 8th notes (40 × T8 = 10 s)
+const flute3 = makeFlute(20, [
+    N.A4, N.B4, N.A4, N.G4,   N.F4, N.G4, N.A4, N.B4,
+    N.C5, N.B4, N.A4, N.G4,   N.F4, N.E4, N.F4, N.G4,
+    N.A4, N.G4, N.F4, N.E4,   N.D4, N.E4, N.F4, N.E4,
+    N.D4, N.C4, N.D4, N.E4,   N.F4, N.G4, N.A4, N.B4,
+    N.C5, N.A4, N.B4, N.G4,   N.A4, N.F4, N.G4, N.D4,
+], T8, 0.20);
+
+
+// ════════════════════════════════════════════════════════════
+//  4. PERC — Timpani
+// ════════════════════════════════════════════════════════════
+function makeTimpani(duration, hits, patLen, gain = 0.48) {
+    return gen(duration, (t) => {
+        const local = t % patLen;
         let v = 0;
-        for (let i = 0; i < tones.length; i++) {
-            const f = loopFreq(tones[i], d);
-            v += sine(f, t) * (0.55 / (1 + i * 0.55));
+        for (const h of hits) {
+            const dt = local - h.time;
+            if (dt < 0 || dt > 1.8) continue;
+            const freq = (h.pitch ?? 85) * (1 + 0.16 * Math.exp(-dt * 12));
+            const env  = Math.exp(-dt * 2.4);
+            v += (sine(freq, dt) * 0.70 + sine(freq * 2.3, dt) * 0.14) * env * h.amp;
         }
-        return softClip(v * lfo * gain);
+        return softClip(v * gain);
     });
 }
 
-function makeLute(duration, interval, notes, offset = 0, gain = 1) {
-    return generateInstrument(duration, (t, d) => {
-        const shifted = (t + offset) % d;
-        const step = Math.floor(shifted / interval);
-        const noteT = shifted - step * interval;
-        const f = noteByStep(notes, step);
-        return pluck(f, noteT, d, 6.5, 0.27) * 0.9 * gain;
-    });
-}
+// perc1: Steady quarter-note pulse  (D and A drums, 4 s pattern = 2 bars)
+const perc1 = makeTimpani(20, [
+    { time: 0.0, amp: 0.90, pitch: 85  },  // D
+    { time: 1.0, amp: 0.55, pitch: 85  },
+    { time: 2.0, amp: 0.85, pitch: 110 },  // A
+    { time: 3.0, amp: 0.52, pitch: 110 },
+], 4.0, 0.50);
 
-function makeChoir(duration, chords, chordLen, gain = 0.22, offset = 0) {
-    return generateInstrument(duration, (t, d) => {
-        const local = (t + offset) % d;
-        const idx = Math.floor(local / chordLen) % chords.length;
-        const chord = chords[idx];
-        const chordT = local - Math.floor(local / chordLen) * chordLen;
-        const swell = 0.55 + 0.45 * Math.sin((chordT / chordLen) * Math.PI);
+// perc2: Baroque dotted-rhythm feel (♩. ♪ pattern, 4 s)
+const perc2 = makeTimpani(20, [
+    { time: 0.00, amp: 0.95, pitch: 85  },
+    { time: 0.75, amp: 0.50, pitch: 100 },
+    { time: 1.50, amp: 0.80, pitch: 85  },
+    { time: 2.25, amp: 0.45, pitch: 100 },
+    { time: 3.00, amp: 0.90, pitch: 85  },
+    { time: 3.75, amp: 0.50, pitch: 110 },
+], 4.0, 0.48);
 
-        let v = 0;
-        for (let i = 0; i < chord.length; i++) {
-            const f = loopFreq(chord[i], d);
-            v += sine(f, t) * (0.44 / (1 + i * 0.4));
-            v += sine(f * 2, t) * (0.12 / (1 + i * 0.5));
-        }
-        return softClip(v * swell * gain);
-    });
-}
+// perc3: Grand, emphatic on strong beats only (8 s pattern = 4 bars)
+const perc3 = makeTimpani(20, [
+    { time: 0.0, amp: 1.00, pitch: 85  },
+    { time: 2.0, amp: 0.88, pitch: 110 },
+    { time: 4.0, amp: 1.00, pitch: 85  },
+    { time: 6.0, amp: 0.88, pitch: 110 },
+], 8.0, 0.52);
 
-function drumHit(localT, hitTime, baseFreq, amp = 1) {
-    const dt = localT - hitTime;
-    if (dt < 0 || dt > 0.36) return 0;
 
-    const env = Math.exp(-dt * 11.5);
-    const pitch = Math.max(48, baseFreq - dt * 130);
-    const body = sine(pitch, dt) * 0.85;
-    const skin = sine(980, dt) * Math.exp(-dt * 28) * 0.11;
-    return softClip((body + skin) * env * amp);
-}
+// ════════════════════════════════════════════════════════════
+//  4th variations  (distinct character from variations 1–3)
+// ════════════════════════════════════════════════════════════
 
-function tambour(localT, hitTime, amp = 1) {
-    const dt = localT - hitTime;
-    if (dt < 0 || dt > 0.14) return 0;
-    const env = Math.exp(-dt * 30);
-    const jingle = (sine(2300, dt) + sine(3400, dt) * 0.7) * env;
-    return jingle * 0.06 * amp;
-}
+// drone4: Half-note bass — slow, breathing descent
+const drone4 = makeCello(24, [
+    N.D3, N.D3, N.F3, N.A3,   N.G3, N.F3, N.E3, N.D3,
+    N.A3, N.G3, N.F3, N.G3,   N.A3, N.C4, N.A3, N.D3,
+], T8, 0.32);
 
-function makePerc(duration, patternDuration, hits, jangles, baseFreq, gain) {
-    return generateInstrument(duration, (t, d) => {
-        const local = t % patternDuration;
-        let v = 0;
-        for (const hit of hits) {
-            v += drumHit(local, hit.time, baseFreq * hit.pitchMul, hit.amp);
-        }
-        for (const j of jangles) {
-            v += tambour(local, j.time, j.amp);
-        }
-        const lowDrone = sine(loopFreq(N.D3, d), t) * 0.08;
-        return softClip((v + lowDrone) * gain);
-    });
-}
+// lute4: Slow quarter-note chord arpeggio — lyrical, singing guitar (32 × T4 = 16 s)
+const lute4 = makeGuitar(16, [
+    N.D4, N.A3, N.D4, N.F4,   N.A4, N.F4, N.E4, N.D4,
+    N.C4, N.G3, N.C4, N.E4,   N.G4, N.E4, N.D4, N.C4,
+    N.F3, N.C4, N.F3, N.A3,   N.C4, N.A3, N.G3, N.F3,
+    N.G3, N.D4, N.G3, N.B3,   N.D4, N.B3, N.A3, N.G3,
+], T4, 0.20);
 
-// 1) Drone (sustained foundation)
-const drone1 = makeDrone(24, [N.D3, N.A3, N.D4], 0.03125, 0.34);
-const drone2 = makeDrone(24, [N.F3, N.C4, N.A3], 0.046875, 0.32);
-const drone3 = makeDrone(24, [N.G3, N.D4, N.F4], 0.0625, 0.28);
+// flute4: High-register ornamental motif (20 × T4 = 10 s → 2 loops in 20 s)
+const flute4 = makeFlute(20, [
+    N.E5, N.D5, N.E5, N.F5,   N.E5, N.D5, N.C5, N.B4,
+    N.A4, N.B4, N.C5, N.D5,   N.E5, N.D5, N.C5, N.A4,
+    N.G4, N.A4, N.B4, N.C5,
+], T4, 0.22);
 
-// 2) Lute (main boardgame arpeggio color)
-const lute1 = makeLute(18, 0.75, [N.D4, N.F4, N.A4, N.F4, N.G4, N.E4, N.D4, 0], 0.0, 1.0);
-const lute2 = makeLute(18, 0.5, [N.A4, 0, N.G4, N.F4, N.E4, 0, N.D4, N.C4, N.D4, 0], 0.2, 0.92);
-const lute3 = makeLute(18, 1.0, [N.F4, N.A4, N.G4, N.D4, N.E4, N.C4], 1.0, 0.98);
+// perc4: 8th-note pulse timpani — more active, driving
+const perc4 = makeTimpani(20, [
+    { time: 0.00, amp: 0.90, pitch: 85  },
+    { time: 0.50, amp: 0.60, pitch: 110 },
+    { time: 1.00, amp: 0.85, pitch: 85  },
+    { time: 1.50, amp: 0.55, pitch: 110 },
+    { time: 2.00, amp: 0.95, pitch: 85  },
+    { time: 2.50, amp: 0.60, pitch: 100 },
+    { time: 3.00, amp: 0.80, pitch: 85  },
+    { time: 3.75, amp: 0.55, pitch: 110 },
+], 4.0, 0.50);
 
-// 3) Flute (lead motif)
-const flute1 = makeStepMelody(
-    20,
-    1.0,
-    [N.A4, N.C5, N.D5, N.C5, N.A4, N.G4, N.F4, 0, N.G4, N.A4, N.C5, N.D5, 0, N.C5, N.A4, N.G4, N.F4, 0, N.E4, N.D4],
-    (f, nt) => flute(f, nt, 0.03),
-    0.23,
-    0.0
-);
-const flute2 = makeStepMelody(
-    20,
-    0.5,
-    [N.D5, 0, N.C5, 0, N.A4, N.G4, N.F4, 0, N.E4, N.F4, N.G4, 0, N.A4, 0, N.C5, 0],
-    (f, nt) => flute(f, nt, 0.04),
-    0.19,
-    0.5
-);
-const flute3 = makeStepMelody(
-    20,
-    1.5,
-    [N.F4, N.G4, N.A4, N.C5, N.A4, N.G4, N.E4, N.D4],
-    (f, nt) => flute(f, nt, 0.035),
-    0.21,
-    1.0
-);
+// ════════════════════════════════════════════════════════════
+//  Write output  (MP3 only — delete ALL existing bgm files)
+// ════════════════════════════════════════════════════════════
+const outDir = path.join(__dirname, '..', 'src', 'asset', 'audio');
+if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
-// 4) Viola/Viol (counter melody)
-const viol1 = makeStepMelody(
-    22,
-    1.0,
-    [N.D4, N.F4, N.G4, N.A4, N.F4, N.E4, N.D4, N.C4, N.D4, N.F4, N.A4, N.G4],
-    (f, nt) => bowed(f, nt, 5.0, 0.004),
-    0.22,
-    0.0
-);
-const viol2 = makeStepMelody(
-    22,
-    0.75,
-    [N.A3, N.C4, N.D4, N.F4, N.E4, N.D4, N.C4, 0, N.D4, N.E4, N.F4, N.G4],
-    (f, nt) => bowed(f, nt, 4.6, 0.003),
-    0.20,
-    0.25
-);
-const viol3 = makeStepMelody(
-    22,
-    1.25,
-    [N.F3, N.A3, N.C4, N.D4, N.C4, N.A3, N.G3, N.F3],
-    (f, nt) => bowed(f, nt, 4.2, 0.0035),
-    0.24,
-    0.8
-);
+fs.readdirSync(outDir)
+    .filter(f => f.startsWith('bgm_') && (f.endsWith('.mp3') || f.endsWith('.ogg') || f.endsWith('.wav')))
+    .forEach(f => { fs.unlinkSync(path.join(outDir, f)); console.log(`  deleted ${f}`); });
 
-// 5) Choir (guild hall ambience)
-const choirChords = [
-    [N.D4, N.F4, N.A4],
-    [N.C4, N.E4, N.G4],
-    [N.F3, N.A3, N.C4],
-    [N.G3, N.B3, N.D4]
+const stems = [
+    ['bgm_drone1', drone1], ['bgm_drone2', drone2], ['bgm_drone3', drone3], ['bgm_drone4', drone4],
+    ['bgm_lute1',  lute1],  ['bgm_lute2',  lute2],  ['bgm_lute3',  lute3],  ['bgm_lute4',  lute4],
+    ['bgm_flute1', flute1], ['bgm_flute2', flute2], ['bgm_flute3', flute3], ['bgm_flute4', flute4],
+    ['bgm_perc1',  perc1],  ['bgm_perc2',  perc2],  ['bgm_perc3',  perc3],  ['bgm_perc4',  perc4],
 ];
 
-const choir1 = makeChoir(24, choirChords, 6.0, 0.20, 0.0);
-const choir2 = makeChoir(24, [choirChords[2], choirChords[0], choirChords[3], choirChords[1]], 6.0, 0.18, 0.7);
-const choir3 = makeChoir(24, [choirChords[1], choirChords[3], choirChords[0], choirChords[2]], 6.0, 0.19, 1.3);
+for (const [name, data] of stems) writeStem(outDir, name, data);
 
-// 6) Percussion (frame drum + tambour accents)
-const perc1 = makePerc(
-    20,
-    4.0,
-    [
-        { time: 0.0, amp: 1.0, pitchMul: 1.0 },
-        { time: 1.0, amp: 0.72, pitchMul: 1.03 },
-        { time: 2.0, amp: 0.92, pitchMul: 0.97 },
-        { time: 3.0, amp: 0.68, pitchMul: 1.06 }
-    ],
-    [
-        { time: 0.5, amp: 0.7 },
-        { time: 1.5, amp: 0.6 },
-        { time: 2.5, amp: 0.75 },
-        { time: 3.5, amp: 0.6 }
-    ],
-    N.D3,
-    0.66
-);
-
-const perc2 = makePerc(
-    20,
-    4.0,
-    [
-        { time: 0.0, amp: 1.0, pitchMul: 1.0 },
-        { time: 0.75, amp: 0.56, pitchMul: 1.12 },
-        { time: 1.5, amp: 0.86, pitchMul: 0.95 },
-        { time: 2.25, amp: 0.62, pitchMul: 1.08 },
-        { time: 3.0, amp: 0.88, pitchMul: 0.97 },
-        { time: 3.5, amp: 0.54, pitchMul: 1.15 }
-    ],
-    [
-        { time: 0.5, amp: 0.55 },
-        { time: 1.25, amp: 0.48 },
-        { time: 2.75, amp: 0.6 },
-        { time: 3.75, amp: 0.52 }
-    ],
-    N.C4,
-    0.63
-);
-
-const perc3 = makePerc(
-    20,
-    2.0,
-    [
-        { time: 0.0, amp: 0.94, pitchMul: 1.0 },
-        { time: 0.5, amp: 0.52, pitchMul: 1.2 },
-        { time: 1.0, amp: 0.9, pitchMul: 0.93 },
-        { time: 1.5, amp: 0.58, pitchMul: 1.14 }
-    ],
-    [
-        { time: 0.25, amp: 0.5 },
-        { time: 0.75, amp: 0.55 },
-        { time: 1.25, amp: 0.5 },
-        { time: 1.75, amp: 0.58 }
-    ],
-    N.F3,
-    0.60
-);
-
-const outDir = path.join(__dirname, '..', 'src', 'asset', 'audio');
-if (!fs.existsSync(outDir)) {
-    fs.mkdirSync(outDir, { recursive: true });
-}
-
-writeWav(path.join(outDir, 'bgm_drone1.wav'), drone1);
-writeWav(path.join(outDir, 'bgm_drone2.wav'), drone2);
-writeWav(path.join(outDir, 'bgm_drone3.wav'), drone3);
-
-writeWav(path.join(outDir, 'bgm_lute1.wav'), lute1);
-writeWav(path.join(outDir, 'bgm_lute2.wav'), lute2);
-writeWav(path.join(outDir, 'bgm_lute3.wav'), lute3);
-
-writeWav(path.join(outDir, 'bgm_flute1.wav'), flute1);
-writeWav(path.join(outDir, 'bgm_flute2.wav'), flute2);
-writeWav(path.join(outDir, 'bgm_flute3.wav'), flute3);
-
-writeWav(path.join(outDir, 'bgm_viol1.wav'), viol1);
-writeWav(path.join(outDir, 'bgm_viol2.wav'), viol2);
-writeWav(path.join(outDir, 'bgm_viol3.wav'), viol3);
-
-writeWav(path.join(outDir, 'bgm_choir1.wav'), choir1);
-writeWav(path.join(outDir, 'bgm_choir2.wav'), choir2);
-writeWav(path.join(outDir, 'bgm_choir3.wav'), choir3);
-
-writeWav(path.join(outDir, 'bgm_perc1.wav'), perc1);
-writeWav(path.join(outDir, 'bgm_perc2.wav'), perc2);
-writeWav(path.join(outDir, 'bgm_perc3.wav'), perc3);
-
-console.log('Generated Medieval BGM Stems (6 instruments x 3 variations = 18 files) Complete!');
+console.log(`\nDone — ${stems.length} MP3 stems  (4 channels × 4 variations)`);

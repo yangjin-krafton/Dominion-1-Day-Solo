@@ -1,38 +1,41 @@
-const fs = require('fs');
-const path = require('path');
+const fs           = require('fs');
+const path         = require('path');
+const os           = require('os');
+const { execSync } = require('child_process');
 
 const SAMPLE_RATE = 44100;
 
-function writeWav(filename, samples) {
-    const buffer = Buffer.alloc(44 + samples.length * 2);
-    
-    // RIFF chunk descriptor
-    buffer.write('RIFF', 0);
-    buffer.writeUInt32LE(36 + samples.length * 2, 4);
-    buffer.write('WAVE', 8);
-    
-    // fmt sub-chunk
-    buffer.write('fmt ', 12);
-    buffer.writeUInt32LE(16, 16); // Subchunk1Size
-    buffer.writeUInt16LE(1, 20); // AudioFormat (1 = PCM)
-    buffer.writeUInt16LE(1, 22); // NumChannels
-    buffer.writeUInt32LE(SAMPLE_RATE, 24); // SampleRate
-    buffer.writeUInt32LE(SAMPLE_RATE * 2, 28); // ByteRate
-    buffer.writeUInt16LE(2, 32); // BlockAlign
-    buffer.writeUInt16LE(16, 34); // BitsPerSample
-    
-    // data sub-chunk
-    buffer.write('data', 36);
-    buffer.writeUInt32LE(samples.length * 2, 40);
-    
-    // Write samples (clamped and scaled to 16-bit)
+function writeMp3(outDir, name, samples) {
+    const buf = Buffer.alloc(44 + samples.length * 2);
+    buf.write('RIFF', 0);
+    buf.writeUInt32LE(36 + samples.length * 2, 4);
+    buf.write('WAVE', 8);
+    buf.write('fmt ', 12);
+    buf.writeUInt32LE(16, 16);
+    buf.writeUInt16LE(1,  20);
+    buf.writeUInt16LE(1,  22);
+    buf.writeUInt32LE(SAMPLE_RATE,     24);
+    buf.writeUInt32LE(SAMPLE_RATE * 2, 28);
+    buf.writeUInt16LE(2,  32);
+    buf.writeUInt16LE(16, 34);
+    buf.write('data', 36);
+    buf.writeUInt32LE(samples.length * 2, 40);
     for (let i = 0; i < samples.length; i++) {
-        let sample = Math.max(-1, Math.min(1, samples[i]));
-        buffer.writeInt16LE(Math.floor(sample * 32767), 44 + i * 2);
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        buf.writeInt16LE(Math.floor(s * 32767), 44 + i * 2);
     }
-    
-    fs.writeFileSync(filename, buffer);
-    console.log(`Generated ${filename}`);
+
+    const tmp = path.join(os.tmpdir(), `${name}_tmp.wav`);
+    fs.writeFileSync(tmp, buf);
+    try {
+        execSync(
+            `ffmpeg -y -loglevel error -i "${tmp}" -c:a libmp3lame -b:a 128k "${path.join(outDir, name + '.mp3')}"`,
+            { stdio: 'inherit' }
+        );
+    } finally {
+        fs.unlinkSync(tmp);
+    }
+    console.log(`  ✓ ${name}.mp3`);
 }
 
 // ---------------------------------------------------------
@@ -160,17 +163,20 @@ function generateShuffle() {
 }
 
 // ---------------------------------------------------------
-// File generation
+// File generation  (MP3 only — delete leftover OGG / WAV)
 // ---------------------------------------------------------
 const outDir = path.join(__dirname, '..', 'src', 'asset', 'audio');
-if (!fs.existsSync(outDir)) {
-    fs.mkdirSync(outDir, { recursive: true });
-}
+if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
-writeWav(path.join(outDir, 'playCard.wav'), generatePlayCard());
-writeWav(path.join(outDir, 'buyCard.wav'), generateBuyCard());
-writeWav(path.join(outDir, 'error.wav'), generateError());
-writeWav(path.join(outDir, 'gainCoin.wav'), generateGainCoin());
-writeWav(path.join(outDir, 'shuffle.wav'), generateShuffle());
+const sfxNames = ['playCard', 'buyCard', 'error', 'gainCoin', 'shuffle'];
+fs.readdirSync(outDir)
+    .filter(f => sfxNames.some(n => f.startsWith(n)) && (f.endsWith('.ogg') || f.endsWith('.wav')))
+    .forEach(f => { fs.unlinkSync(path.join(outDir, f)); console.log(`  deleted ${f}`); });
 
-console.log("High-Quality Card Game SFX Generation Complete!");
+writeMp3(outDir, 'playCard', generatePlayCard());
+writeMp3(outDir, 'buyCard',  generateBuyCard());
+writeMp3(outDir, 'error',    generateError());
+writeMp3(outDir, 'gainCoin', generateGainCoin());
+writeMp3(outDir, 'shuffle',  generateShuffle());
+
+console.log('SFX Generation Complete — 5 × MP3');

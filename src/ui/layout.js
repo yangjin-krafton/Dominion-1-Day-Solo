@@ -29,7 +29,7 @@ export const PILE_Y  = ZONE.PILES_Y + 14;   // scene.js CARD_Y_OFF와 동일
 const HAND_START_Y  = ZONE.HAND_Y;
 const HAND_SPACING  = CW + 8;              // 기본 그룹 간격
 const HAND_MAX_VIS  = 4;                   // 한 번에 최대 표시 그룹 수
-const ARROW_W       = 22;                  // 스크롤 화살표 너비
+const ARROW_W       = 20;                  // 스크롤 방향 표시자 너비 (시각 전용)
 const STACK_OFF     = 4;                   // 동일 카드 중첩 오프셋
 
 // ─── 유틸: 카드 ID 기반 결정적 난수 (0~1) — 매 sync 지터 방지 ──────
@@ -62,23 +62,26 @@ function _groupByDefId(cards) {
   return groups;
 }
 
-// ─── 핸드 스크롤 화살표 빌드 (main.js에서 1회 호출) ────────
+// ─── 핸드 스크롤 방향 표시자 빌드 (시각 전용, 인터랙션 없음) ─
 /**
- * @param {PIXI.Container} layer - UI 레이어
- * @param {object} gs
+ * 드래그로 스크롤 가능함을 알리는 얇은 시각 표시자.
+ * 실제 스크롤 제스처는 main.js의 stage-level 드래그 핸들러가 처리.
+ * @param {PIXI.Container} layer
  * @returns {{ left: PIXI.Container, right: PIXI.Container }}
  */
-export function buildHandArrows(layer, gs) {
-  function makeArrow(text, x) {
+export function buildHandArrows(layer) {
+  function makeIndicator(dir, x) {
     const cont = new PIXI.Container();
-    const bg   = new PIXI.Graphics();
-    bg.beginFill(0x0a0814, 0.85);
-    bg.lineStyle(1, C.goldDim, 0.5);
-    bg.drawRoundedRect(0, 0, ARROW_W, CH, 5);
+
+    const bg = new PIXI.Graphics();
+    bg.beginFill(0x07050f, 0.6);
+    bg.drawRect(0, 0, ARROW_W, CH);
     bg.endFill();
     cont.addChild(bg);
 
-    const t = new PIXI.Text(text, { fontSize: 16, fill: C.gold });
+    const t = new PIXI.Text(dir === 'left' ? '‹' : '›', {
+      fontSize: 16, fill: C.gold, fontWeight: 'bold',
+    });
     t.anchor.set(0.5);
     t.x = ARROW_W / 2;
     t.y = CH / 2;
@@ -87,27 +90,15 @@ export function buildHandArrows(layer, gs) {
     cont.x = x;
     cont.y = HAND_START_Y;
     cont.visible   = false;
-    cont.eventMode = 'static';
-    cont.cursor    = 'pointer';
+    cont.eventMode = 'none';   // 시각 전용 — 이벤트 차단 없음
     layer.addChild(cont);
     return cont;
   }
 
-  const arrows = {
-    left:  makeArrow('‹', 2),
-    right: makeArrow('›', W - ARROW_W - 2),
+  return {
+    left:  makeIndicator('left',  0),
+    right: makeIndicator('right', W - ARROW_W),
   };
-
-  arrows.left.on('pointerdown', () => {
-    gs.handScroll = Math.max(0, (gs.handScroll ?? 0) - 1);
-    gs.onScrollHand?.();
-  });
-  arrows.right.on('pointerdown', () => {
-    gs.handScroll = (gs.handScroll ?? 0) + 1;
-    gs.onScrollHand?.();
-  });
-
-  return arrows;
 }
 
 // ─── 전체 카드 위치 업데이트 ─────────────────────────────────
@@ -209,6 +200,8 @@ export function updateCardPositions(gs) {
   const totalW  = spacing * (n - 1) + CW;
   const startX  = areaX + (areaW - totalW) / 2;
 
+  const dragOff = gs._handDragOffset ?? 0;
+
   visGroups.forEach((group, gIdx) => {
     const stackN = group.length;
     const baseX  = startX + gIdx * spacing;
@@ -218,7 +211,7 @@ export function updateCardPositions(gs) {
       const off   = (stackN - 1 - cIdx) * STACK_OFF;
 
       card.area = AREAS.HAND;
-      card.moveTo(baseX + off, HAND_START_Y + off, 0, 1);
+      card.moveTo(baseX + off + dragOff, HAND_START_Y + off, 0, 1);
       card.container.zIndex    = 100 + gIdx * 20 + cIdx;
       card.container.eventMode = isTop ? 'static' : 'none';
       card.container.cursor    = isTop ? 'pointer' : 'default';

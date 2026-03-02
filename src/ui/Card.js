@@ -100,7 +100,7 @@ export class Card {
    * this.flipped = true  → update()가 scale.x lerp 건드리지 않도록 차단
    * faceToggled (local)  → 면 교체를 정확히 1회만 수행
    */
-  flip(duration = 0.3) {
+  flip(duration = 0.3, onComplete = null) {
     const startTime  = Date.now();
     const initScaleX = this.container.scale.x;
     this.flipped     = true;    // ← 시작부터 차단 (기존: false → 충돌 버그)
@@ -126,6 +126,7 @@ export class Card {
       } else {
         this.container.scale.x = initScaleX;
         this.flipped            = false;  // ← 애니메이션 종료 후 해제
+        onComplete?.();
       }
     };
 
@@ -167,8 +168,8 @@ export class Card {
         g.beginFill(0x000000, 0.60);
         g.drawRect(0, 0, CW, CH);
         g.endFill();
-        // 항상 최상단에 추가 → backFace/frontFace 위에 렌더링
-        this.container.addChild(g);
+        // frontFace(index 2) 바로 위, 배지류 아래에 삽입
+        this.container.addChildAt(g, 3);
         this._dimOverlay = g;
       }
       this._dimOverlay.visible = true;

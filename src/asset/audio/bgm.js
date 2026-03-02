@@ -1,6 +1,6 @@
 ﻿// bgm.js
-// Generative medieval board-game BGM manager.
-// 6 instruments x 3 variations = 18 stems with arrangement sections and musical motion.
+// Generative classical BGM manager.
+// 4 instruments x 4 variations = 16 stems with arrangement sections and musical motion.
 import { audioPath } from './audioFormat.js';
 
 const categories = {
@@ -12,7 +12,8 @@ const categories = {
         stems: [
             { name: 'bgm_drone1', audio: null, currentVol: 0, targetVol: 0 },
             { name: 'bgm_drone2', audio: null, currentVol: 0, targetVol: 0 },
-            { name: 'bgm_drone3', audio: null, currentVol: 0, targetVol: 0 }
+            { name: 'bgm_drone3', audio: null, currentVol: 0, targetVol: 0 },
+            { name: 'bgm_drone4', audio: null, currentVol: 0, targetVol: 0 }
         ]
     },
     lute: {
@@ -23,7 +24,8 @@ const categories = {
         stems: [
             { name: 'bgm_lute1', audio: null, currentVol: 0, targetVol: 0 },
             { name: 'bgm_lute2', audio: null, currentVol: 0, targetVol: 0 },
-            { name: 'bgm_lute3', audio: null, currentVol: 0, targetVol: 0 }
+            { name: 'bgm_lute3', audio: null, currentVol: 0, targetVol: 0 },
+            { name: 'bgm_lute4', audio: null, currentVol: 0, targetVol: 0 }
         ]
     },
     flute: {
@@ -34,29 +36,8 @@ const categories = {
         stems: [
             { name: 'bgm_flute1', audio: null, currentVol: 0, targetVol: 0 },
             { name: 'bgm_flute2', audio: null, currentVol: 0, targetVol: 0 },
-            { name: 'bgm_flute3', audio: null, currentVol: 0, targetVol: 0 }
-        ]
-    },
-    viol: {
-        maxVol: 0.19,
-        baseSilenceChance: 0.16,
-        modDepth: 0.09,
-        modHz: 0.09,
-        stems: [
-            { name: 'bgm_viol1', audio: null, currentVol: 0, targetVol: 0 },
-            { name: 'bgm_viol2', audio: null, currentVol: 0, targetVol: 0 },
-            { name: 'bgm_viol3', audio: null, currentVol: 0, targetVol: 0 }
-        ]
-    },
-    choir: {
-        maxVol: 0.12,
-        baseSilenceChance: 0.34,
-        modDepth: 0.05,
-        modHz: 0.04,
-        stems: [
-            { name: 'bgm_choir1', audio: null, currentVol: 0, targetVol: 0 },
-            { name: 'bgm_choir2', audio: null, currentVol: 0, targetVol: 0 },
-            { name: 'bgm_choir3', audio: null, currentVol: 0, targetVol: 0 }
+            { name: 'bgm_flute3', audio: null, currentVol: 0, targetVol: 0 },
+            { name: 'bgm_flute4', audio: null, currentVol: 0, targetVol: 0 }
         ]
     },
     perc: {
@@ -67,7 +48,8 @@ const categories = {
         stems: [
             { name: 'bgm_perc1', audio: null, currentVol: 0, targetVol: 0 },
             { name: 'bgm_perc2', audio: null, currentVol: 0, targetVol: 0 },
-            { name: 'bgm_perc3', audio: null, currentVol: 0, targetVol: 0 }
+            { name: 'bgm_perc3', audio: null, currentVol: 0, targetVol: 0 },
+            { name: 'bgm_perc4', audio: null, currentVol: 0, targetVol: 0 }
         ]
     }
 };
@@ -77,28 +59,28 @@ const sections = [
         name: 'calm',
         durationMs: 22000,
         density: 0.55,
-        volMul: { drone: 1.00, lute: 0.70, flute: 0.55, viol: 0.62, choir: 0.45, perc: 0.50 },
-        leadPool: ['lute', 'viol']
+        volMul: { drone: 1.00, lute: 0.70, flute: 0.55, perc: 0.50 },
+        leadPool: ['lute', 'flute']
     },
     {
         name: 'town',
         durationMs: 26000,
         density: 0.72,
-        volMul: { drone: 0.95, lute: 1.00, flute: 0.75, viol: 0.85, choir: 0.50, perc: 0.90 },
+        volMul: { drone: 0.95, lute: 1.00, flute: 0.75, perc: 0.90 },
         leadPool: ['lute', 'flute']
     },
     {
         name: 'tension',
         durationMs: 20000,
         density: 0.78,
-        volMul: { drone: 1.10, lute: 0.92, flute: 0.90, viol: 1.00, choir: 0.86, perc: 1.00 },
-        leadPool: ['viol', 'choir', 'flute']
+        volMul: { drone: 1.10, lute: 0.92, flute: 0.90, perc: 1.00 },
+        leadPool: ['flute', 'lute']
     },
     {
         name: 'festival',
         durationMs: 24000,
         density: 0.86,
-        volMul: { drone: 1.00, lute: 1.05, flute: 0.85, viol: 0.92, choir: 0.70, perc: 1.08 },
+        volMul: { drone: 1.00, lute: 1.05, flute: 0.85, perc: 1.08 },
         leadPool: ['lute', 'flute', 'perc']
     }
 ];
