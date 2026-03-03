@@ -115,28 +115,59 @@
 .ds-btn-row .ds-btn   { flex: 2; }
 .ds-btn-row .ds-btn-s { flex: 1; }
 
-/* ── 홈화면 통계 ────────────────────────────────────────────── */
-.ds-greeting {
-  color: #fff3d6;
-  font-size: 15px;
-  margin-bottom: 18px;
-}
-.ds-greeting strong { color: #d4a520; }
-
-.ds-stats {
+/* ── 홈화면 목표 승점 블록 ──────────────────────────────────── */
+.ds-home-target {
   display: flex;
-  justify-content: space-around;
-  margin: 18px 0;
-  padding: 14px 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: 10px 0 16px;
+  padding: 12px 0;
   border-top: 1px solid #1a1030;
   border-bottom: 1px solid #1a1030;
 }
-.ds-stat         { text-align: center; }
-.ds-stat-v       { display: block; font-size: 22px; color: #d4a520; font-weight: bold; }
-.ds-stat-l       { font-size: 10px; color: #7a5c0a; margin-top: 2px; }
+.ds-home-target-label {
+  font-size: 10px;
+  color: #7a5c0a;
+  font-style: italic;
+  letter-spacing: 2px;
+}
+.ds-home-target-vp {
+  font-size: 52px;
+  font-weight: bold;
+  color: #d4a520;
+  line-height: 1;
+  font-family: Georgia, serif;
+}
+.ds-home-target-unit {
+  font-size: 20px;
+  color: #aa9966;
+  margin-left: 4px;
+  vertical-align: middle;
+}
 
-.ds-kingdom      { margin: 14px 0; }
-.ds-kingdom-list { color: #9933cc; font-size: 11px; margin-top: 4px; line-height: 1.6; }
+/* ── 홈화면 시장/킹덤 ───────────────────────────────────────── */
+.ds-kingdom { margin: 14px 0; }
+
+/* ── 홈화면 랭킹 테이블 특수 행 ─────────────────────────────── */
+/* 빈 자리 행 (아직 달성 기록 없음) */
+.ds-home-rank-empty td { color: #2a2030 !important; }
+
+/* 첫 도전 행 */
+.ds-home-rank-first td {
+  color: #d4a520 !important;
+  font-style: italic;
+  letter-spacing: 2px;
+  padding: 10px 0 !important;
+  border-top: 1px dashed #3a2a50;
+}
+
+/* 내 랭킹 (top5 밖) */
+.ds-home-rank-me td {
+  color: #9933cc !important;
+  border-top: 1px dashed #3a2a50;
+  font-style: italic;
+}
 
 /* ── 결과화면 ───────────────────────────────────────────────── */
 .ds-result-main { margin: 12px 0 6px; }

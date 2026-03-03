@@ -27,7 +27,7 @@ import { ProfileScreen }                       from './ui/screens/ProfileScreen.
 import { HomeScreen }                          from './ui/screens/HomeScreen.js';
 import { ResultScreen }                        from './ui/screens/ResultScreen.js';
 import { RankingPanel }                        from './ui/screens/RankingPanel.js';
-import { CatalogScreen }                       from './ui/screens/CatalogScreen.js';
+import * as CatalogOverlay                     from './ui/CatalogOverlay.js';
 
 // ── data ───────────────────────────────────────────────────
 import { loadCards, resolveCards } from './data/cards.js';
@@ -82,10 +82,10 @@ let _idSeq     = 0;
 let _gameStart = 0;
 let _market    = null;   // Market 인스턴스
 const _rankingPanel = new RankingPanel();
-const _catalogScr   = new CatalogScreen();
 let _nextSetup         = null;   // 다음 게임 랜덤 시장 구성 (buildMarketSetup 결과)
 let _activeKingdomIds  = [];     // 현재 게임에 사용 중인 킹덤 카드 IDs
 let _initialSupplyData = [];     // 게임 시작 시 공급량 스냅샷 [{name, initCount}]
+let _previewVpTarget   = 0;      // HomeScreen 표시용 사전 확정 목표 승점
 let _marketQueueState  = null;   // { queue, rng } — 시장 이벤트 롤링 큐
 let _timeline          = null;   // MarketTimeline 인스턴스
 
@@ -109,7 +109,7 @@ const gs = {
   onEndTurn:    null,
   onScrollHand: null,
   onOpenRanking:  () => _rankingPanel.show(Storage.getRanking(10)),
-  onOpenCatalog:  () => _catalogScr.show(_cardMap),
+  onOpenCatalog:  () => CatalogOverlay.show(_cardMap),
   onOpenVolume:   () => console.log('[UI] 음량설정 (준비 중)'),
 };
 
@@ -347,9 +347,12 @@ flow
           .filter(Boolean),
       };
     });
+    // 게임 목표 승점 사전 확정 (HomeScreen 표시 + _startGame 재사용)
+    _previewVpTarget = 10 + Math.floor(Math.random() * 11);
     homeScr.onStart = () => flow.go(STATES.GAME);
     homeScr.show({ profile, records: enrichedRecords,
-                   kingdomIds: _nextSetup.kingdomIds, kingdomNames, todayMarketCards });
+                   kingdomIds: _nextSetup.kingdomIds, kingdomNames,
+                   todayMarketCards, vpTarget: _previewVpTarget });
   })
 
   .on(STATES.GAME, () => { _startGame(); })
@@ -383,8 +386,13 @@ export function _startGame() {
   const rngSupply = seededRng((gs.gameSeed ^ 0x9e3779b9) >>> 0);  // 공급 수량
   const rngEvents = seededRng((gs.gameSeed ^ 0x6c62272e) >>> 0);  // 시장 이벤트
 
-  // 목표 승점 (rngSetup 시퀀스 사용)
-  gs.vpTarget = 10 + Math.floor(rngSetup() * 11);   // 10~20
+  // 목표 승점: HomeScreen에서 사전 확정된 값 우선 사용, 없으면 seeded 계산
+  if (_previewVpTarget > 0) {
+    gs.vpTarget      = _previewVpTarget;
+    _previewVpTarget = 0;
+  } else {
+    gs.vpTarget = 10 + Math.floor(rngSetup() * 11);   // 10~20
+  }
   gs.phase           = 'action';
   gs.pendingGain     = null;
   gs.pendingDiscard  = null;
@@ -481,6 +489,7 @@ buildUI(lUI, gs, _initProfile);
 gs._handArrows = buildHandArrows(lUI);
 
 CardDetail.init(lUI);
+CatalogOverlay.init(lUI);
 
 // ── 핸드 드래그 스크롤 (연속 캐러셀 + 그룹 스냅) ─────────────
 // ‣ pointermove: 손가락 따라 카드 즉시 이동 (lerp 우회)

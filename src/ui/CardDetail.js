@@ -18,8 +18,8 @@ let _layer   = null;
 let _overlay = null;
 let _rafId   = null;
 
-// ─── 대형 카드 렌더링 ────────────────────────────────────────
-function _buildLargeCard(def) {
+// ─── 대형 카드 렌더링 (CatalogOverlay 에서도 재사용) ─────────
+export function buildDetailCard(def) {
   const acc = ACCENT[def.type] ?? C.gold;
   const c   = new PIXI.Container();
   const g   = new PIXI.Graphics();
@@ -165,7 +165,7 @@ export function show(def) {
 
   // 대형 카드 컨테이너 (pivot 중심 기준 → scale 애니메이션)
   const cardWrap = new PIXI.Container();
-  cardWrap.addChild(_buildLargeCard(def));
+  cardWrap.addChild(buildDetailCard(def));
   cardWrap.pivot.set(DW / 2, DH / 2);
   cardWrap.x = CX + DW / 2;
   cardWrap.y = CY + DH / 2;
