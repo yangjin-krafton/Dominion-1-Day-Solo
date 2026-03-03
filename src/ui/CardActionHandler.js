@@ -13,8 +13,8 @@
 import { playCard, buyCard, checkVictory } from '../core/TurnEngine.js';
 import { notifyBlocked }   from './scene.js';
 import { EFFECT_HANDLERS } from '../card-effects/index.js';
-import { CARD_W } from '../config.js';
-import { SFX } from '../asset/audio/sfx.js';
+import { CARD_W, AREAS }   from '../config.js';
+import { SFX }             from '../asset/audio/sfx.js';
 
 // pending 필드 → type 키 추출 규칙
 // pendingGain은 type 필드가 없으므로 'gain'으로 고정
@@ -116,6 +116,8 @@ export function createCardActionHandler({
   function onPlayCard(card) {
     // Merchant 트리거 감지: playCard() 전후 merchantBonus 비교
     const merchantBonusBefore = gs.merchantBonus ?? 0;
+    // 드로우 전 손패 크기 기록 (playCard 내부에서 drawCards 로 추가된 카드 추적)
+    const nHandBefore = gs.hand.length;
 
     const result = playCard(gs, card);
     if (!result.ok) {
@@ -125,24 +127,47 @@ export function createCardActionHandler({
     }
     SFX.playCardVariant(card.def);
     gs.phase = gs.actions > 0 ? 'action' : 'buy';
-    sync();
 
     // Silver 플레이 시 칩 1개가 소모됐으면 "+1" 팝업 표시
     if (merchantBonusBefore > (gs.merchantBonus ?? 0)) {
       _showMerchantBurst(lUI, card, 1);
     }
 
-    // 드로우된 카드 flip 애니메이션
-    gs.hand.forEach((c, i) => {
-      if (!c.isFaceUp) {
+    // 새로 드로우된 카드 추출
+    // playCard() 내부에서 플레이한 카드(1장)가 먼저 손패에서 제거된 후 드로우되므로
+    // 드로우 카드의 시작 인덱스는 nHandBefore - 1
+    const drawn = gs.hand.splice(nHandBefore - 1);
+
+    if (drawn.length === 0) {
+      // 드로우 없음: 즉시 sync + pending 처리
+      sync();
+      _tryDispatch();
+      return;
+    }
+
+    // 드로우된 카드를 임시로 덱 area 로 설정 → sync() 레이아웃에서 제외
+    drawn.forEach(c => { c.area = AREAS.DECK; });
+    sync(); // 낸 카드 / 스탯 등 나머지 UI 업데이트
+
+    // 한 장씩 손패로 투입 — 일반 드로우와 동일한 140ms 스태거 + flip 모션
+    drawn.forEach((c, i) => {
+      setTimeout(() => {
+        c.area = AREAS.HAND;
+        gs.hand.push(c);
+        // 뒷면 강제 → flip 애니메이션 준비
+        c.isFaceUp          = false;
         c.frontFace.visible = false;
         c.backFace.visible  = true;
-        setTimeout(() => c.flip(), 150 + i * 70);
-      }
-    });
+        SFX.drawCard();
+        sync(); // 덱 위치 → 손패 위치로 lerp 시작
+        setTimeout(() => c.flip(0.3, sync), 180);
 
-    // pending 효과 순차 처리 (첫 번째 발견 즉시 처리 후 return)
-    _tryDispatch();
+        // 마지막 카드 이후 pending 처리
+        if (i === drawn.length - 1) {
+          setTimeout(_tryDispatch, 10);
+        }
+      }, i * 140);
+    });
   }
 
   /** 시장에서 카드 구매 */

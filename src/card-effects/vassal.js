@@ -13,10 +13,11 @@
 //   7. 연쇄 pending 효과 있으면 dispatchPending(), 없으면 sync()
 // ============================================================
 import { AREAS, PILE_SCALE }        from '../config.js';
-import { drawCards, shuffle }        from '../core/TurnEngine.js';
+import { shuffle }                   from '../core/TurnEngine.js';
 import { executeCardEffect }         from '../core/CardEffect.js';
 import { showCardSelectOverlay }     from '../ui/CardSelectOverlay.js';
 import { PILE_X, PILE_Y }           from '../ui/layout.js';
+import { makeEffectEngine }          from './_utils.js';
 
 const FLIP_MS  = 340;  // flip 애니메이션 완료 대기 (duration=0.3s + 여유)
 const SLIDE_MS = 400;  // moveTo lerp 안착 대기
@@ -75,9 +76,9 @@ export function handleVassal(_pd, ctx) {
             picked.area = AREAS.PLAY;
             gs.play.push(picked);
           }
-          // 효과 실행 (행동 소모 없음 — gs.actions 차감 생략)
+          // 효과 실행 (행동 소모 없음 — gs.actions 차감 생략, 드로우 모션 포함)
           if (picked.def.effectCode) {
-            executeCardEffect(picked.def, gs, { drawCards });
+            executeCardEffect(picked.def, gs, makeEffectEngine(ctx));
           }
           // 연쇄 pending 효과(cellar·mine 등) 처리; 없으면 직접 sync
           if (!ctx.dispatchPending()) sync();

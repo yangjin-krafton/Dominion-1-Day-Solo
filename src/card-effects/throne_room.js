@@ -13,9 +13,9 @@
 //   2차 TR 의 카드 선택이 1차 pendingThrone 을 덮어씁니다 (알려진 한계).
 // ============================================================
 import { AREAS }                 from '../config.js';
-import { drawCards }             from '../core/TurnEngine.js';
 import { executeCardEffect }     from '../core/CardEffect.js';
 import { showCardSelectOverlay } from '../ui/CardSelectOverlay.js';
+import { makeEffectEngine }      from './_utils.js';
 
 export function handleThroneRoom(_pd, ctx) {
   const { gs, lUI, sync } = ctx;
@@ -38,9 +38,9 @@ export function handleThroneRoom(_pd, ctx) {
         gs.play.push(card);
       }
 
-      // ② 1차 효과 실행 (EFFECT_REGISTRY 경유 — 단순/복합 모두 지원)
+      // ② 1차 효과 실행 — 드로우 모션 포함 engine 주입
       if (card.def.effectCode) {
-        executeCardEffect(card.def, gs, { drawCards });
+        executeCardEffect(card.def, gs, makeEffectEngine(ctx));
       }
 
       // ③ 2차 플레이 예약
@@ -59,9 +59,9 @@ export function handleThroneRoom(_pd, ctx) {
 export function handleThroneRoomSecond({ card }, ctx) {
   const { gs, sync, dispatchPending } = ctx;
 
-  // 2차 효과 실행
+  // 2차 효과 실행 — 드로우 모션 포함 engine 주입
   if (card.def.effectCode) {
-    executeCardEffect(card.def, gs, { drawCards });
+    executeCardEffect(card.def, gs, makeEffectEngine(ctx));
   }
 
   // 2차 실행에서 생긴 pending 처리 (없으면 sync)

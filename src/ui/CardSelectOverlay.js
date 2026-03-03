@@ -314,12 +314,38 @@ export function showCardSelectOverlay(layer, opts) {
   };
   PIXI.Ticker.shared.add(_tickFn);
 
-  // ── 닫기 ─────────────────────────────────────────────────
+  // ── 닫기 (FadeOut 160ms → 파괴) ──────────────────────────
   const _close = () => {
+    // 즉시: 상호작용 차단 + 글로우 틱 중지
+    overlay.eventMode = 'none';
     PIXI.Ticker.shared.remove(_tickFn);
     _activeGlows.clear();
-    if (overlay.parent) overlay.parent.removeChild(overlay);
-    overlay.destroy({ children: true });
+    // FadeOut 애니메이션 후 파괴
+    const t0 = Date.now(), DUR = 160;
+    const tick = () => {
+      if (overlay.destroyed) return;
+      const t = Math.min((Date.now() - t0) / DUR, 1);
+      overlay.alpha = 1 - t;
+      if (t < 1) requestAnimationFrame(tick);
+      else if (overlay.parent) {
+        overlay.parent.removeChild(overlay);
+        overlay.destroy({ children: true });
+      }
+    };
+    requestAnimationFrame(tick);
+  };
+
+  // ── FadeIn (180ms) ────────────────────────────────────────
+  const _fadeIn = () => {
+    overlay.alpha = 0;
+    const t0 = Date.now(), DUR = 180;
+    const tick = () => {
+      if (overlay.destroyed) return;
+      const t = Math.min((Date.now() - t0) / DUR, 1);
+      overlay.alpha = t;
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
   };
 
   const selected = new Set();
@@ -352,11 +378,53 @@ export function showCardSelectOverlay(layer, opts) {
     });
     btn.x = Math.round((W - 160) / 2);
     btn.y = H / 2 + 50;
-    btn.on('pointerup', () => { btn.scale.set(1); _close(); onCancel(); });
+    btn.on('pointerup', () => { btn.scale.set(1); onCancel(); _close(); });
     overlay.addChild(btn);
 
     layer.addChild(overlay);
+    _fadeIn();
     return { close: _close };
+  }
+
+  // ── 인터랙션 피드백 애니메이션 ──────────────────────────────
+  // 단일 카드 탭: 금빛 플래시 + 스케일 팝 (200ms) → onDone
+  function _popSlot(target, onDone) {
+    const oSX = target.scale.x, oSY = target.scale.y;
+    const flash = new PIXI.Graphics();
+    flash.beginFill(C.gold, 0.45);
+    flash.drawRoundedRect(-2, -2, SW + 4, SH + 4, 6);
+    flash.endFill();
+    flash.blendMode = PIXI.BLEND_MODES.ADD;
+    target.addChild(flash);
+    const t0 = Date.now(), DUR = 200;
+    const tick = () => {
+      const t = Math.min((Date.now() - t0) / DUR, 1);
+      target.scale.set(oSX * (1 + 0.11 * Math.sin(t * Math.PI)),
+                       oSY * (1 + 0.11 * Math.sin(t * Math.PI)));
+      flash.alpha = 1 - t;
+      if (t < 1) requestAnimationFrame(tick);
+      else { target.scale.set(oSX, oSY); onDone(); }
+    };
+    requestAnimationFrame(tick);
+  }
+
+  // 확인 버튼: 스케일 팝 + 금빛 플래시 (200ms) → onDone
+  function _flashBtn(btn, onDone) {
+    const flash = new PIXI.Graphics();
+    flash.beginFill(C.gold, 0.45);
+    flash.drawRoundedRect(0, 0, CONFIRM_W, 42, 7);
+    flash.endFill();
+    flash.blendMode = PIXI.BLEND_MODES.ADD;
+    btn.addChild(flash);
+    const t0 = Date.now(), DUR = 200;
+    const tick = () => {
+      const t = Math.min((Date.now() - t0) / DUR, 1);
+      btn.scale.set(1 + 0.06 * Math.sin(t * Math.PI));
+      flash.alpha = 1 - t;
+      if (t < 1) requestAnimationFrame(tick);
+      else { btn.scale.set(1); onDone(); }
+    };
+    requestAnimationFrame(tick);
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -447,9 +515,9 @@ export function showCardSelectOverlay(layer, opts) {
       clearTimeout(_timer); _timer = null;
 
       if (mode === 'single' && !confirmLabel) {
-        // 기본 single: 카드 탭 → 즉시 confirm
-        _close();
-        onConfirm([item]);
+        // 카드 탭 → 픽 애니메이션 후 confirm
+        SFX.buyCard();
+        _popSlot(slot, () => { onConfirm([item]); _close(); });
       } else if (mode !== 'single') {
         if (selected.has(item)) {
           selected.delete(item);
@@ -483,9 +551,9 @@ export function showCardSelectOverlay(layer, opts) {
       confirmEl.btn.scale.set(1);
       if (!_isEnabled()) return;
       SFX.buyCard();
-      _close();
-      // single+confirmLabel: 선택 없이 items 그대로 전달
-      onConfirm(mode === 'single' ? items : [...selected]);
+      // 버튼 플래시 애니메이션 후 confirm
+      const _picked = mode === 'single' ? items : [...selected];
+      _flashBtn(confirmEl.btn, () => { onConfirm(_picked); _close(); });
     });
     overlay.addChild(confirmEl.btn);
   }
@@ -499,7 +567,7 @@ export function showCardSelectOverlay(layer, opts) {
     });
     cancelEl.btn.x = Math.round((W - cancelW) / 2);
     cancelEl.btn.y = cancelY;
-    cancelEl.btn.on('pointerup', () => { cancelEl.btn.scale.set(1); _close(); onCancel(); });
+    cancelEl.btn.on('pointerup', () => { cancelEl.btn.scale.set(1); onCancel(); _close(); });
     overlay.addChild(cancelEl.btn);
   }
 
@@ -540,5 +608,6 @@ export function showCardSelectOverlay(layer, opts) {
   if (confirmEl && !canConfirmEmpty) _updateUI();
 
   layer.addChild(overlay);
+  _fadeIn();
   return { close: _close };
 }

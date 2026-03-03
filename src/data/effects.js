@@ -44,6 +44,11 @@ export const EFFECT_REGISTRY = new Map([
     gs.marketReduce = (gs.marketReduce ?? 0) + n;
     gs.pendingGain  = { type: 'militia' };   // 타임라인 연출 트리거
   }],
+  // 회의실: 이번 턴 시장 이벤트 소멸 수량 증가
+  ['market_increase', (gs, n) => {
+    gs.marketIncrease = (gs.marketIncrease ?? 0) + n;
+    gs.pendingGain    = { type: 'council_room' };  // 타임라인 연출 트리거
+  }],
   // 관료: 다음 N턴 시장 정보 공개 — gs.marketRevealBonus 누적 후 bureaucrat 핸들러에서 처리
   ['market_reveal',     (gs, n) => { gs.marketRevealBonus = (gs.marketRevealBonus ?? 0) + n; }],
   ['moat_market_delay', _stub('moat_market_delay')],
