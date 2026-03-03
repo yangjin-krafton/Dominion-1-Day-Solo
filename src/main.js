@@ -121,7 +121,6 @@ function _sync() {
   // 정원(Gardens): 보유 카드 10장당 +1점 (내림)
   const gardensCount = allCards.filter(c => c.def.id === 'gardens').length;
   if (gardensCount > 0) gs.vp += gardensCount * Math.floor(allCards.length / 10);
-  if (gs.vp > prevVP) SFX.gainVP();
 
   updateCardPositions(gs);
   updateUI(gs);
@@ -174,6 +173,7 @@ let _isEndingTurn = false;
 function _onEndTurn() {
   if (_isEndingTurn) return;
   _isEndingTurn = true;
+  SFX.endTurn();
 
   // 해자(Moat) 확인 — endTurn()이 손패를 버림더미로 보내기 전에 체크
   const hasMoat = gs.hand.some(c => c.def.id === 'moat');

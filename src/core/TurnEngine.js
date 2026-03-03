@@ -83,7 +83,6 @@ export function playCard(gs, card) {
   }
 
   if (card.def.type === 'Treasure') {
-    SFX.gainCoin();
     gs.coins += card.def.coins ?? 0;
     // Merchant 트리거: Silver 플레이마다 칩 1개 소모 → +1코인
     if (card.def.id === 'silver' && (gs.merchantBonus ?? 0) > 0) {

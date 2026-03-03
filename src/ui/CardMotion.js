@@ -7,6 +7,7 @@
 
 import { drawCard } from '../core/TurnEngine.js';
 import { PILE_X, PILE_Y } from './layout.js';
+import { SFX } from '../asset/audio/sfx.js';
 
 /**
  * 카드 드로우 · 재셔플 모션 컨트롤러 생성
@@ -37,6 +38,7 @@ export function createCardMotion({ gs, sync }) {
   function _doSingleDraw() {
     const card = drawCard(gs);
     if (!card) return;
+    SFX.drawCard();
     // 버림→덱 재활용 카드: 앞면 상태일 경우 뒷면 강제 리셋
     if (card.isFaceUp) {
       card.isFaceUp          = false;

@@ -121,7 +121,7 @@ export function createCardActionHandler({
       if (result.reason === 'no_actions') notifyBlocked('action');
       return;
     }
-    SFX.playCard();
+    SFX.playCardVariant(card.def);
     gs.phase = gs.actions > 0 ? 'action' : 'buy';
     sync();
 
@@ -153,7 +153,7 @@ export function createCardActionHandler({
       else if (result.reason === 'insufficient_coins') notifyBlocked('coin');
       return;
     }
-    SFX.buyCard();
+    SFX.buyCardVariant(def);
     gs.phase = 'buy';
     sync();
 

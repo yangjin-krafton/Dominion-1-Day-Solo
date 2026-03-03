@@ -26,6 +26,7 @@ import {
 import { buildFrontFace } from './CardArt.js';
 import * as CardDetail     from './CardDetail.js';
 import { CardGlow }        from './CardGlow.js';
+import { SFX }             from '../asset/audio/sfx.js';
 
 // ── 레이아웃 상수 ─────────────────────────────────────────────
 const PAD_X   = 12;
@@ -480,6 +481,7 @@ export function showCardSelectOverlay(layer, opts) {
     confirmEl.btn.on('pointerup', () => {
       confirmEl.btn.scale.set(1);
       if (!_isEnabled()) return;
+      SFX.buyCard();
       _close();
       // single+confirmLabel: 선택 없이 items 그대로 전달
       onConfirm(mode === 'single' ? items : [...selected]);

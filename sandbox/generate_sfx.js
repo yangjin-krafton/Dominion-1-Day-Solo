@@ -39,210 +39,219 @@ function writeMp3(outDir, name, samples) {
 }
 
 // ---------------------------------------------------------
-// Sound Generators (Card Game Themed, Higher Quality)
+// All Metal Strike Variants
 // ---------------------------------------------------------
 
 function generatePlayCard() {
-    // "Crisp snap as card hits table"
-    const duration = 0.15;
+    // 얇은 금속 판을 가볍게 톡 — thin metal flick
+    // 고주파, 매우 짧은 잔향
+    const duration = 0.22;
     const samples = new Float32Array(SAMPLE_RATE * duration);
-    let lowpassOut = 0;
-    
     for (let i = 0; i < samples.length; i++) {
         const t = i / SAMPLE_RATE;
-        const env = Math.exp(-t * 35); // Very fast decay
-        
-        // White noise for paper friction
-        const noise = (Math.random() * 2 - 1);
-        lowpassOut = lowpassOut + 0.3 * (noise - lowpassOut); 
-        
-        // Low thump of the table hit
-        const thump = Math.sin(2 * Math.PI * 120 * t) * Math.exp(-t * 15);
-        
-        // Combine paper swish and table thump
-        samples[i] = (lowpassOut * 0.4 + thump * 0.45) * env;
+        const env = Math.exp(-t * 32);
+        // 얇은 판 금속 비화음 배음 (inharmonic partials)
+        const v1 = Math.sin(2 * Math.PI * 1760 * t) * 0.35;
+        const v2 = Math.sin(2 * Math.PI * 3090 * t) * 0.25;
+        const v3 = Math.sin(2 * Math.PI * 5250 * t) * 0.15;
+        const v4 = Math.sin(2 * Math.PI * 7800 * t) * 0.08;
+        // 타격 트랜지언트
+        const atk = (Math.random() * 2 - 1) * Math.exp(-t * 180) * 0.45;
+        samples[i] = (v1 + v2 + v3 + v4 + atk) * env * 0.68;
     }
     return samples;
 }
 
 function generateBuyCard() {
-    // "Satisfying chime over a paper slide"
-    const duration = 0.6;
+    // 작은 종 딩 — small shop bell ding (구매 확인)
+    // 중주파, 밝고 청명한 잔향
+    const duration = 0.70;
     const samples = new Float32Array(SAMPLE_RATE * duration);
-    let lowpassOut = 0;
-
+    // 벨 배음비 (bell partial ratios from physical modeling)
+    const partials = [
+        { f: 780,  a: 0.30, d: 5.5 },  // fundamental
+        { f: 1248, a: 0.20, d: 7.0 },  // ~1.6f (hum)
+        { f: 2028, a: 0.18, d: 8.0 },  // ~2.6f (prime)
+        { f: 3198, a: 0.12, d: 9.0 },  // ~4.1f (tierce)
+        { f: 4680, a: 0.08, d: 11.0 }, // ~6.0f (quint)
+    ];
     for (let i = 0; i < samples.length; i++) {
         const t = i / SAMPLE_RATE;
-        
-        // Paper slide sound
-        const slideEnv = Math.exp(-t * 22);
-        const noise = (Math.random() * 2 - 1);
-        lowpassOut = lowpassOut + 0.15 * (noise - lowpassOut);
-        const paperSlide = lowpassOut * slideEnv * 0.3;
-        
-        // Bright Chime Roll (Major chord: C5, E5, G5, C6)
-        const chimeEnv = Math.exp(-t * 6);
-        let chime = 0;
-        
-        // Arpeggiate the chime notes progressively
-        if (t > 0.00) chime += Math.sin(2 * Math.PI * 523.25 * t) * 0.25; // C5
-        if (t > 0.04) chime += Math.sin(2 * Math.PI * 659.25 * (t - 0.04)) * 0.25; // E5
-        if (t > 0.08) chime += Math.sin(2 * Math.PI * 783.99 * (t - 0.08)) * 0.25; // G5
-        if (t > 0.12) chime += Math.sin(2 * Math.PI * 1046.50 * (t - 0.12)) * 0.25; // C6
-        
-        samples[i] = paperSlide + chime * chimeEnv * 0.5;
+        let s = 0;
+        for (const p of partials) {
+            s += Math.sin(2 * Math.PI * p.f * t) * p.a * Math.exp(-t * p.d);
+        }
+        // 타격 임팩트
+        const atk = (Math.random() * 2 - 1) * Math.exp(-t * 200) * 0.30;
+        samples[i] = (s + atk) * 0.75;
     }
     return samples;
 }
 
 function generateError() {
-    // "Dull rejection buzz/thud"
-    const duration = 0.3;
+    // 거친 금속 충돌음 — harsh dissonant clang (오류/거부)
+    // 두 가깝지만 불협화한 금속 판이 부딪히는 소리
+    const duration = 0.35;
     const samples = new Float32Array(SAMPLE_RATE * duration);
-    
     for (let i = 0; i < samples.length; i++) {
         const t = i / SAMPLE_RATE;
-        const env = Math.exp(-t * 12);
-        
-        // Two square waveforms slightly detuned for dissonance
-        const freq1 = 120 - 40 * t;  // slight pitch bend down
-        const freq2 = 111 - 40 * t;  // slight pitch bend down
-        
-        const sq1 = Math.sign(Math.sin(2 * Math.PI * freq1 * t));
-        const sq2 = Math.sign(Math.sin(2 * Math.PI * freq2 * t));
-        
-        samples[i] = (sq1 + sq2) * 0.15 * env;
+        const env = Math.exp(-t * 14);
+        // 불협화 비화음 배음 쌍 — 맥놀이(beating) 발생
+        const v1 = Math.sin(2 * Math.PI * 310 * t) * 0.28;
+        const v2 = Math.sin(2 * Math.PI * 332 * t) * 0.28; // 22Hz 맥놀이
+        const v3 = Math.sin(2 * Math.PI * 874 * t) * 0.18;
+        const v4 = Math.sin(2 * Math.PI * 935 * t) * 0.18; // 61Hz 맥놀이
+        const v5 = Math.sin(2 * Math.PI * 1680 * t) * 0.09;
+        // 타격 노이즈 (금속 파편)
+        const noise = (Math.random() * 2 - 1) * Math.exp(-t * 60) * 0.35;
+        samples[i] = (v1 + v2 + v3 + v4 + v5 + noise) * env * 0.58;
     }
     return samples;
 }
 
 function generateGainCoin() {
-    // "Metallic Clink (Coins dropping together)"
-    const duration = 0.5;
+    // 동전 클링크 — coins striking (기존 유지 + 개선)
+    // 여러 동전이 잇달아 떨어지는 소리
+    const duration = 0.55;
     const samples = new Float32Array(SAMPLE_RATE * duration);
-    
+    // 3개의 동전 타격, 약간씩 시차
+    const strikes = [
+        { t0: 0.000, f1: 2240, f2: 2890, f3: 4150, f4: 5500 },
+        { t0: 0.055, f1: 2560, f2: 3310, f3: 4750, f4: 6200 },
+        { t0: 0.105, f1: 2040, f2: 2650, f3: 3890, f4: 5100 },
+    ];
     for (let i = 0; i < samples.length; i++) {
         const t = i / SAMPLE_RATE;
-        const env = Math.exp(-t * 8);
-        
-        // Multiple high frequency inharmonic sine waves for a bell/coin tone
-        const v1 = Math.sin(2 * Math.PI * 2240 * t);
-        const v2 = Math.sin(2 * Math.PI * 2890 * t);
-        const v3 = Math.sin(2 * Math.PI * 4150 * t);
-        const v4 = Math.sin(2 * Math.PI * 5500 * t);
-        
-        // Impact noise (very short)
-        const attackEnv = Math.exp(-t * 100);
-        const noise = (Math.random() * 2 - 1) * attackEnv;
-        
-        samples[i] = (v1 * 0.2 + v2 * 0.15 + v3 * 0.15 + v4 * 0.1 + noise * 0.4) * env * 0.7;
+        let s = 0;
+        for (const sk of strikes) {
+            if (t < sk.t0) continue;
+            const lt  = t - sk.t0;
+            const env = Math.exp(-lt * 9);
+            s += (Math.sin(2 * Math.PI * sk.f1 * lt) * 0.22
+                + Math.sin(2 * Math.PI * sk.f2 * lt) * 0.17
+                + Math.sin(2 * Math.PI * sk.f3 * lt) * 0.14
+                + Math.sin(2 * Math.PI * sk.f4 * lt) * 0.10
+                + (Math.random() * 2 - 1) * Math.exp(-lt * 120) * 0.35
+                ) * env;
+        }
+        samples[i] = s * 0.60;
     }
     return samples;
 }
 
 function generateShuffle() {
-    // "Rhythmic fluttering of card edges"
-    const duration = 0.6;
+    // 금속 구슬 폭포 — cascade of small metal beads
+    // 빠른 연속 미세 타격으로 카드 셔플 감각 표현
+    const duration = 0.65;
     const samples = new Float32Array(SAMPLE_RATE * duration);
-    let lowpassOut = 0;
-
-    for (let i = 0; i < samples.length; i++) {
-        const t = i / SAMPLE_RATE;
-
-        // Envelope creates 5~6 distinct snaps for the riffle shuffle
-        const flutter = Math.pow(Math.abs(Math.sin(2 * Math.PI * 10 * t)), 4);
-        const env = Math.exp(-t * 4) * flutter;
-
-        // Broad noise filtered for paper texture
-        const noise = Math.random() * 2 - 1;
-        lowpassOut = lowpassOut + 0.3 * (noise - lowpassOut);
-
-        samples[i] = lowpassOut * env * 0.75;
+    // 12개의 미세 타격 스케줄
+    const hits = [];
+    for (let k = 0; k < 12; k++) {
+        hits.push({
+            t0: k * 0.048 + Math.random() * 0.012,
+            freq: 3200 + Math.random() * 2400,
+            amp:  0.55 + Math.random() * 0.45,
+        });
     }
-    return samples;
-}
-
-function generateGainBuy() {
-    // "Bright guitar chord strum — A major arpeggio"
-    const duration = 0.55;
-    const samples = new Float32Array(SAMPLE_RATE * duration);
-    const freqs   = [440, 554, 659, 880];   // A4, C#5, E5, A5
-    const delays  = [0, 0.010, 0.022, 0.035];
-    const phases  = freqs.map(() => 0);
-
     for (let i = 0; i < samples.length; i++) {
         const t = i / SAMPLE_RATE;
         let s = 0;
-        freqs.forEach((f, fi) => {
-            if (t < delays[fi]) return;
-            const lt  = t - delays[fi];
-            const env = Math.exp(-lt * 6.5);
-            s += (Math.sin(phases[fi])         * 0.50
-                + Math.sin(phases[fi] * 2)     * 0.22
-                + Math.sin(phases[fi] * 3)     * 0.10) * env;
-            phases[fi] += 2 * Math.PI * f / SAMPLE_RATE;
-        });
-        const atkNoise = (Math.random() * 2 - 1) * Math.exp(-t * 110) * 0.28;
-        samples[i] = (s / freqs.length + atkNoise) * 0.80;
+        const globalEnv = Math.exp(-t * 5);
+        for (const h of hits) {
+            if (t < h.t0) continue;
+            const lt  = t - h.t0;
+            const env = Math.exp(-lt * 55) * h.amp;
+            s += Math.sin(2 * Math.PI * h.freq * lt) * env * 0.18;
+            s += Math.sin(2 * Math.PI * h.freq * 1.73 * lt) * env * 0.10;
+            s += (Math.random() * 2 - 1) * Math.exp(-lt * 300) * 0.08;
+        }
+        samples[i] = s * globalEnv * 0.80;
     }
     return samples;
 }
 
 function generateGainAction() {
-    // "Military trumpet: short two-note fanfare G4 → C5"
-    const duration = 0.45;
+    // 검/칼날 울림 — sword/blade ring (액션 획득)
+    // 고주파, 날카로운 어택, 중간 잔향
+    const duration = 0.55;
     const samples  = new Float32Array(SAMPLE_RATE * duration);
-    let phase = 0;
-
+    // 강철 칼날 배음 (steel blade partials)
+    const partials = [
+        { f: 1320, a: 0.32, d: 6.0  },
+        { f: 2290, a: 0.24, d: 7.5  },
+        { f: 3740, a: 0.18, d: 9.0  },
+        { f: 5870, a: 0.12, d: 11.5 },
+        { f: 8940, a: 0.07, d: 14.0 },
+    ];
     for (let i = 0; i < samples.length; i++) {
-        const t    = i / SAMPLE_RATE;
-        const freq = t < 0.18 ? 392 : 523;   // G4 → C5
-        const attack  = Math.min(t * 90, 1);
-        const release = t > 0.32 ? Math.exp(-(t - 0.32) * 20) : 1;
-        const env = attack * release;
-
-        // Brass harmonic series (odd harmonics emphasis)
-        const s = Math.sin(phase)       * 0.40
-                + Math.sin(phase * 2)   * 0.28
-                + Math.sin(phase * 3)   * 0.17
-                + Math.sin(phase * 4)   * 0.09
-                + Math.sin(phase * 5)   * 0.04;
-
-        phase += 2 * Math.PI * freq / SAMPLE_RATE;
-        samples[i] = s * env * 0.55;
+        const t = i / SAMPLE_RATE;
+        let s = 0;
+        for (const p of partials) {
+            s += Math.sin(2 * Math.PI * p.f * t) * p.a * Math.exp(-t * p.d);
+        }
+        // 날카로운 타격 순간 — sharp metallic impact
+        const atk = (Math.random() * 2 - 1) * Math.exp(-t * 250) * 0.40;
+        // 고역대 긁힘 노이즈 (blade scrape)
+        const scrape = (Math.random() * 2 - 1) * Math.exp(-t * 80) * 0.10;
+        samples[i] = (s + atk + scrape) * 0.65;
     }
     return samples;
 }
 
-function generateGainVP() {
-    // "Military bass drum: two deep strokes"
-    const duration = 0.60;
-    const samples  = new Float32Array(SAMPLE_RATE * duration);
-    const hits     = [0, 0.22];   // two beats
+function generateDrawCard() {
+    // 가벼운 금속 스와이프 — light metallic card slide (드로우)
+    // playCard보다 훨씬 부드럽고 공기감 있는 얇은 금속 스침 소리
+    const duration = 0.18;
+    const samples = new Float32Array(SAMPLE_RATE * duration);
+    for (let i = 0; i < samples.length; i++) {
+        const t = i / SAMPLE_RATE;
+        // 초반 빠른 감쇠, 후반 잔잔한 shimmer
+        const env = Math.exp(-t * 22) + Math.exp(-t * 6) * 0.18;
+        // 아주 고주파의 얇은 금속 배음
+        const v1 = Math.sin(2 * Math.PI * 3400 * t) * 0.28;
+        const v2 = Math.sin(2 * Math.PI * 5900 * t) * 0.18;
+        const v3 = Math.sin(2 * Math.PI * 9100 * t) * 0.10;
+        // 슬라이드 느낌의 가벼운 노이즈 레이어
+        const slide = (Math.random() * 2 - 1) * Math.exp(-t * 120) * 0.28;
+        const shimmer = (Math.random() * 2 - 1) * Math.exp(-t * 18) * 0.08;
+        samples[i] = (v1 + v2 + v3 + slide + shimmer) * env * 0.60;
+    }
+    return samples;
+}
 
+function generateEndTurn() {
+    // 중간 무게 금속 종 타격 — medium metal bell toll (턴 종료)
+    // buyCard 벨보다 무겁고 명료한 '마무리' 느낌의 단타
+    const duration = 0.80;
+    const samples = new Float32Array(SAMPLE_RATE * duration);
+    // 중간 크기 쇠종 배음 (튜닝된 핸드벨)
+    const partials = [
+        { f: 560,  a: 0.32, d: 3.5 },   // fundamental
+        { f: 920,  a: 0.22, d: 4.8 },   // ~1.64f
+        { f: 1560, a: 0.17, d: 6.2 },   // ~2.79f
+        { f: 2360, a: 0.11, d: 8.0 },   // ~4.21f
+        { f: 3640, a: 0.07, d: 10.5 },
+    ];
     for (let i = 0; i < samples.length; i++) {
         const t = i / SAMPLE_RATE;
         let s = 0;
-        hits.forEach(ht => {
-            if (t < ht) return;
-            const lt   = t - ht;
-            const freq = 85 * Math.exp(-lt * 10);   // pitch bends down on impact
-            const body = Math.sin(2 * Math.PI * freq * lt) * Math.exp(-lt * 12);
-            const atk  = (Math.random() * 2 - 1)           * Math.exp(-lt * 90);
-            s += body * 0.55 + atk * 0.35;
-        });
-        samples[i] = s * 0.80;
+        for (const p of partials) {
+            s += Math.sin(2 * Math.PI * p.f * t) * p.a * Math.exp(-t * p.d);
+        }
+        // 타격 순간 금속 임팩트
+        const atk = (Math.random() * 2 - 1) * Math.exp(-t * 220) * 0.32;
+        samples[i] = (s + atk) * 0.72;
     }
     return samples;
 }
 
 // ---------------------------------------------------------
-// File generation  (MP3 only — delete leftover OGG / WAV)
+// File generation (MP3 only)
 // ---------------------------------------------------------
 const outDir = path.join(__dirname, '..', 'src', 'asset', 'audio');
 if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
-const sfxNames = ['playCard', 'buyCard', 'error', 'gainCoin', 'shuffle', 'gainBuy', 'gainAction', 'gainVP'];
+const sfxNames = ['playCard', 'buyCard', 'error', 'gainCoin', 'shuffle', 'gainAction', 'drawCard', 'endTurn'];
 fs.readdirSync(outDir)
     .filter(f => sfxNames.some(n => f.startsWith(n)) && (f.endsWith('.ogg') || f.endsWith('.wav')))
     .forEach(f => { fs.unlinkSync(path.join(outDir, f)); console.log(`  deleted ${f}`); });
@@ -252,8 +261,8 @@ writeMp3(outDir, 'buyCard',     generateBuyCard());
 writeMp3(outDir, 'error',       generateError());
 writeMp3(outDir, 'gainCoin',    generateGainCoin());
 writeMp3(outDir, 'shuffle',     generateShuffle());
-writeMp3(outDir, 'gainBuy',     generateGainBuy());
 writeMp3(outDir, 'gainAction',  generateGainAction());
-writeMp3(outDir, 'gainVP',      generateGainVP());
+writeMp3(outDir, 'drawCard',    generateDrawCard());
+writeMp3(outDir, 'endTurn',     generateEndTurn());
 
-console.log('SFX Generation Complete — 8 × MP3');
+console.log('SFX Generation Complete — 10 × MP3 (All Metal Strikes)');
