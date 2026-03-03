@@ -7,6 +7,11 @@
 import { audioPath } from './audioFormat.js';
 
 // ─────────────────────────────────────────────────────────────
+// 뮤트 상태
+// ─────────────────────────────────────────────────────────────
+let _muted = false;
+
+// ─────────────────────────────────────────────────────────────
 // HTML5 Audio pool  (기본 SFX 전용 — shuffle, endTurn, error …)
 // ─────────────────────────────────────────────────────────────
 const POOL = 3;
@@ -27,6 +32,7 @@ function _getPool(name) {
 }
 
 function play(name) {
+    if (_muted) return;
     const p = _getPool(name);
     const a = p.list[p.idx];
     p.idx = (p.idx + 1) % POOL;
@@ -79,6 +85,7 @@ function _hash(seed, str) {
  * @param {number} gainMult - 마스터 볼륨 배수
  */
 function _playWebaudio(name, rate, shelfHz, shelfDb, gainMult) {
+    if (_muted) return;
     const ctx = _getCtx();
     _getBuffer(name).then(buf => {
         const src              = ctx.createBufferSource();
@@ -162,4 +169,8 @@ export const SFX = {
     preload(names = ['playCard', 'gainAction', 'gainCoin', 'buyCard', 'error']) {
         names.forEach(n => _getBuffer(n).catch(() => {}));
     },
+
+    // ── 뮤트 토글 ────────────────────────────────────────────
+    toggleMute() { _muted = !_muted; },
+    isMuted()    { return _muted; },
 };

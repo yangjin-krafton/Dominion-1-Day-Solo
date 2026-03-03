@@ -17,18 +17,14 @@ function _hex(n) {
 }
 
 /**
- * 시장 카드 미니 그리드 HTML 생성
- * marketCards: [{name, type, cost, gradTop, gradMid, gradBot, initCount}]
- * 새 레코드에만 type·cost 등 존재 — 구형 레코드는 텍스트 폴백
+ * 시장 카드 미니 그리드 HTML 생성 (공개 — HomeScreen 등 외부에서도 사용)
+ *
+ * @param {Array<{name, type, cost, gradTop, gradMid, gradBot, initCount}>} marketCards
+ *   - initCount === null 이면 재고 배지 숨김 (게임 시작 전 미리보기용)
+ * @returns {string} HTML  (빈 배열이면 '')
  */
-function _buildMiniGrid(marketCards) {
+export function buildMiniGrid(marketCards) {
   if (!marketCards?.length) return '';
-
-  // 구형 레코드: type 정보 없음 → 텍스트 태그로 폴백
-  if (marketCards[0].type == null) {
-    const tags = marketCards.map(c => `${c.name}×${c.initCount}`).join(' · ');
-    return `<p class="ds-rank-cards-fallback">${tags}</p>`;
-  }
 
   const items = marketCards.map(c => {
     const accent = ACCENT_CSS[c.type] ?? '#d4a520';
@@ -39,11 +35,7 @@ function _buildMiniGrid(marketCards) {
       <div class="ds-mini-card" style="
         background: linear-gradient(to bottom, ${top} 0%, ${mid} 50%, ${bot} 100%);
         border-color: ${accent};
-      ">
-        <span class="ds-mini-cost">${c.cost}</span>
-        <span class="ds-mini-name">${c.name}</span>
-        <span class="ds-mini-stock">×${c.initCount}</span>
-      </div>`;
+      "><span class="ds-mini-cost">${c.cost}</span></div>`;
   }).join('');
 
   return `<div class="ds-mini-grid">${items}</div>`;
@@ -72,7 +64,7 @@ export function buildRankingRows(ranking, currentId = null, limit = 10) {
       ? `<td>목표&nbsp;${r.vpTarget}VP</td>`
       : '<td></td>';
 
-    const grid = _buildMiniGrid(r.marketCards);
+    const grid = buildMiniGrid(r.marketCards);
 
     return `
       <tr class="${cls}">
@@ -93,11 +85,6 @@ export function buildRankingRows(ranking, currentId = null, limit = 10) {
 /**
  * 헤더 포함 전체 <table> HTML 생성 (공유 헬퍼)
  * ResultScreen · HomeScreen · RankingPanel 모두 이 함수 사용
- *
- * @param {Array}       ranking
- * @param {number|null} currentId
- * @param {number}      limit
- * @returns {string} HTML
  */
 export function buildRankingTable(ranking, currentId = null, limit = 10) {
   const rows = buildRankingRows(ranking, currentId, limit);
@@ -114,17 +101,12 @@ export function buildRankingTable(ranking, currentId = null, limit = 10) {
 
 /**
  * 인게임 랭킹 버튼용 모달 오버레이
- * 사용법: panel.show(ranking) → 닫기 버튼 또는 배경 탭으로 hide()
  */
 export class RankingPanel {
   constructor() {
     this._el = null;
   }
 
-  /**
-   * @param {Array}       ranking   - Storage.getRanking() 결과
-   * @param {number|null} currentId - 하이라이트할 게임 ID (옵션)
-   */
   show(ranking, currentId = null) {
     if (this._el) return;
 

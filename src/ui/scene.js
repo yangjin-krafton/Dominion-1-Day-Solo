@@ -3,6 +3,7 @@
 // ============================================================
 import { C, SCREEN_W as W, SCREEN_H as H, ZONE, CARD_W, CARD_H, PILE_SCALE } from '../config.js';
 import { drawOrnamentLine } from './CardArt.js';
+import { SFX } from '../asset/audio/sfx.js';
 
 // ─── 배경 ────────────────────────────────────────────────────
 function lerpColor(a, b, t) {
@@ -114,6 +115,7 @@ function makeIconBtn(label, x, y, onClick) {
   btn.on('pointerdown',      () => btn.scale.set(0.92));
   btn.on('pointerup',        () => { btn.scale.set(1); onClick?.(); });
   btn.on('pointerupoutside', () => btn.scale.set(1));
+  btn._labelTxt = t;
   return btn;
 }
 
@@ -497,37 +499,23 @@ export function buildUI(layer, gs, profile = null) {
   layer.addChild(topBg);
   drawOrnamentLine(layer, ZONE.TOP_H, 0.22);
 
-  // 유저 아바타 (원형)
-  const avatarG = new PIXI.Graphics();
-  avatarG.beginFill(C.goldDim, 0.7);
-  avatarG.drawCircle(26, 30, 18);
-  avatarG.endFill();
-  avatarG.lineStyle(1.5, C.gold, 0.8);
-  avatarG.drawCircle(26, 30, 18);
-  layer.addChild(avatarG);
-
-  refs.avatarTxt = makeText('?', 13, C.dark, { fontWeight: 'bold' });
-  refs.avatarTxt.anchor.set(0.5);
-  refs.avatarTxt.x = 26; refs.avatarTxt.y = 30;
-  layer.addChild(refs.avatarTxt);
-
-  // 플레이어 이름 (상단)
-  refs.nameTxt = makeText('', 10, C.cream, { fontWeight: 'bold' });
-  refs.nameTxt.x = 50; refs.nameTxt.y = 15;
+  // 플레이어 이름 (좌측)
+  refs.nameTxt = makeText('', 11, C.cream, { fontWeight: 'bold' });
+  refs.nameTxt.anchor.set(0, 0.5);
+  refs.nameTxt.x = 12; refs.nameTxt.y = ZONE.TOP_H / 2;
   layer.addChild(refs.nameTxt);
-
-  // 클래스 (하단)
-  refs.classTxt = makeText('', 8, C.dimCream, { fontStyle: 'italic' });
-  refs.classTxt.x = 50; refs.classTxt.y = 30;
-  layer.addChild(refs.classTxt);
-
-  // VP는 스탯 칩으로 이동 (top bar에서 제거)
 
   // 우측 아이콘 버튼: 음량 · 도감 · 랭킹
   const btnY = 30;
-  layer.addChild(makeIconBtn('음량', W - 18,  btnY, () => gs.onOpenVolume?.()));
-  layer.addChild(makeIconBtn('도감', W - 52,  btnY, () => gs.onOpenCatalog?.()));
-  layer.addChild(makeIconBtn('랭킹', W - 86,  btnY, () => gs.onOpenRanking?.()));
+  const volBtn = makeIconBtn('음량', W - 18, btnY, () => {
+    SFX.toggleMute();
+    const muted = SFX.isMuted();
+    volBtn._labelTxt.text       = muted ? '뮤트' : '음량';
+    volBtn._labelTxt.style.fill = muted ? 0xaa4444 : C.gold;
+  });
+  layer.addChild(volBtn);
+  layer.addChild(makeIconBtn('도감', W - 52, btnY, () => gs.onOpenCatalog?.()));
+  layer.addChild(makeIconBtn('랭킹', W - 86, btnY, () => gs.onOpenRanking?.()));
 
   // ══════════════════════════════════════════════════════════
   // ② 스탯 카운트 바 — 2행 레이아웃
@@ -611,9 +599,7 @@ export function notifyBlocked(stat) {
 // ─── 프로필 표시 갱신 ────────────────────────────────────────
 export function applyProfile(profile) {
   if (!profile) return;
-  if (refs.avatarTxt) refs.avatarTxt.text = (profile.name ?? '?')[0].toUpperCase();
-  if (refs.nameTxt)   refs.nameTxt.text   = profile.name  ?? '';
-  if (refs.classTxt)  refs.classTxt.text  = profile.class ?? '';
+  if (refs.nameTxt) refs.nameTxt.text = profile.name ?? '';
 }
 
 // ─── 게임 상태 변경 시 UI 텍스트 갱신 ───────────────────────

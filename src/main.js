@@ -27,6 +27,7 @@ import { ProfileScreen }                       from './ui/screens/ProfileScreen.
 import { HomeScreen }                          from './ui/screens/HomeScreen.js';
 import { ResultScreen }                        from './ui/screens/ResultScreen.js';
 import { RankingPanel }                        from './ui/screens/RankingPanel.js';
+import { CatalogScreen }                       from './ui/screens/CatalogScreen.js';
 
 // ── data ───────────────────────────────────────────────────
 import { loadCards, resolveCards } from './data/cards.js';
@@ -81,6 +82,7 @@ let _idSeq     = 0;
 let _gameStart = 0;
 let _market    = null;   // Market 인스턴스
 const _rankingPanel = new RankingPanel();
+const _catalogScr   = new CatalogScreen();
 let _nextSetup         = null;   // 다음 게임 랜덤 시장 구성 (buildMarketSetup 결과)
 let _activeKingdomIds  = [];     // 현재 게임에 사용 중인 킹덤 카드 IDs
 let _initialSupplyData = [];     // 게임 시작 시 공급량 스냅샷 [{name, initCount}]
@@ -107,7 +109,7 @@ const gs = {
   onEndTurn:    null,
   onScrollHand: null,
   onOpenRanking:  () => _rankingPanel.show(Storage.getRanking(10)),
-  onOpenCatalog:  () => console.log('[UI] 도감창 (준비 중)'),
+  onOpenCatalog:  () => _catalogScr.show(_cardMap),
   onOpenVolume:   () => console.log('[UI] 음량설정 (준비 중)'),
 };
 
@@ -321,8 +323,33 @@ flow
     const kingdomNames = _nextSetup.kingdomIds.map(id =>
       _cardMap.get(id)?.name ?? id,
     );
+    // 오늘의 시장 12장 — mini-card 그리드용 (initCount는 게임 시작 전이라 null)
+    const todayMarketCards = _nextSetup.marketIds.map(id => {
+      const def = _cardMap.get(id);
+      return { name: def.name, type: def.type, cost: def.cost,
+               gradTop: def.gradTop, gradMid: def.gradMid, gradBot: def.gradBot,
+               initCount: null };
+    });
+    // 구형 레코드 보강: kingdom IDs → marketCards (type·cost·그라디언트 추가)
+    const enrichedRecords = records.map(r => {
+      if (r.marketCards?.[0]?.type != null) return r;  // 최신 형식
+      if (!r.kingdom?.length) return r;
+      return {
+        ...r,
+        marketCards: r.kingdom
+          .map(id => {
+            const def = _cardMap.get(id);
+            if (!def) return null;
+            return { name: def.name, type: def.type, cost: def.cost,
+                     gradTop: def.gradTop, gradMid: def.gradMid, gradBot: def.gradBot,
+                     initCount: r.marketCards?.find(c => c.name === def.name)?.initCount ?? null };
+          })
+          .filter(Boolean),
+      };
+    });
     homeScr.onStart = () => flow.go(STATES.GAME);
-    homeScr.show({ profile, records, kingdomIds: _nextSetup.kingdomIds, kingdomNames });
+    homeScr.show({ profile, records: enrichedRecords,
+                   kingdomIds: _nextSetup.kingdomIds, kingdomNames, todayMarketCards });
   })
 
   .on(STATES.GAME, () => { _startGame(); })

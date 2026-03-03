@@ -1,7 +1,7 @@
 // ============================================================
 // ui/screens/HomeScreen.js — 메인 홈 화면 (매일 달라지는 킹덤)
 // ============================================================
-import { buildRankingTable } from './RankingPanel.js';
+import { buildRankingTable, buildMiniGrid } from './RankingPanel.js';
 
 export class HomeScreen {
   constructor() {
@@ -11,13 +11,14 @@ export class HomeScreen {
   }
 
   /**
-   * @param {object} opts
+   * @param {object}   opts
    * @param {{ name: string, totalGames: number }} opts.profile
-   * @param {Array}    opts.records    - 전체 기록 배열
-   * @param {string[]} opts.kingdomIds - 오늘의 킹덤 ID 목록
-   * @param {string[]} opts.kingdomNames - 표시용 이름 목록
+   * @param {Array}    opts.records          - 전체 기록 배열 (보강 완료)
+   * @param {string[]} opts.kingdomIds       - 오늘의 킹덤 ID 목록
+   * @param {string[]} opts.kingdomNames     - 표시용 이름 목록
+   * @param {Array}    opts.todayMarketCards - 오늘 시장 12장 card def 배열 (initCount=null)
    */
-  show({ profile, records, kingdomIds, kingdomNames }) {
+  show({ profile, records, kingdomIds, kingdomNames, todayMarketCards }) {
     if (this._el) return;
 
     const sorted   = [...records].sort((a, b) => b.vp - a.vp);
@@ -26,6 +27,7 @@ export class HomeScreen {
     const todayN   = records.filter(r => r.date === today).length;
     const total    = profile.totalGames ?? records.length;
 
+    const marketGrid   = buildMiniGrid(todayMarketCards);
     const rankingTable = sorted.length
       ? `<div class="ds-divider">— 최근 기록 —</div>${buildRankingTable(sorted, null, 3)}`
       : '';
@@ -55,8 +57,8 @@ export class HomeScreen {
         </div>
 
         <div class="ds-kingdom">
-          <p class="ds-label">오늘의 킹덤 (${kingdomNames.length}장)</p>
-          <p class="ds-kingdom-list">${kingdomNames.join('  ·  ')}</p>
+          <p class="ds-label">오늘의 시장 (${kingdomNames.length}장 킹덤)</p>
+          ${marketGrid}
         </div>
 
         ${rankingTable}
