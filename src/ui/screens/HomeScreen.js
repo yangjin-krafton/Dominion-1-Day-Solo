@@ -1,7 +1,7 @@
 // ============================================================
 // ui/screens/HomeScreen.js — 메인 홈 화면 (매일 달라지는 킹덤)
 // ============================================================
-import { buildRankingRows } from './RankingPanel.js';
+import { buildRankingTable } from './RankingPanel.js';
 
 export class HomeScreen {
   constructor() {
@@ -26,7 +26,9 @@ export class HomeScreen {
     const todayN   = records.filter(r => r.date === today).length;
     const total    = profile.totalGames ?? records.length;
 
-    const recentRows = buildRankingRows(sorted, null, 3);
+    const rankingTable = sorted.length
+      ? `<div class="ds-divider">— 최근 기록 —</div>${buildRankingTable(sorted, null, 3)}`
+      : '';
 
     this._el = document.createElement('div');
     this._el.className = 'ds-screen';
@@ -57,16 +59,7 @@ export class HomeScreen {
           <p class="ds-kingdom-list">${kingdomNames.join('  ·  ')}</p>
         </div>
 
-        ${recentRows
-          ? `<div class="ds-divider">— 최근 기록 —</div>
-             <table class="ds-rank-table">
-               <thead><tr style="color:#7a5c0a;font-size:10px">
-                 <td>순위</td><td>승점</td><td>턴</td><td>시간</td><td>날짜</td>
-               </tr></thead>
-               <tbody>${recentRows}</tbody>
-             </table>`
-          : ''
-        }
+        ${rankingTable}
 
         <div style="margin-top:20px">
           <button class="ds-btn" id="ds-play">⚔ 오늘의 챌린지 시작</button>

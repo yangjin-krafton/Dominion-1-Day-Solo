@@ -124,8 +124,8 @@ function lerp(a, b, t) {
 }
 
 function getPal(event, reveal) {
-  // 마녀 저주 skip: reveal 단계 무관하게 항상 보라색 팔레트로 표시
-  if (event?.witchCurse) return PAL.witch_curse;
+  // 마녀 저주 skip: reveal 단계 무관하게 항상 녹색(#66bb66) 팔레트로 표시
+  if (event?.witchCurse) return PAL.skip;
   if (!event || reveal >= 3) return PAL_HIDDEN;
   return PAL[event.type] ?? PAL_HIDDEN;
 }
@@ -135,8 +135,8 @@ function getPal(event, reveal) {
  * reveal 0=완전공개, 1=수량숨김, 2=타입만, 3=완전숨김
  */
 function capsuleFullText(event, reveal) {
-  // 마녀 저주: reveal 단계 무관하게 항상 '마녀 저주' 표시
-  if (event?.witchCurse) return '마녀 저주';
+  // 마녀 저주 skip: reveal 단계 무관하게 보라색 '변동 없음' 표시
+  if (event?.witchCurse) return '변동 없음';
 
   if (!event || reveal >= 3) return '미공개';
 

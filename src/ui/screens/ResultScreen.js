@@ -1,7 +1,7 @@
 // ============================================================
 // ui/screens/ResultScreen.js — 게임 결과 + 랭킹 화면
 // ============================================================
-import { buildRankingRows } from './RankingPanel.js';
+import { buildRankingTable } from './RankingPanel.js';
 
 export class ResultScreen {
   constructor() {
@@ -23,8 +23,6 @@ export class ResultScreen {
     const mins = Math.floor(record.durationSec / 60);
     const secs = record.durationSec % 60;
     const rankIdx = ranking.findIndex(r => r.id === record.id);
-
-    const topRows = buildRankingRows(ranking, record.id, 7);
 
     const rankMsg = rankIdx === 0
       ? '🎉 신기록!'
@@ -50,14 +48,7 @@ export class ResultScreen {
         </p>
 
         <div class="ds-divider">— 개인 랭킹 —</div>
-        <table class="ds-rank-table">
-          <thead>
-            <tr style="color:#7a5c0a;font-size:10px">
-              <td>순위</td><td>승점</td><td>턴</td><td>시간</td><td>날짜</td>
-            </tr>
-          </thead>
-          <tbody>${topRows || '<tr><td colspan="5" style="color:#554433">기록 없음</td></tr>'}</tbody>
-        </table>
+        ${buildRankingTable(ranking, record.id, 7)}
 
         <div class="ds-btn-row">
           <button class="ds-btn-s" id="ds-home">홈으로</button>
