@@ -38,7 +38,7 @@ import { createCardActionHandler } from './ui/CardActionHandler.js';
 import { initDebug } from './debug/DebugAPI.js';
 
 // ── audio ──────────────────────────────────────────────────
-import { BGM } from './asset/audio/bgm.js';
+import { SFX } from './asset/audio/sfx.js';
 
 // ============================================================
 // PixiJS 앱
@@ -104,22 +104,6 @@ const gs = {
 // _onPlayCard는 createCardActionHandler 호출 후 설정 (늦은 바인딩)
 let _onPlayCard = null;
 
-let _bgmStarted = false;
-
-// 브라우저 정책(Autoplay Policy) 우회를 위해 가장 확실한 상호작용 이벤트(click, keydown 등) 사용
-function initBGM() {
-  if (!_bgmStarted) {
-    // BGM.start()가 실패하면 내부에서 초기화 상태를 해제하게 되어 있으므로
-    // 여기서도 성공적으로 재생될 때까지만 리스너를 유지합니다.
-    BGM.start();
-    
-    // 이벤트를 굳이 바로 지우지 않고 놔두면 
-    // 나중에 클릭할 때 (정책 통과 시점) 비로소 재생됩니다.
-    _bgmStarted = true;
-  }
-}
-['click', 'touchend', 'keydown'].forEach(ev => document.addEventListener(ev, initBGM));
-
 export function makeCard(def) {
   const c = new Card(def, _idSeq++, (card) => _onPlayCard?.(card));
   lCards.addChild(c.container);
@@ -131,11 +115,13 @@ export function makeCard(def) {
 // ============================================================
 function _sync() {
   // 현재 보유 승점 실시간 계산 (덱+손패+낸카드+버림더미)
+  const prevVP   = gs.vp;
   const allCards = [...gs.deck, ...gs.hand, ...gs.play, ...gs.discard];
   gs.vp = allCards.reduce((s, c) => s + (c.def.points ?? 0), 0);
   // 정원(Gardens): 보유 카드 10장당 +1점 (내림)
   const gardensCount = allCards.filter(c => c.def.id === 'gardens').length;
   if (gardensCount > 0) gs.vp += gardensCount * Math.floor(allCards.length / 10);
+  if (gs.vp > prevVP) SFX.gainVP();
 
   updateCardPositions(gs);
   updateUI(gs);

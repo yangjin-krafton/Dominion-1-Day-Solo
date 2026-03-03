@@ -11,6 +11,8 @@
 //   engine — { drawCards, gainCard, ... } (TurnEngine에서 주입)
 // ============================================================
 
+import { SFX } from '../asset/audio/sfx.js';
+
 // ─── 미구현 효과 스텁 헬퍼 ────────────────────────────────────
 function _stub(name) {
   return () => {
@@ -30,9 +32,9 @@ export const EFFECT_REGISTRY = new Map([
 
   // ── 기본 자원 효과 (즉시 적용) ──────────────────────────────
   ['draw',    (gs, n, eng) => eng.drawCards(gs, n)],
-  ['action',  (gs, n)      => { gs.actions += n; }],
-  ['buy',     (gs, n)      => { gs.buys    += n; }],
-  ['coin',    (gs, n)      => { gs.coins   += n; }],
+  ['action',  (gs, n)      => { gs.actions += n; SFX.gainAction(); }],
+  ['buy',     (gs, n)      => { gs.buys    += n; SFX.gainBuy(); }],
+  ['coin',    (gs, n)      => { gs.coins   += n; SFX.gainCoin(); }],
 
   // ── 다른 플레이어 대상 효과 (솔로 모드: 무시) ─────────────
   ['draw_others',  () => { /* solo: skip */ }],

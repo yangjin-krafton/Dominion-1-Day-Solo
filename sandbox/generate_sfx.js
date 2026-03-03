@@ -145,19 +145,93 @@ function generateShuffle() {
     const duration = 0.6;
     const samples = new Float32Array(SAMPLE_RATE * duration);
     let lowpassOut = 0;
-    
+
     for (let i = 0; i < samples.length; i++) {
         const t = i / SAMPLE_RATE;
-        
+
         // Envelope creates 5~6 distinct snaps for the riffle shuffle
         const flutter = Math.pow(Math.abs(Math.sin(2 * Math.PI * 10 * t)), 4);
         const env = Math.exp(-t * 4) * flutter;
-        
+
         // Broad noise filtered for paper texture
         const noise = Math.random() * 2 - 1;
-        lowpassOut = lowpassOut + 0.3 * (noise - lowpassOut); 
-        
+        lowpassOut = lowpassOut + 0.3 * (noise - lowpassOut);
+
         samples[i] = lowpassOut * env * 0.75;
+    }
+    return samples;
+}
+
+function generateGainBuy() {
+    // "Bright guitar chord strum — A major arpeggio"
+    const duration = 0.55;
+    const samples = new Float32Array(SAMPLE_RATE * duration);
+    const freqs   = [440, 554, 659, 880];   // A4, C#5, E5, A5
+    const delays  = [0, 0.010, 0.022, 0.035];
+    const phases  = freqs.map(() => 0);
+
+    for (let i = 0; i < samples.length; i++) {
+        const t = i / SAMPLE_RATE;
+        let s = 0;
+        freqs.forEach((f, fi) => {
+            if (t < delays[fi]) return;
+            const lt  = t - delays[fi];
+            const env = Math.exp(-lt * 6.5);
+            s += (Math.sin(phases[fi])         * 0.50
+                + Math.sin(phases[fi] * 2)     * 0.22
+                + Math.sin(phases[fi] * 3)     * 0.10) * env;
+            phases[fi] += 2 * Math.PI * f / SAMPLE_RATE;
+        });
+        const atkNoise = (Math.random() * 2 - 1) * Math.exp(-t * 110) * 0.28;
+        samples[i] = (s / freqs.length + atkNoise) * 0.80;
+    }
+    return samples;
+}
+
+function generateGainAction() {
+    // "Military trumpet: short two-note fanfare G4 → C5"
+    const duration = 0.45;
+    const samples  = new Float32Array(SAMPLE_RATE * duration);
+    let phase = 0;
+
+    for (let i = 0; i < samples.length; i++) {
+        const t    = i / SAMPLE_RATE;
+        const freq = t < 0.18 ? 392 : 523;   // G4 → C5
+        const attack  = Math.min(t * 90, 1);
+        const release = t > 0.32 ? Math.exp(-(t - 0.32) * 20) : 1;
+        const env = attack * release;
+
+        // Brass harmonic series (odd harmonics emphasis)
+        const s = Math.sin(phase)       * 0.40
+                + Math.sin(phase * 2)   * 0.28
+                + Math.sin(phase * 3)   * 0.17
+                + Math.sin(phase * 4)   * 0.09
+                + Math.sin(phase * 5)   * 0.04;
+
+        phase += 2 * Math.PI * freq / SAMPLE_RATE;
+        samples[i] = s * env * 0.55;
+    }
+    return samples;
+}
+
+function generateGainVP() {
+    // "Military bass drum: two deep strokes"
+    const duration = 0.60;
+    const samples  = new Float32Array(SAMPLE_RATE * duration);
+    const hits     = [0, 0.22];   // two beats
+
+    for (let i = 0; i < samples.length; i++) {
+        const t = i / SAMPLE_RATE;
+        let s = 0;
+        hits.forEach(ht => {
+            if (t < ht) return;
+            const lt   = t - ht;
+            const freq = 85 * Math.exp(-lt * 10);   // pitch bends down on impact
+            const body = Math.sin(2 * Math.PI * freq * lt) * Math.exp(-lt * 12);
+            const atk  = (Math.random() * 2 - 1)           * Math.exp(-lt * 90);
+            s += body * 0.55 + atk * 0.35;
+        });
+        samples[i] = s * 0.80;
     }
     return samples;
 }
@@ -168,15 +242,18 @@ function generateShuffle() {
 const outDir = path.join(__dirname, '..', 'src', 'asset', 'audio');
 if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
-const sfxNames = ['playCard', 'buyCard', 'error', 'gainCoin', 'shuffle'];
+const sfxNames = ['playCard', 'buyCard', 'error', 'gainCoin', 'shuffle', 'gainBuy', 'gainAction', 'gainVP'];
 fs.readdirSync(outDir)
     .filter(f => sfxNames.some(n => f.startsWith(n)) && (f.endsWith('.ogg') || f.endsWith('.wav')))
     .forEach(f => { fs.unlinkSync(path.join(outDir, f)); console.log(`  deleted ${f}`); });
 
-writeMp3(outDir, 'playCard', generatePlayCard());
-writeMp3(outDir, 'buyCard',  generateBuyCard());
-writeMp3(outDir, 'error',    generateError());
-writeMp3(outDir, 'gainCoin', generateGainCoin());
-writeMp3(outDir, 'shuffle',  generateShuffle());
+writeMp3(outDir, 'playCard',    generatePlayCard());
+writeMp3(outDir, 'buyCard',     generateBuyCard());
+writeMp3(outDir, 'error',       generateError());
+writeMp3(outDir, 'gainCoin',    generateGainCoin());
+writeMp3(outDir, 'shuffle',     generateShuffle());
+writeMp3(outDir, 'gainBuy',     generateGainBuy());
+writeMp3(outDir, 'gainAction',  generateGainAction());
+writeMp3(outDir, 'gainVP',      generateGainVP());
 
-console.log('SFX Generation Complete — 5 × MP3');
+console.log('SFX Generation Complete — 8 × MP3');
