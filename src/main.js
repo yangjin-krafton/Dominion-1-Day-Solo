@@ -45,8 +45,11 @@ import { SFX } from './asset/audio/sfx.js';
 // PixiJS 앱
 // ============================================================
 // resolution = DPR × CSS스케일 → canvas 버퍼가 물리 픽셀과 1:1 매칭되어 PC에서도 선명
-const _dpr      = window.devicePixelRatio || 1;
-const _fitScale = Math.min(window.innerWidth / W, window.innerHeight / H);
+const _dpr = window.devicePixelRatio || 1;
+// visualViewport: 모바일 주소창 show/hide 에도 정확한 가시 영역 높이 반환
+const _vpw = () => window.visualViewport?.width  ?? window.innerWidth;
+const _vph = () => window.visualViewport?.height ?? window.innerHeight;
+const _fitScale = Math.min(_vpw() / W, _vph() / H);
 const app = new PIXI.Application({
   width: W, height: H, backgroundColor: 0x0d0a18,
   resolution: _dpr * _fitScale,
@@ -55,10 +58,11 @@ const app = new PIXI.Application({
 document.querySelector('#app').appendChild(app.view);
 
 function fitToViewport() {
-  app.view.style.transform =
-    `scale(${Math.min(window.innerWidth / W, window.innerHeight / H)})`;
+  app.view.style.transform = `scale(${Math.min(_vpw() / W, _vph() / H)})`;
 }
 window.addEventListener('resize', fitToViewport);
+// 모바일 주소창 show/hide 시 window.resize 대신 visualViewport.resize 가 발화됨
+window.visualViewport?.addEventListener('resize', fitToViewport);
 fitToViewport();
 
 // ── 레이어 ──────────────────────────────────────────────────
@@ -79,6 +83,7 @@ let _market    = null;   // Market 인스턴스
 const _rankingPanel = new RankingPanel();
 let _nextSetup         = null;   // 다음 게임 랜덤 시장 구성 (buildMarketSetup 결과)
 let _activeKingdomIds  = [];     // 현재 게임에 사용 중인 킹덤 카드 IDs
+let _initialSupplyData = [];     // 게임 시작 시 공급량 스냅샷 [{name, initCount}]
 let _marketQueueState  = null;   // { queue, rng } — 시장 이벤트 롤링 큐
 let _timeline          = null;   // MarketTimeline 인스턴스
 
@@ -360,8 +365,19 @@ export function _startGame() {
   // 공급 초기화 — HOME에서 미리 생성된 구성 사용 (없으면 seeded 신규 생성)
   const setup       = _nextSetup ?? buildMarketSetup(_cardMap, rngSetup);
   _nextSetup        = null;
-  _activeKingdomIds = setup.kingdomIds;
-  gs.supply         = initSupply(_cardMap, setup.marketIds, rngSupply);
+  _activeKingdomIds  = setup.kingdomIds;
+  gs.supply          = initSupply(_cardMap, setup.marketIds, rngSupply);
+  // 초기 공급량 스냅샷 (랭킹 mini-card 표시용) — supply는 게임 중 감소하므로 시작 시 저장
+  _initialSupplyData = [...gs.supply.entries()]
+    .map(([, { def, count }]) => ({
+      name:      def.name,
+      type:      def.type,
+      cost:      def.cost,
+      gradTop:   def.gradTop,
+      gradMid:   def.gradMid,
+      gradBot:   def.gradBot,
+      initCount: count,
+    }));
 
   // 초기 덱 (Copper 7 + Estate 3)
   for (let i = 0; i < 7; i++) gs.deck.push(makeCard(_cardMap.get('copper')));
@@ -402,7 +418,9 @@ function _finishGame() {
 
   const record  = Storage.addRecord({
     turns: gs.turn, vp: totalVP, durationSec,
-    kingdom: _activeKingdomIds,
+    kingdom:     _activeKingdomIds,
+    vpTarget:    gs.vpTarget,
+    marketCards: _initialSupplyData,
   });
   const ranking = Storage.getRanking();
   flow.go(STATES.RESULT, { record, ranking });
