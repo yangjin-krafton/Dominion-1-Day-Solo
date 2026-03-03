@@ -1,6 +1,7 @@
 // ============================================================
 // ui/screens/ResultScreen.js — 게임 결과 + 랭킹 화면
 // ============================================================
+import { buildRankingRows } from './RankingPanel.js';
 
 export class ResultScreen {
   constructor() {
@@ -23,18 +24,7 @@ export class ResultScreen {
     const secs = record.durationSec % 60;
     const rankIdx = ranking.findIndex(r => r.id === record.id);
 
-    const topRows = ranking.slice(0, 7).map((r, i) => {
-      const isMe = r.id === record.id;
-      const m2   = Math.floor(r.durationSec / 60);
-      const s2   = r.durationSec % 60;
-      return `<tr class="${isMe ? 'ds-rank-me' : ''}">
-        <td>${i === 0 ? '🏆' : `#${i + 1}`}</td>
-        <td>${r.vp} VP</td>
-        <td>${r.turns}턴</td>
-        <td>${m2}:${String(s2).padStart(2, '0')}</td>
-        <td>${r.date}</td>
-      </tr>`;
-    }).join('');
+    const topRows = buildRankingRows(ranking, record.id, 7);
 
     const rankMsg = rankIdx === 0
       ? '🎉 신기록!'

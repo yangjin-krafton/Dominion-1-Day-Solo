@@ -93,6 +93,7 @@ const PAL = {
   surge:        { bright: 0xffaa33, mid: 0x885518, dark: 0x1e1205 },
   skip:         { bright: 0x66bb66, mid: 0x2a5528, dark: 0x081208 },
   curse_player: { bright: 0xff6688, mid: 0x881830, dark: 0x200508 },  // 저주 획득 — 핑크
+  witch_curse:  { bright: 0xaa44ff, mid: 0x5a1888, dark: 0x110520 },  // 마녀 저주 — 보라
 };
 // T+4: 숨겨진 캡슐도 내용이 "???"로 표시되므로 밝기를 낮추지 않음
 const PAL_HIDDEN = { bright: 0x666666, mid: 0x333333, dark: 0x0e0e0e };
@@ -123,6 +124,8 @@ function lerp(a, b, t) {
 }
 
 function getPal(event, reveal) {
+  // 마녀 저주 skip: reveal 단계 무관하게 항상 보라색 팔레트로 표시
+  if (event?.witchCurse) return PAL.witch_curse;
   if (!event || reveal >= 3) return PAL_HIDDEN;
   return PAL[event.type] ?? PAL_HIDDEN;
 }
@@ -132,6 +135,9 @@ function getPal(event, reveal) {
  * reveal 0=완전공개, 1=수량숨김, 2=타입만, 3=완전숨김
  */
 function capsuleFullText(event, reveal) {
+  // 마녀 저주: reveal 단계 무관하게 항상 '마녀 저주' 표시
+  if (event?.witchCurse) return '마녀 저주';
+
   if (!event || reveal >= 3) return '미공개';
 
   const { type, cardName, cardType, count } = event;

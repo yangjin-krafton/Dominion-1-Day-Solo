@@ -26,6 +26,7 @@ import { seededRng, generateMarketEvent,
 import { ProfileScreen }                       from './ui/screens/ProfileScreen.js';
 import { HomeScreen }                          from './ui/screens/HomeScreen.js';
 import { ResultScreen }                        from './ui/screens/ResultScreen.js';
+import { RankingPanel }                        from './ui/screens/RankingPanel.js';
 
 // ── data ───────────────────────────────────────────────────
 import { loadCards, resolveCards } from './data/cards.js';
@@ -75,6 +76,7 @@ let _cardMap   = new Map();
 let _idSeq     = 0;
 let _gameStart = 0;
 let _market    = null;   // Market 인스턴스
+const _rankingPanel = new RankingPanel();
 let _nextSetup         = null;   // 다음 게임 랜덤 시장 구성 (buildMarketSetup 결과)
 let _activeKingdomIds  = [];     // 현재 게임에 사용 중인 킹덤 카드 IDs
 let _marketQueueState  = null;   // { queue, rng } — 시장 이벤트 롤링 큐
@@ -91,13 +93,15 @@ const gs = {
   pendingPick:    null,   // { type, source }          — 단일 선택 대기 (harbinger, throne_room)
   pendingTwoStep: null,   // { type }                  — 2단계 효과 대기 (remodel, mine, artisan)
   pendingThrone:  null,   // { card }                  — 알현실 2차 플레이 대기 (모든 pending 처리 후 실행)
+  witchActive:    false,  // 마녀 효과 활성 여부 (한번 활성화되면 영구)
+  witchCountdown: 0,      // 다음 skip 삽입까지 남은 턴 수 (3→2→1→0→skip, 리셋 3)
   handScroll: 0,
   _handDragOffset: 0,
   _handArrows: null,
   cardsContainer: lCards,
   onEndTurn:    null,
   onScrollHand: null,
-  onOpenRanking:  () => console.log('[UI] 랭킹창 (준비 중)'),
+  onOpenRanking:  () => _rankingPanel.show(Storage.getRanking(10)),
   onOpenCatalog:  () => console.log('[UI] 도감창 (준비 중)'),
   onOpenVolume:   () => console.log('[UI] 음량설정 (준비 중)'),
 };
@@ -190,14 +194,29 @@ function _onEndTurn() {
     return;
   }
 
+  // ── 마녀 skip 주입 헬퍼 ─────────────────────────────
+  // witchActive 일 때 3턴마다 pushNextMarketEvent 대신 skip 삽입
+  const _pushOrWitchSkip = (qState, supply) => {
+    if (gs.witchActive) {
+      gs.witchCountdown--;
+      if (gs.witchCountdown <= 0) {
+        gs.witchCountdown = 3;
+        const skip = { type: 'skip', witchCurse: true };
+        qState.queue.push(skip);
+        return skip;
+      }
+    }
+    return pushNextMarketEvent(qState, supply);
+  };
+
   // ── 시장 이벤트 처리 ─────────────────────────────────
   if (_marketQueueState && _timeline) {
     _market?.clearWarning();
 
     if (hasMoat) {
       // ── 해자 차단: 이벤트 효과 없이 큐만 전진 ────────
-      popMarketEvent(_marketQueueState);                   // T+1 소멸 (공급 적용 없음)
-      pushNextMarketEvent(_marketQueueState, gs.supply);   // T+4 추가
+      popMarketEvent(_marketQueueState);                      // T+1 소멸 (공급 적용 없음)
+      _pushOrWitchSkip(_marketQueueState, gs.supply);         // T+4 추가 (마녀 skip 포함)
 
       // 타임라인 얼림 연출 (scroll 대신 freeze)
       _timeline.freeze(_marketQueueState.queue, () => {
@@ -238,8 +257,8 @@ function _onEndTurn() {
         applyMarketEvent(executed, gs.supply);
       }
 
-      // Step3: 새 T+4 이벤트 생성 (적용 후 시장 상태 기반)
-      pushNextMarketEvent(_marketQueueState, gs.supply);
+      // Step3: 새 T+4 이벤트 생성 (마녀 활성 시 3턴마다 skip 강제 삽입)
+      _pushOrWitchSkip(_marketQueueState, gs.supply);
 
       // Step4: 연출 — 쉐이킹 + 타임라인 스크롤 + 플래시 동시 실행
       const flashId = executed.cardId ?? executed.resolvedCardId ?? null;

@@ -52,7 +52,15 @@ export const EFFECT_REGISTRY = new Map([
   // 관료: 다음 N턴 시장 정보 공개 — gs.marketRevealBonus 누적 후 bureaucrat 핸들러에서 처리
   ['market_reveal',     (gs, n) => { gs.marketRevealBonus = (gs.marketRevealBonus ?? 0) + n; }],
   ['moat_market_delay', _stub('moat_market_delay')],
-  ['witch_market_blank',_stub('witch_market_blank')],
+  // 마녀: 3턴마다 시장 이벤트 큐에 skip(빈 턴) 영구 삽입
+  // witchActive/witchCountdown 은 main.js _onEndTurn 에서 소비
+  ['witch_market_blank', (gs) => {
+    if (!gs.witchActive) {
+      gs.witchActive    = true;
+      gs.witchCountdown = 3;   // 첫 빈 턴까지 남은 턴 수
+    }
+    gs.pendingGain = { type: 'witch' };   // 타임라인 연출 트리거
+  }],
   ['bandit_gold',       _stub('bandit_gold')],
   // 관료: 은화 덱 위 획득 + 시장 공개 연출 (bureaucrat.js 핸들러)
   ['bureaucrat_silver', (gs) => { gs.pendingGain = { type: 'bureaucrat' }; }],
@@ -123,8 +131,10 @@ export const EFFECT_REGISTRY = new Map([
     if (hasTreasure) gs.pendingTwoStep = { type: 'mine' };
   }],
 
-  // 보초병: 덱 위 2장 처리 (추후 CardRevealOverlay 구현)
-  ['sentry', _stub('Sentry: 덱 위 2장 폐기/버리기/유지')],
+  // 보초병: 덱 위 2장 공개 → 폐기/버리기/덱위 복귀
+  ['sentry', (gs) => {
+    gs.pendingPick = { type: 'sentry' };
+  }],
 
   // 도서관: 손패 7장까지 뽑기, 액션 카드는 제외 가능
   ['library', (gs) => {
