@@ -126,8 +126,10 @@ export const EFFECT_REGISTRY = new Map([
   // 보초병: 덱 위 2장 처리 (추후 CardRevealOverlay 구현)
   ['sentry', _stub('Sentry: 덱 위 2장 폐기/버리기/유지')],
 
-  // 도서관: 손패 7장까지 (추후 구현)
-  ['library', _stub('Library: 손패 7장까지 뽑기')],
+  // 도서관: 손패 7장까지 뽑기, 액션 카드는 제외 가능
+  ['library', (gs) => {
+    gs.pendingPick = { type: 'library' };
+  }],
 
   // 장인: 비용 5 이하 획득→손 + 손패 1장 덱위
   ['artisan', (gs) => {

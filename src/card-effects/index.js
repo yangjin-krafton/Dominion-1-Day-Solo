@@ -26,6 +26,7 @@ import { handleVassal }     from './vassal.js';
 import { handleBureaucrat } from './bureaucrat.js';
 import { handleMilitia }    from './militia.js';
 import { handleCouncilRoom } from './council_room.js';
+import { handleLibrary }    from './library.js';
 
 /**
  * 카드 type → 핸들러 함수 Map
@@ -48,6 +49,7 @@ export const EFFECT_HANDLERS = new Map([
 
   // ── 단일 선택 ───────────────────────────────────────────
   ['harbinger',   handleHarbinger],
+  ['library',     handleLibrary],
   ['throne_room',        handleThroneRoom],
   ['throne_room_second', handleThroneRoomSecond],
   ['vassal',             handleVassal],

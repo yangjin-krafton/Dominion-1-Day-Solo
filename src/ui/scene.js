@@ -678,10 +678,12 @@ export function updateUI(gs) {
  *  color   = 태그 색상
  * 새 카드 추가 시 여기에만 추가하면 됨
  */
+// 낸카드더미(play) 기반 지속효과 태그
+// key = card.def.id, 새 카드 추가 시 여기에만 등록
 const BUFF_TAG_MAP = new Map([
-  ['moat',     { text: '공격방어', color: 0x44bbff }],   // 해자: 공격 방어
   ['workshop', { text: '비용4↓획득', color: 0xcc8833 }], // 작업장: 비용 4 이하 카드 획득
   // merchant는 _collectEffectTags에서 merchantBonus 기반으로 동적 처리
+  // moat는 손패(hand) 기반이므로 아래 별도 처리
 ]);
 
 function _collectEffectTags(gs) {
@@ -700,7 +702,13 @@ function _collectEffectTags(gs) {
     tags.push({ text: '은화+1', color: C.gold });
   }
 
-  // 지속효과 카드: BUFF_TAG_MAP에 등록된 카드만 표시 (중복 방지)
+  // 해자(Moat): 손패에 있을 때만 방어 효과 활성 → 손패 기반 체크
+  const hasMoatInHand = (gs.hand ?? []).some(c => c.def?.id === 'moat');
+  if (hasMoatInHand) {
+    tags.push({ text: '시장방어 중', color: 0x44bbff });
+  }
+
+  // 낸카드더미 기반 지속효과 카드 (BUFF_TAG_MAP 등록 카드만, 중복 방지)
   const seen = new Set();
   for (const card of (gs.play ?? [])) {
     const id   = card.def?.id;
