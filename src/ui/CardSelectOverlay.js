@@ -182,8 +182,9 @@ export function showCardSelectOverlay(layer, opts) {
   const ROWS   = items.length > 0 ? Math.ceil(items.length / COLS) : 0;
   const availW = W - 2 * PAD_X - Math.max(0, COLS - 1) * GAP;
   const _rawSW = COLS > 0 ? Math.floor(availW / COLS) : 0;
-  const SW     = maxCardW != null ? Math.min(_rawSW, maxCardW) : _rawSW;
-  const SCALE  = COLS > 0 ? SW / CARD_W : 1;
+  const _capSW = maxCardW != null ? Math.min(_rawSW, maxCardW) : _rawSW;
+  const SCALE  = COLS > 0 ? Math.min(_capSW / CARD_W, 1.5) : 1;
+  const SW     = COLS > 0 ? Math.round(CARD_W * SCALE) : 0;
   const SH     = COLS > 0 ? Math.round(CARD_H * SCALE) : 0;
   const gridH  = ROWS > 0 ? ROWS * SH + (ROWS - 1) * GAP : 0;
   // 그리드 수평 중앙 오프셋 (maxCardW 적용 시 카드가 화면 가운데로)
