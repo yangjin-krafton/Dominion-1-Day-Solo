@@ -11,7 +11,8 @@
 // ============================================================
 
 export function handleMilitia(_pd, ctx) {
-  const { gs, sync } = ctx;
+  const { gs, sync, dispatchPending } = ctx;
+  const done     = () => { if (!dispatchPending()) sync(); };
   const timeline = ctx.timeline;
   const queue    = ctx.marketQueueState?.queue ?? [];
 
@@ -35,8 +36,8 @@ export function handleMilitia(_pd, ctx) {
 
   if (timeline) {
     // 수정된 queue 를 전달 → revealUnlock 내부 refresh(queue) 에서 새 수량 표시
-    timeline.revealUnlock(0, queue, () => sync(), '民兵  시장 이벤트 약화');
+    timeline.revealUnlock(0, queue, done, '民兵  시장 이벤트 약화');
   } else {
-    sync();
+    done();
   }
 }

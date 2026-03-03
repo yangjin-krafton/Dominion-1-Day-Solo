@@ -5,7 +5,9 @@
 import { gainCard }            from '../core/TurnEngine.js';
 import { showCardSelectOverlay } from '../ui/CardSelectOverlay.js';
 
-export function handleGain({ maxCost, dest = 'discard' }, { gs, lUI, makeCard, sync }) {
+export function handleGain({ maxCost, dest = 'discard' }, { gs, lUI, makeCard, sync, dispatchPending }) {
+  const done = () => { if (!dispatchPending()) sync(); };
+
   const items = [...gs.supply.values()].filter(({ def, count }) =>
     def.cost <= maxCost && count > 0,
   );
@@ -19,7 +21,7 @@ export function handleGain({ maxCost, dest = 'discard' }, { gs, lUI, makeCard, s
     showStockBadge:  true,
     allowDetail:    true,
     cancelLabel:    '건너뛰기 (아무것도 획득 안 함)',
-    onConfirm: ([item]) => { gainCard(gs, item.def, makeCard, dest); sync(); },
-    onCancel:  sync,
+    onConfirm: ([item]) => { gainCard(gs, item.def, makeCard, dest); done(); },
+    onCancel:  done,
   });
 }

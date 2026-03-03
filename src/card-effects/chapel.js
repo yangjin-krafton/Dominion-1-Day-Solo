@@ -5,7 +5,9 @@
 import { showCardSelectOverlay } from '../ui/CardSelectOverlay.js';
 import { trashCard }             from './_utils.js';
 
-export function handleChapel({ maxCount = 4 }, { gs, lUI, sync }) {
+export function handleChapel({ maxCount = 4 }, { gs, lUI, sync, dispatchPending }) {
+  const done = () => { if (!dispatchPending()) sync(); };
+
   showCardSelectOverlay(lUI, {
     title:      '예배당',
     effectDesc: '폐기된 카드는 덱에서 완전히 사라집니다',
@@ -15,7 +17,7 @@ export function handleChapel({ maxCount = 4 }, { gs, lUI, sync }) {
     minCount:   0,
     maxCount,
     confirmLabel: (n) => n === 0 ? '건너뛰기 (0장)' : `${n}장 폐기`,
-    onConfirm: (cards) => { cards.forEach((c) => trashCard(gs, c)); sync(); },
-    onCancel:  sync,
+    onConfirm: (cards) => { cards.forEach((c) => trashCard(gs, c)); done(); },
+    onCancel:  done,
   });
 }

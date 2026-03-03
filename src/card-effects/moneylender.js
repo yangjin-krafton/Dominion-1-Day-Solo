@@ -5,7 +5,9 @@
 import { showCardSelectOverlay } from '../ui/CardSelectOverlay.js';
 import { trashCard }             from './_utils.js';
 
-export function handleMoneylender(_pd, { gs, lUI, sync }) {
+export function handleMoneylender(_pd, { gs, lUI, sync, dispatchPending }) {
+  const done = () => { if (!dispatchPending()) sync(); };
+
   showCardSelectOverlay(lUI, {
     title:      '대금업자',
     effectDesc: '동전 카드를 폐기하면 이번 턴 코인 +3을 받습니다',
@@ -19,8 +21,8 @@ export function handleMoneylender(_pd, { gs, lUI, sync }) {
     onConfirm: (cards) => {
       cards.forEach((c) => trashCard(gs, c));
       if (cards.length > 0) gs.coins += 3;
-      sync();
+      done();
     },
-    onCancel: sync,
+    onCancel: done,
   });
 }

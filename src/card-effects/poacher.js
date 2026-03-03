@@ -5,12 +5,14 @@
 import { showCardSelectOverlay } from '../ui/CardSelectOverlay.js';
 import { discardCard }           from './_utils.js';
 
-export function handlePoacher({ exact }, { gs, lUI, sync }) {
-  if (!exact || exact === 0) { sync(); return; }
+export function handlePoacher({ exact }, { gs, lUI, sync, dispatchPending }) {
+  const done = () => { if (!dispatchPending()) sync(); };
+
+  if (!exact || exact === 0) { done(); return; }
 
   // 손패 카드가 부족하면 있는 만큼만 버림 (stuck 방지)
   const actual = Math.min(exact, gs.hand.length);
-  if (actual === 0) { sync(); return; }
+  if (actual === 0) { done(); return; }
 
   showCardSelectOverlay(lUI, {
     title:      '밀렵꾼',
@@ -22,7 +24,7 @@ export function handlePoacher({ exact }, { gs, lUI, sync }) {
     maxCount:   actual,
     canConfirmEmpty: false,
     confirmLabel: (n) => n < actual ? `${n}/${actual}장 선택됨` : `${actual}장 버리기 (완료)`,
-    onConfirm: (cards) => { cards.forEach((c) => discardCard(gs, c)); sync(); },
-    onCancel:  sync,
+    onConfirm: (cards) => { cards.forEach((c) => discardCard(gs, c)); done(); },
+    onCancel:  done,
   });
 }

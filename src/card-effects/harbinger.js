@@ -5,8 +5,10 @@
 import { AREAS }               from '../config.js';
 import { showCardSelectOverlay } from '../ui/CardSelectOverlay.js';
 
-export function handleHarbinger(_pd, { gs, lUI, sync }) {
-  if (gs.discard.length === 0) { sync(); return; }
+export function handleHarbinger(_pd, { gs, lUI, sync, dispatchPending }) {
+  const done = () => { if (!dispatchPending()) sync(); };
+
+  if (gs.discard.length === 0) { done(); return; }
 
   showCardSelectOverlay(lUI, {
     title:      '선구자',
@@ -23,8 +25,8 @@ export function handleHarbinger(_pd, { gs, lUI, sync }) {
         card.area = AREAS.DECK;
         gs.deck.push(card);
       }
-      sync();
+      done();
     },
-    onCancel: sync,
+    onCancel: done,
   });
 }

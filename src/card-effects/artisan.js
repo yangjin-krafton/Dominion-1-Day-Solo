@@ -10,11 +10,13 @@ export function handleArtisan(_pd, ctx) {
   _step1(ctx);
 }
 
-function _step1({ gs, lUI, makeCard, sync }) {
+function _step1(ctx) {
+  const { gs, lUI, makeCard, sync, dispatchPending } = ctx;
+  const done = () => { if (!dispatchPending()) sync(); };
   const items = [...gs.supply.values()].filter(({ def, count }) =>
     def.cost <= 5 && count > 0,
   );
-  if (items.length === 0) { sync(); return; }
+  if (items.length === 0) { done(); return; }
 
   showCardSelectOverlay(lUI, {
     title:          '장인 〔1/2〕',
@@ -26,14 +28,17 @@ function _step1({ gs, lUI, makeCard, sync }) {
     allowDetail:    true,
     onConfirm: ([item]) => {
       gainCard(gs, item.def, makeCard, 'hand');
-      _step2({ gs, lUI, sync });
+      _step2(ctx);
     },
-    onCancel: sync,
+    onCancel: done,
   });
 }
 
-function _step2({ gs, lUI, sync }) {
-  if (gs.hand.length === 0) { sync(); return; }
+function _step2(ctx) {
+  const { gs, lUI, sync, dispatchPending } = ctx;
+  const done = () => { if (!dispatchPending()) sync(); };
+
+  if (gs.hand.length === 0) { done(); return; }
 
   showCardSelectOverlay(lUI, {
     title:      '장인 〔2/2〕',
@@ -42,7 +47,7 @@ function _step2({ gs, lUI, sync }) {
     items:      [...gs.hand],
     mode:       'single',
     allowDetail: true,
-    onConfirm: ([card]) => { putOnDeckTop(gs, card); sync(); },
-    onCancel:  sync,
+    onConfirm: ([card]) => { putOnDeckTop(gs, card); done(); },
+    onCancel:  done,
   });
 }

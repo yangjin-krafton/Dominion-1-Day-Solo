@@ -11,7 +11,8 @@
 import { AREAS } from '../config.js';
 
 export function handleBureaucrat(_pd, ctx) {
-  const { gs, makeCard, sync } = ctx;
+  const { gs, makeCard, sync, dispatchPending } = ctx;
+  const done = () => { if (!dispatchPending()) sync(); };
 
   // ── Silver 덱 위 획득 ───────────────────────────────────
   const silverSlot = gs.supply.get('silver');
@@ -34,8 +35,8 @@ export function handleBureaucrat(_pd, ctx) {
   const queue    = ctx.marketQueueState?.queue ?? [];
 
   if (bonus > 0 && timeline) {
-    timeline.revealUnlock(bonus, queue, () => sync());
+    timeline.revealUnlock(bonus, queue, done);
   } else {
-    sync();
+    done();
   }
 }

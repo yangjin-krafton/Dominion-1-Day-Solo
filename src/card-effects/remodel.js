@@ -10,8 +10,11 @@ export function handleRemodel(_pd, ctx) {
   _step1(ctx);
 }
 
-function _step1({ gs, lUI, makeCard, sync }) {
-  if (gs.hand.length === 0) { sync(); return; }
+function _step1(ctx) {
+  const { gs, lUI, sync, dispatchPending } = ctx;
+  const done = () => { if (!dispatchPending()) sync(); };
+
+  if (gs.hand.length === 0) { done(); return; }
 
   showCardSelectOverlay(lUI, {
     title:      '개조 〔1/2〕',
@@ -23,18 +26,20 @@ function _step1({ gs, lUI, makeCard, sync }) {
     onConfirm: ([card]) => {
       const trashCost = card.def.cost;
       trashCard(gs, card);
-      _step2(trashCost, { gs, lUI, makeCard, sync });
+      _step2(trashCost, ctx);
     },
-    onCancel: sync,
+    onCancel: done,
   });
 }
 
-function _step2(trashCost, { gs, lUI, makeCard, sync }) {
+function _step2(trashCost, ctx) {
+  const { gs, lUI, makeCard, sync, dispatchPending } = ctx;
+  const done = () => { if (!dispatchPending()) sync(); };
   const maxCost = trashCost + 2;
   const items = [...gs.supply.values()].filter(({ def, count }) =>
     def.cost <= maxCost && count > 0,
   );
-  if (items.length === 0) { sync(); return; }
+  if (items.length === 0) { done(); return; }
 
   showCardSelectOverlay(lUI, {
     title:          '개조 〔2/2〕',
@@ -45,7 +50,7 @@ function _step2(trashCost, { gs, lUI, makeCard, sync }) {
     showStockBadge:  true,
     allowDetail:    true,
     cancelLabel:    '건너뛰기 (획득 안 함)',
-    onConfirm: ([item]) => { gainCard(gs, item.def, makeCard, 'discard'); sync(); },
-    onCancel:  sync,
+    onConfirm: ([item]) => { gainCard(gs, item.def, makeCard, 'discard'); done(); },
+    onCancel:  done,
   });
 }

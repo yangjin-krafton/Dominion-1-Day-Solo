@@ -5,7 +5,9 @@
 import { showCardSelectOverlay } from '../ui/CardSelectOverlay.js';
 import { discardCard }           from './_utils.js';
 
-export function handleCellar(pd, { gs, lUI, sync, drawCardsVisual }) {
+export function handleCellar(pd, { gs, lUI, sync, dispatchPending, drawCardsVisual }) {
+  const done = () => { if (!dispatchPending()) sync(); };
+
   showCardSelectOverlay(lUI, {
     title:      '저장고',
     effectDesc: '버린 카드 수만큼 덱에서 새 카드를 뽑습니다',
@@ -17,9 +19,9 @@ export function handleCellar(pd, { gs, lUI, sync, drawCardsVisual }) {
     onConfirm: (cards) => {
       cards.forEach((c) => discardCard(gs, c));
       const drawN = cards.length;
-      sync();
+      done();
       if (pd.drawAfter && drawN > 0) drawCardsVisual(drawN);
     },
-    onCancel: sync,
+    onCancel: done,
   });
 }

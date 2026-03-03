@@ -90,6 +90,7 @@ const gs = {
   pendingTrash:   null,   // { type, maxCount, filter } — 폐기 대기 (chapel, moneylender)
   pendingPick:    null,   // { type, source }          — 단일 선택 대기 (harbinger, throne_room)
   pendingTwoStep: null,   // { type }                  — 2단계 효과 대기 (remodel, mine, artisan)
+  pendingThrone:  null,   // { card }                  — 알현실 2차 플레이 대기 (모든 pending 처리 후 실행)
   handScroll: 0,
   _handDragOffset: 0,
   _handArrows: null,

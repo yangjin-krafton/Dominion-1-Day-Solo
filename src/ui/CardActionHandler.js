@@ -24,6 +24,8 @@ const PENDING_KEYS = [
   { field: 'pendingTrash',   typeOf: (pd) => pd.type },
   { field: 'pendingPick',    typeOf: (pd) => pd.type },
   { field: 'pendingTwoStep', typeOf: (pd) => pd.type },
+  // 알현실 2차 플레이 — 반드시 마지막: 다른 모든 pending 처리 후 실행
+  { field: 'pendingThrone',  typeOf: () => 'throne_room_second' },
 ];
 
 // ── Merchant 보너스 팝업 ──────────────────────────────────────
