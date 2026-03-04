@@ -32,13 +32,16 @@ const TYPE_POOL = ['vanish'];
  * @param {function} rng
  * @returns {object} event
  */
-// 저주 카드는 시장 이벤트 대상에서 제외 — 대신 'curse_player' 이벤트로 처리
+// 저주·승점 카드는 시장 이벤트 소멸 대상에서 제외
+// (승점 카드 고갈 시 게임 목표 달성 불가 방지)
 const EXCLUDED_FROM_EVENTS = new Set(['curse']);
 
 export function generateMarketEvent(supply, rng) {
-  // 저주를 제외한 재고 있는 카드 목록
+  // 저주·승점을 제외한 재고 있는 카드 목록
   const available = [...supply.entries()].filter(
-    ([id, v]) => v.count > 0 && !EXCLUDED_FROM_EVENTS.has(id),
+    ([id, v]) => v.count > 0
+      && !EXCLUDED_FROM_EVENTS.has(id)
+      && v.def.type !== 'Victory',
   );
 
   // 저주 공급이 남아 있으면 낮은 확률로 'curse_player' 이벤트 발생

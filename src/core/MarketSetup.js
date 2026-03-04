@@ -8,9 +8,13 @@
 //  · 저주는 시장에 표시하지 않음 (공급에는 별도 추가)
 //  · rng 파라미터로 seededRng를 받으면 완전 재현 가능
 // ============================================================
-import { BASIC_POOL, KINGDOM_POOL } from '../config.js';
+import { KINGDOM_POOL } from '../config.js';
 
 const MARKET_SIZE = 12;
+
+// 승점 카드 3종은 항상 시장에 포함 (목표 승점 도달 보장)
+const VP_BASICS       = ['estate', 'duchy', 'province'];
+const TREASURE_BASICS = ['copper', 'silver', 'gold'];
 
 /**
  * 랜덤 시장 구성 생성
@@ -24,9 +28,13 @@ const MARKET_SIZE = 12;
 export function buildMarketSetup(cardMap, rng = null, wins = 0) {
   const _r = rng ?? (() => Math.random());
 
-  // ── 1. 기본 재화·승점: 4~6장 랜덤 ─────────────────────────
-  const basicCount = 4 + Math.floor(_r() * 3);  // 4 | 5 | 6
-  const basicIds   = _shuffle([...BASIC_POOL], _r).slice(0, basicCount);
+  // ── 1. 기본 재화·승점 ─────────────────────────────────────
+  // 승점 3종(estate·duchy·province)은 항상 포함 → 목표 승점 도달 보장
+  // 나머지 슬롯(1~3)은 재화(copper·silver·gold) 랜덤 선택
+  const basicCount    = 4 + Math.floor(_r() * 3);           // 4 | 5 | 6
+  const treasureCount = basicCount - VP_BASICS.length;       // 1 | 2 | 3
+  const treasureIds   = _shuffle([...TREASURE_BASICS], _r).slice(0, treasureCount);
+  const basicIds      = [...VP_BASICS, ...treasureIds];
 
   // ── 2. 킹덤 카드: 언락된 카드만, 나머지 슬롯, 비용 다양성 확보 ─
   const kingdomCount = MARKET_SIZE - basicCount;          // 6 | 7 | 8
