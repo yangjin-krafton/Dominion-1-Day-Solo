@@ -89,11 +89,8 @@ const CAP_Y    = TL_Y + LABEL_H + 2;     // 캡슐 시작 Y
 // ── 컬러 팔레트 (이벤트 타입별 3톤) ──────────────────────
 const PAL = {
   vanish:       { bright: 0xff4444, mid: 0x8a1818, dark: 0x200606 },
-  drain:        { bright: 0xcc66ff, mid: 0x661aaa, dark: 0x130820 },
-  surge:        { bright: 0xffaa33, mid: 0x885518, dark: 0x1e1205 },
   skip:         { bright: 0x66bb66, mid: 0x2a5528, dark: 0x081208 },
   curse_player: { bright: 0xff6688, mid: 0x881830, dark: 0x200508 },  // 저주 획득 — 핑크
-  witch_curse:  { bright: 0xaa44ff, mid: 0x5a1888, dark: 0x110520 },  // 마녀 저주 — 보라
 };
 // T+4: 숨겨진 캡슐도 내용이 "???"로 표시되므로 밝기를 낮추지 않음
 const PAL_HIDDEN = { bright: 0x666666, mid: 0x333333, dark: 0x0e0e0e };
@@ -146,12 +143,7 @@ function capsuleFullText(event, reveal) {
   if (type === 'skip')         return '변동 없음';
   if (type === 'curse_player') return reveal >= 2 ? '저주 획득' : '저주 1장 획득';
 
-  if (type === 'surge') {
-    if (reveal >= 2) return `${typeName} 가격 상승`;
-    return `${cardName ?? typeName} 가격 상승`;
-  }
-
-  // vanish / drain
+  // vanish
   const subject = reveal >= 2 ? `${typeName}` : (cardName ?? typeName);
   const qty     = reveal >= 1 ? '?장' : `${count ?? '?'}장`;
   return `${subject} ${qty} 소멸`;

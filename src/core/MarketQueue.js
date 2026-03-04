@@ -23,8 +23,8 @@ export function seededRng(seed) {
   };
 }
 
-// 이벤트 타입 가중치 (vanish 3 : drain 1 : surge 1)
-const TYPE_POOL = ['vanish', 'vanish', 'vanish', 'drain', 'surge'];
+// 이벤트 타입: vanish(재고 카드 차감)만 사용
+const TYPE_POOL = ['vanish'];
 
 /**
  * 현재 공급 상태를 보고 다음 이벤트 1개 동적 생성
@@ -71,30 +71,6 @@ export function generateMarketEvent(supply, rng) {
     };
   }
 
-  if (type === 'drain') {
-    // 저주 타입 제외한 그룹에서 가장 재고 많은 타입 1장 제거
-    const typeSum = {};
-    for (const [, v] of available) {
-      if (v.def.type === '저주' || v.def.type === 'Curse') continue;
-      typeSum[v.def.type] = (typeSum[v.def.type] ?? 0) + v.count;
-    }
-    const topType = Object.entries(typeSum).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '행동';
-    return { type: 'drain', cardType: topType, cardId: null, count: 1 };
-  }
-
-  if (type === 'surge') {
-    // 저주 제외한 카드에서 급등 대상 선택
-    const idx = Math.floor(rng() * available.length);
-    const [id, { def }] = available[idx];
-    return {
-      type:     'surge',
-      cardId:   id,
-      cardType: def.type,
-      cardName: def.name_ko ?? def.name ?? id,
-      count:    0,
-    };
-  }
-
   return { type: 'skip' };
 }
 
@@ -132,7 +108,6 @@ export function pushNextMarketEvent(queueState, supply) {
 
 /**
  * 이벤트를 공급(supply)에 실제 적용
- * drain 이벤트는 event.resolvedCardId에 실제 영향 카드 ID를 기록함
  * @param {object} event
  * @param {Map} supply
  */
@@ -143,21 +118,5 @@ export function applyMarketEvent(event, supply) {
     const slot = supply.get(event.cardId);
     if (slot) slot.count = Math.max(0, slot.count - event.count);
   }
-
-  if (event.type === 'drain') {
-    // 해당 타입에서 재고 가장 많은 카드 1장 제거
-    let best = null;
-    for (const [id, v] of supply) {
-      if (v.def.type === event.cardType && v.count > 0) {
-        if (!best || v.count > best[1].count) best = [id, v];
-      }
-    }
-    if (best) {
-      best[1].count = Math.max(0, best[1].count - 1);
-      event.resolvedCardId = best[0];   // 실제 제거된 카드 ID 기록
-    }
-  }
-
-  // 'surge': 비용 변동은 별도 시스템 (현재는 예고 표시만)
-  // 'skip' : 아무 효과 없음
+  // 'skip' / 'curse_player': 별도 처리 또는 효과 없음
 }

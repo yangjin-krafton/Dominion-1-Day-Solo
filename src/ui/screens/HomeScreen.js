@@ -1,11 +1,10 @@
 // ============================================================
-// HomeScreen.js — 재접속: 타이틀 + 세팅 + 랭킹 + 시작 버튼
+// HomeScreen.js — 재접속: 타이틀 + 세팅 + 시작 버튼
 // ============================================================
-import { ScreenOverlay }        from './ScreenOverlay.js';
-import { buildTitlePanel }      from './TitlePanel.js';
-import { buildSetupPanel }      from './SetupPanel.js';
-import { buildRankingListPanel } from './RankingListPanel.js';
-import { buildActionPanel }     from './ActionPanel.js';
+import { ScreenOverlay }    from './ScreenOverlay.js';
+import { buildTitlePanel }  from './TitlePanel.js';
+import { buildSetupPanel }  from './SetupPanel.js';
+import { buildActionPanel } from './ActionPanel.js';
 
 export class HomeScreen {
   constructor() {
@@ -24,12 +23,11 @@ export class HomeScreen {
    * @param {number}   opts.vpTarget
    * @param {number}   [opts.gameSeed]
    */
-  show({ profile, records, kingdomIds, kingdomNames, todayMarketCards, vpTarget, gameSeed }) {
+  show({ kingdomNames, todayMarketCards, vpTarget, gameSeed }) {
     if (this._overlay.visible) return;
     this._overlay.show([
       buildTitlePanel(),
       buildSetupPanel({ vpTarget, gameSeed, todayMarketCards, kingdomNames }),
-      buildRankingListPanel({ mode: 'setup', records, kingdomIds, profile }),
       buildActionPanel({
         onStart: () => { this.hide(); this.onStart?.(); },
         startLabel: '⚔ 오늘의 챌린지 시작',

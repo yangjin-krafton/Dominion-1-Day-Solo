@@ -7,7 +7,8 @@
 // 브라우저 콘솔에서:
 //   Debug.help()  — 명령 목록 확인
 // ============================================================
-import { clearAll, clearRecords, clearProfile, getProfile, getRecords } from '../core/Storage.js';
+import { clearAll, clearRecords, clearProfile, getProfile, getRecords, getWins, addWin } from '../core/Storage.js';
+import * as CatalogOverlay from '../ui/CatalogOverlay.js';
 
 /**
  * window.Debug 객체를 초기화합니다.
@@ -61,6 +62,38 @@ export function initDebug({ cardMap, gs, makeCard, sync }) {
           순위: `#${i + 1}`, 날짜: r.date, 승점: r.vp, 턴: r.turns,
         })));
       }
+    },
+
+    // ── 언락 시스템 ────────────────────────────────────────────
+
+    /** 현재 wins 수 + 언락 현황 출력 */
+    checkUnlock() {
+      const wins = getWins();
+      const rows = [...cardMap.entries()].map(([id, d]) => ({
+        id,
+        이름:       d.name,
+        unlockOrder: d.unlockOrder ?? '(없음)',
+        언락여부:   d.unlockOrder === 0 ? '항상' : wins >= (d.unlockOrder ?? 0) ? `✅ (${d.unlockOrder}승)` : `🔒 (${d.unlockOrder}승 필요)`,
+      }));
+      console.log(`%c[Unlock] 현재 wins = ${wins}`, 'color:#d4a820;font-weight:bold');
+      console.table(rows.filter(r => r.unlockOrder !== 0));
+    },
+
+    /** wins 직접 세팅 */
+    setWins(n) {
+      const d = JSON.parse(localStorage.getItem('dominion1d_v1') ?? '{}');
+      d.wins = n;
+      localStorage.setItem('dominion1d_v1', JSON.stringify(d));
+      console.log(`%c[Debug] wins = ${n}`, 'color:#d4a820');
+    },
+
+    /** 언락 연출 직접 테스트 (인자 없으면 다음 해금 카드 자동 선택) */
+    testUnlock(id = null) {
+      const wins = getWins();
+      let def = id ? cardMap.get(id) : [...cardMap.values()].find(d => d.unlockOrder > 0 && d.unlockOrder > wins);
+      if (!def) { console.warn('[Debug] 테스트할 언락 카드 없음. wins 리셋 후 시도: Debug.setWins(0)'); return; }
+      console.log(`%c[Debug] 언락 연출 테스트: ${def.id} (order:${def.unlockOrder})`, 'color:#a0f0a0');
+      CatalogOverlay.showWithUnlock(cardMap, def.id, () => console.log('[Debug] 도감 닫힘'));
     },
 
     // ── 게임 내 상태 조작 ──────────────────────────────────────

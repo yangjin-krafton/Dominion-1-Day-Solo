@@ -4,7 +4,7 @@
 // ============================================================
 
 // ── config & core ──────────────────────────────────────────
-import { SCREEN_W as W, SCREEN_H as H, CARD_H as CH, ZONE, KINGDOM_POOL, BASIC_IDS } from './config.js';
+import { SCREEN_W as W, SCREEN_H as H, CARD_H as CH, CARD_W as CW, PILE_SCALE, ZONE, KINGDOM_POOL, BASIC_IDS } from './config.js';
 import { buildMarketSetup } from './core/MarketSetup.js';
 import { GameFlow, STATES }                from './core/GameFlow.js';
 import * as Storage                        from './core/Storage.js';
@@ -16,7 +16,8 @@ import { Card }                                from './ui/Card.js';
 import { buildBackground, buildPileStaticBg,
          buildUI, updateUI, applyProfile }     from './ui/scene.js';
 import { updateCardPositions,
-         buildHandArrows }                      from './ui/layout.js';
+         buildHandArrows,
+         PILE_X, PILE_Y }                       from './ui/layout.js';
 import * as CardDetail                         from './ui/CardDetail.js';
 import { Market }                              from './ui/Market.js';
 import { MarketTimeline }                      from './ui/MarketTimeline.js';
@@ -90,6 +91,8 @@ let _previewVpTarget   = 0;      // HomeScreen 표시용 사전 확정 목표 �
 let _previewGameSeed   = 0;      // HomeScreen 표시용 사전 확정 게임 시드
 let _marketQueueState  = null;   // { queue, rng } — 시장 이벤트 롤링 큐
 let _timeline          = null;   // MarketTimeline 인스턴스
+let _pileWarnOv        = null;   // 더미 경고 눈 아이콘 Sprite (curse_player T+1)
+let _pileWarnTime      = 0;      // 깜빡임 누적 시간
 
 const gs = {
   turn: 1, vp: 0, vpTarget: 15, actions: 1, buys: 1, coins: 0,
@@ -122,6 +125,51 @@ export function makeCard(def) {
   const c = new Card(def, _idSeq++, (card) => _onPlayCard?.(card));
   lCards.addChild(c.container);
   return c;
+}
+
+// ============================================================
+// 더미 경고 (curse_player T+1 예고 — 버림더미 위 눈 아이콘)
+// ============================================================
+const _PW = Math.round(CW * PILE_SCALE);
+const _PH = Math.round(CW * 1.5 * PILE_SCALE);  // CARD_H = CW * 1.5
+
+function _setPileWarning() {
+  _clearPileWarning();
+  const eye    = PIXI.Sprite.from('./asset/eye_effect.png');
+  const sz     = Math.round(_PW * 0.50);
+  eye.width    = sz;
+  eye.height   = sz;
+  eye.anchor.set(0.5);
+  eye.x        = PILE_X[1] + _PW / 2;   // 버림더미(col 1) 중앙
+  eye.y        = PILE_Y  + _PH / 2;
+  eye.alpha    = 0.85;
+  lUI.addChild(eye);
+  _pileWarnOv   = eye;
+  _pileWarnTime = 0;
+}
+
+function _clearPileWarning() {
+  if (_pileWarnOv?.parent) {
+    _pileWarnOv.parent.removeChild(_pileWarnOv);
+    _pileWarnOv.destroy();
+  }
+  _pileWarnOv = null;
+}
+
+function _pileWarnUpdate(dt) {
+  if (!_pileWarnOv?.parent) return;
+  _pileWarnTime += dt;
+  const s = Math.sin(_pileWarnTime * Math.PI * 0.7);
+  _pileWarnOv.alpha = s * s;
+}
+
+// T+1 이벤트에 따라 경고 표시 위치 결정
+function _applyT1Warning(newT1) {
+  if (newT1?.type === 'curse_player') {
+    _setPileWarning();
+  } else {
+    _market?.setWarningCard(newT1?.cardId ?? null);
+  }
 }
 
 // ============================================================
@@ -176,7 +224,7 @@ const { drawCardsVisual: _drawCardsVisual } = createCardMotion({ gs, sync: _sync
 const { onPlayCard, onBuyCard: _onBuyCard } = createCardActionHandler({
   gs, lUI, makeCard, sync: _sync,
   drawCardsVisual:     _drawCardsVisual,
-  onVictory:           _finishGame,
+  onVictory:           () => _finishGame(true),
   getTimeline:         () => _timeline,
   getMarketQueueState: () => _marketQueueState,
 });
@@ -221,6 +269,7 @@ function _onEndTurn() {
   // ── 시장 이벤트 처리 ─────────────────────────────────
   if (_marketQueueState && _timeline) {
     _market?.clearWarning();
+    _clearPileWarning();
 
     if (hasMoat) {
       // ── 해자 차단: 이벤트 효과 없이 큐만 전진 ────────
@@ -230,7 +279,7 @@ function _onEndTurn() {
       // 타임라인 얼림 연출 (scroll 대신 freeze)
       _timeline.freeze(_marketQueueState.queue, () => {
         const newT1 = _marketQueueState.queue[0];
-        _market?.setWarningCard(newT1?.cardId ?? null);
+        _applyT1Warning(newT1);
       });
 
     } else {
@@ -241,12 +290,8 @@ function _onEndTurn() {
       // Step2-pre: 민병대(Militia) 시장 피해 감소 적용
       const reduce = gs.marketReduce ?? 0;
       gs.marketReduce = 0;
-      if (reduce > 0) {
-        if (executed.type === 'vanish') {
-          executed.count = Math.max(0, (executed.count ?? 0) - reduce);
-        } else if (executed.type === 'drain') {
-          executed.type = 'skip';   // drain(1장 제거)을 완전히 무력화
-        }
+      if (reduce > 0 && executed.type === 'vanish') {
+        executed.count = Math.max(0, (executed.count ?? 0) - reduce);
       }
 
       // Step2: 공급에 적용 (drain이면 resolvedCardId 기록됨)
@@ -286,7 +331,7 @@ function _onEndTurn() {
           _market?.setAffordable(gs.coins, gs.buys);
         }
         const newT1 = _marketQueueState.queue[0];
-        _market?.setWarningCard(newT1?.cardId ?? null);
+        _applyT1Warning(newT1);
       });
     }
   }
@@ -319,45 +364,24 @@ flow
   })
 
   .on(STATES.HOME, () => {
-    const profile  = Storage.getProfile();
-    const records  = Storage.getRecords();
     // 다음 게임 시장 구성 미리 생성 (홈 화면에 킹덤 미리보기 표시)
     _nextSetup = buildMarketSetup(_cardMap, null, Storage.getWins());
     const kingdomNames = _nextSetup.kingdomIds.map(id =>
       _cardMap.get(id)?.name ?? id,
     );
-    // 오늘의 시장 12장 — mini-card 그리드용 (initCount는 게임 시작 전이라 null)
+    // 오늘의 시장 12장 — mini-card 그리드용
     const todayMarketCards = _nextSetup.marketIds.map(id => {
       const def = _cardMap.get(id);
       return { name: def.name, type: def.type, cost: def.cost,
                gradTop: def.gradTop, gradMid: def.gradMid, gradBot: def.gradBot,
                initCount: null };
     });
-    // 구형 레코드 보강: kingdom IDs → marketCards (type·cost·그라디언트 추가)
-    const enrichedRecords = records.map(r => {
-      if (r.marketCards?.[0]?.type != null) return r;  // 최신 형식
-      if (!r.kingdom?.length) return r;
-      return {
-        ...r,
-        marketCards: r.kingdom
-          .map(id => {
-            const def = _cardMap.get(id);
-            if (!def) return null;
-            return { name: def.name, type: def.type, cost: def.cost,
-                     gradTop: def.gradTop, gradMid: def.gradMid, gradBot: def.gradBot,
-                     initCount: r.marketCards?.find(c => c.name === def.name)?.initCount ?? null };
-          })
-          .filter(Boolean),
-      };
-    });
     // 게임 시드 + 목표 승점 사전 확정 (HomeScreen 표시 + _startGame 재사용)
     _previewGameSeed = (Date.now() ^ (Math.random() * 0x100000000)) >>> 0;
     _previewVpTarget = 10 + Math.floor(Math.random() * 11);
     homeScr.onStart = () => flow.go(STATES.GAME);
-    homeScr.show({ profile, records: enrichedRecords,
-                   kingdomIds: _nextSetup.kingdomIds, kingdomNames,
-                   todayMarketCards, vpTarget: _previewVpTarget,
-                   gameSeed: _previewGameSeed });
+    homeScr.show({ kingdomNames, todayMarketCards,
+                   vpTarget: _previewVpTarget, gameSeed: _previewGameSeed });
   })
 
   .on(STATES.GAME, () => { _startGame(); })
@@ -368,7 +392,9 @@ flow
 
     const _showResult = () => resultScr.show({ record, ranking });
 
+    console.log('[RESULT] newUnlock:', newUnlock?.id ?? 'null', '| wins:', Storage.getWins());
     VictoryCelebration.show(() => {
+      console.log('[RESULT] VictoryCelebration 완료 → catalog:', !!newUnlock);
       if (newUnlock) {
         CatalogOverlay.showWithUnlock(_cardMap, newUnlock.id, _showResult);
       } else {
@@ -438,6 +464,7 @@ export function _startGame() {
 
   // 시장 세팅 (basic + kingdom 순서로 공급 맵 순서대로 배치)
   _market?.destroy();
+  _clearPileWarning();
   _market = new Market(lUI, _onBuyCard);
   _market.setSupply(gs.supply);
 
@@ -451,9 +478,9 @@ export function _startGame() {
   _timeline?.destroy();
   _timeline = new MarketTimeline(lUI, _marketQueueState.queue);
 
-  // 게임 시작 시 T+1 이벤트 대상 카드에 경고 이펙트 표시
+  // 게임 시작 시 T+1 이벤트 대상에 경고 이펙트 표시
   const firstT1 = initQueue[0];
-  _market.setWarningCard(firstT1?.cardId ?? null);
+  _applyT1Warning(firstT1);
 
   _gameStart = Date.now();
   _sync();
@@ -497,6 +524,7 @@ app.ticker.add(() => {
   [...gs.deck, ...gs.hand, ...gs.play, ...gs.discard, ...gs.trash]
     .forEach(c => c.update(dt));
   _market?.update(dt);
+  _pileWarnUpdate(dt);
 });
 
 // ============================================================
