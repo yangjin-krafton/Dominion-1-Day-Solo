@@ -472,6 +472,7 @@ function _finishGame(won = false) {
   if (won) {
     const newWins = Storage.addWin();
     newUnlock = [..._cardMap.values()].find(d => d.unlockOrder === newWins) ?? null;
+    console.log('[Unlock] wins:', newWins, '→', newUnlock ? `${newUnlock.id}(order:${newUnlock.unlockOrder})` : 'null (모두 해금됨 또는 CSV 캐시 문제)');
   }
 
   const record  = Storage.addRecord({
@@ -574,7 +575,7 @@ VictoryCelebration.init(lUI);
 
 (async () => {
   try {
-    _cardMap = await loadCards('./data/dominion_base_ko_cards.csv');
+    _cardMap = await loadCards('./data/dominion_base_ko_cards.csv?v=2');
     resolveCards(_cardMap, [...KINGDOM_POOL, ...BASIC_IDS]);
 
     // 최초 진입 상태 결정

@@ -37,7 +37,7 @@ export function init(layer) {
 // ─── 일반 도감 열기 ──────────────────────────────────────────
 export function show(cardMap, opts = {}) {
   const { unlockId = null, onClose = null } = opts;
-  if (!_layer || _overlay) return;
+  if (!_layer || _overlay) { onClose?.(); return; }
 
   _overlay = new PIXI.Container();
   _overlay.zIndex    = 9998;
