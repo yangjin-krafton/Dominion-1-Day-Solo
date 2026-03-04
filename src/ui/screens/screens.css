@@ -115,6 +115,22 @@
 .ds-btn-row .ds-btn   { flex: 2; }
 .ds-btn-row .ds-btn-s { flex: 1; }
 
+/* ── 도감 해금 배너 ────────────────────────────────────────── */
+.ds-unlock-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: 8px 0 4px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, #0e0820 0%, #1a1040 100%);
+  border: 1px solid #5a3a9a;
+  border-radius: 8px;
+}
+.ds-unlock-icon  { font-size: 22px; }
+.ds-unlock-name  { font-size: 16px; font-weight: bold; color: #c8a8f0; letter-spacing: 1px; }
+.ds-unlock-sub   { font-size: 11px; color: #8a6ab0; }
+
 /* ── 홈화면 목표 승점 블록 ──────────────────────────────────── */
 .ds-home-target {
   display: flex;

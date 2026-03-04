@@ -197,7 +197,7 @@ function _onEndTurn() {
 
   if (checkVictory(gs.supply) || gs.vp >= gs.vpTarget) {
     _isEndingTurn = false;
-    _finishGame();
+    _finishGame(true);
     return;
   }
 
@@ -320,7 +320,7 @@ flow
     const profile  = Storage.getProfile();
     const records  = Storage.getRecords();
     // 다음 게임 시장 구성 미리 생성 (홈 화면에 킹덤 미리보기 표시)
-    _nextSetup = buildMarketSetup(_cardMap);
+    _nextSetup = buildMarketSetup(_cardMap, null, Storage.getWins());
     const kingdomNames = _nextSetup.kingdomIds.map(id =>
       _cardMap.get(id)?.name ?? id,
     );
@@ -358,10 +358,10 @@ flow
 
   .on(STATES.GAME, () => { _startGame(); })
 
-  .on(STATES.RESULT, ({ record, ranking }) => {
+  .on(STATES.RESULT, ({ record, ranking, newUnlock }) => {
     resultScr.onNextGame = () => flow.go(STATES.GAME);
     resultScr.onHome     = () => flow.go(STATES.HOME);
-    resultScr.show({ record, ranking });
+    resultScr.show({ record, ranking, newUnlock });
   });
 
 // ============================================================
@@ -399,7 +399,7 @@ export function _startGame() {
   gs.pendingDiscard  = null;
 
   // 공급 초기화 — HOME에서 미리 생성된 구성 사용 (없으면 seeded 신규 생성)
-  const setup       = _nextSetup ?? buildMarketSetup(_cardMap, rngSetup);
+  const setup       = _nextSetup ?? buildMarketSetup(_cardMap, rngSetup, Storage.getWins());
   _nextSetup        = null;
   _activeKingdomIds  = setup.kingdomIds;
   gs.supply          = initSupply(_cardMap, setup.marketIds, rngSupply);
@@ -444,13 +444,19 @@ export function _startGame() {
   setTimeout(() => _drawCardsVisual(5), 600);
 }
 
-function _finishGame() {
+function _finishGame(won = false) {
   const durationSec = Math.round((Date.now() - _gameStart) / 1000);
   const allCards    = [...gs.deck, ...gs.hand, ...gs.play, ...gs.discard];
   let   totalVP     = allCards.reduce((s, c) => s + (c.def.points ?? 0), 0);
   // 정원(Gardens): 보유 카드 10장당 +1점 (내림)
   const gardensCount = allCards.filter(c => c.def.id === 'gardens').length;
   if (gardensCount > 0) totalVP += gardensCount * Math.floor(allCards.length / 10);
+
+  let newUnlock = null;
+  if (won) {
+    const newWins = Storage.addWin();
+    newUnlock = [..._cardMap.values()].find(d => d.unlockOrder === newWins) ?? null;
+  }
 
   const record  = Storage.addRecord({
     turns: gs.turn, vp: totalVP, durationSec,
@@ -459,7 +465,7 @@ function _finishGame() {
     marketCards: _initialSupplyData,
   });
   const ranking = Storage.getRanking();
-  flow.go(STATES.RESULT, { record, ranking });
+  flow.go(STATES.RESULT, { record, ranking, newUnlock });
 }
 
 // ============================================================

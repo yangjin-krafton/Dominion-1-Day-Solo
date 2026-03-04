@@ -1,74 +1,34 @@
 // ============================================================
-// ui/screens/ResultScreen.js — 게임 결과 + 랭킹 화면
+// ResultScreen.js — 승리: 랭킹(결과헤더포함) + 시작/홈 버튼
 // ============================================================
-import { buildRankingTable } from './RankingPanel.js';
+import { ScreenOverlay }         from './ScreenOverlay.js';
+import { buildRankingListPanel } from './RankingListPanel.js';
+import { buildActionPanel }      from './ActionPanel.js';
 
 export class ResultScreen {
   constructor() {
-    this._el         = null;
+    this._overlay  = new ScreenOverlay();
     /** @type {() => void} */
-    this.onNextGame  = null;
+    this.onNextGame = null;
     /** @type {() => void} */
-    this.onHome      = null;
+    this.onHome     = null;
   }
 
   /**
-   * @param {object} opts
-   * @param {{ id, date, turns, vp, durationSec }} opts.record   - 방금 끝난 게임
-   * @param {Array}  opts.ranking  - 전체 랭킹 (VP 내림차순)
+   * @param {{ id, date, turns, vp, durationSec }} opts.record
+   * @param {Array}  opts.ranking
    */
   show({ record, ranking }) {
-    if (this._el) return;
-
-    const mins = Math.floor(record.durationSec / 60);
-    const secs = record.durationSec % 60;
-    const rankIdx = ranking.findIndex(r => r.id === record.id);
-
-    const rankMsg = rankIdx === 0
-      ? '🎉 신기록!'
-      : rankIdx > 0
-        ? `개인 ${rankIdx + 1}위`
-        : '';
-
-    this._el = document.createElement('div');
-    this._el.className = 'ds-screen';
-    this._el.innerHTML = `
-      <div class="ds-card">
-        <h1 class="ds-title">게임 종료</h1>
-        <p class="ds-subtitle">${record.date}</p>
-        <div class="ds-divider">✦ ── ✦</div>
-
-        <div class="ds-result-main">
-          <span class="ds-big-vp">${record.vp}</span>
-          <span class="ds-big-label">승점</span>
-        </div>
-        <p class="ds-meta">
-          ${record.turns}턴  ·  ${mins}분 ${String(secs).padStart(2, '0')}초
-          ${rankMsg ? `  ·  <strong style="color:#d4a520">${rankMsg}</strong>` : ''}
-        </p>
-
-        <div class="ds-divider">— 개인 랭킹 —</div>
-        ${buildRankingTable(ranking, record.id, 7)}
-
-        <div class="ds-btn-row">
-          <button class="ds-btn-s" id="ds-home">홈으로</button>
-          <button class="ds-btn"   id="ds-next">⚔ 다음 게임</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(this._el);
-    this._el.querySelector('#ds-next').addEventListener('click', () => {
-      this.hide();
-      this.onNextGame?.();
-    });
-    this._el.querySelector('#ds-home').addEventListener('click', () => {
-      this.hide();
-      this.onHome?.();
-    });
+    if (this._overlay.visible) return;
+    this._overlay.show([
+      buildRankingListPanel({ mode: 'global', ranking, currentId: record.id, limit: 7, record }),
+      buildActionPanel({
+        onHome:     () => { this.hide(); this.onHome?.(); },
+        onStart:    () => { this.hide(); this.onNextGame?.(); },
+        startLabel: '⚔ 다음 게임',
+      }),
+    ]);
   }
 
-  hide() {
-    this._el?.remove();
-    this._el = null;
-  }
+  hide() { this._overlay.hide(); }
 }

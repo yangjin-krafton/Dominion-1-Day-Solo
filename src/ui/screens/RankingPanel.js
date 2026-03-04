@@ -100,40 +100,35 @@ export function buildRankingTable(ranking, currentId = null, limit = 10) {
 }
 
 /**
- * 인게임 랭킹 버튼용 모달 오버레이
+ * 인게임 랭킹 버튼용 오버레이 — 타이틀 + 랭킹 + 닫기
+ * 순환 의존 방지: RankingListPanel 대신 buildRankingTable을 직접 사용
  */
+import { ScreenOverlay }   from './ScreenOverlay.js';
+import { buildTitlePanel } from './TitlePanel.js';
+import { buildActionPanel } from './ActionPanel.js';
+
 export class RankingPanel {
   constructor() {
-    this._el = null;
+    this._overlay = new ScreenOverlay();
   }
 
   show(ranking, currentId = null) {
-    if (this._el) return;
+    if (this._overlay.visible) return;
 
-    this._el = document.createElement('div');
-    this._el.className = 'ds-screen';
-    this._el.innerHTML = `
-      <div class="ds-card">
-        <h1 class="ds-title">개인 랭킹</h1>
-        <p class="ds-subtitle">승점 기준 상위 10위</p>
-        <div class="ds-divider">✦ ── ✦</div>
-        ${buildRankingTable(ranking, currentId, 10)}
-        <div style="margin-top:18px">
-          <button class="ds-btn-s" id="ds-rank-close">닫기</button>
-        </div>
-      </div>
+    // 랭킹 내용 패널 (buildRankingTable — 같은 파일이므로 순환 없음)
+    const rankingEl = document.createElement('div');
+    rankingEl.className = 'ds-panel';
+    rankingEl.innerHTML = `
+      <div class="ds-divider">— 개인 랭킹 —</div>
+      ${buildRankingTable(ranking, currentId, 10)}
     `;
 
-    document.body.appendChild(this._el);
-    this._el.querySelector('#ds-rank-close')
-      .addEventListener('click', () => this.hide());
-    this._el.addEventListener('pointerdown', e => {
-      if (e.target === this._el) this.hide();
-    });
+    this._overlay.show([
+      buildTitlePanel(),
+      rankingEl,
+      buildActionPanel({ onClose: () => this.hide() }),
+    ]);
   }
 
-  hide() {
-    this._el?.remove();
-    this._el = null;
-  }
+  hide() { this._overlay.hide(); }
 }

@@ -103,7 +103,22 @@ export function getTodayRecords() {
   return (_load().records ?? []).filter(r => r.date === today);
 }
 
-/** 전체 데이터 초기화 (개발/디버그용) */
+/** 전체 데이터 초기화 (프로필 + 기록 + 승리수) */
 export function clearAll() {
   localStorage.removeItem(KEY);
+}
+
+/** 게임 기록 + 승리수만 초기화 (프로필 이름 유지) */
+export function clearRecords() {
+  const d = _load();
+  delete d.records;
+  delete d.wins;
+  _save(d);
+}
+
+/** 프로필만 초기화 (기록 유지) */
+export function clearProfile() {
+  const d = _load();
+  delete d.profile;
+  _save(d);
 }

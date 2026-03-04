@@ -15,21 +15,26 @@ const MARKET_SIZE = 12;
 /**
  * 랜덤 시장 구성 생성
  * @param {Map<string, import('../data/cards.js').CardDef>} cardMap
- * @param {function|null} rng  seededRng(seed) 결과물 또는 null (null이면 Math.random 사용)
+ * @param {function|null} rng   seededRng(seed) 결과물 또는 null (null이면 Math.random 사용)
+ * @param {number}        wins  유저 총 승리 횟수 (언락 필터링용, 기본 0)
  * @returns {{ marketIds: string[], kingdomIds: string[] }}
  *   marketIds  : 시장 12슬롯 순서 (basic → kingdom)
  *   kingdomIds : 선택된 킹덤 카드 ID만 (기록·홈 표시용)
  */
-export function buildMarketSetup(cardMap, rng = null) {
+export function buildMarketSetup(cardMap, rng = null, wins = 0) {
   const _r = rng ?? (() => Math.random());
 
   // ── 1. 기본 재화·승점: 4~6장 랜덤 ─────────────────────────
   const basicCount = 4 + Math.floor(_r() * 3);  // 4 | 5 | 6
   const basicIds   = _shuffle([...BASIC_POOL], _r).slice(0, basicCount);
 
-  // ── 2. 킹덤 카드: 나머지 슬롯, 비용 다양성 확보 ────────────
+  // ── 2. 킹덤 카드: 언락된 카드만, 나머지 슬롯, 비용 다양성 확보 ─
   const kingdomCount = MARKET_SIZE - basicCount;          // 6 | 7 | 8
-  const pool         = KINGDOM_POOL.filter(id => cardMap.has(id));
+  const pool = KINGDOM_POOL.filter(id => {
+    const def = cardMap.get(id);
+    if (!def) return false;
+    return def.unlockOrder === 0 || wins >= def.unlockOrder;
+  });
   const kingdomIds   = _selectDiverse(cardMap, pool, kingdomCount, _r);
 
   // ── 3. 정렬: 재물 → 승점 → 행동, 같은 타입 내 비용 오름차순 ─
