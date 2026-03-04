@@ -94,6 +94,7 @@ function rowToCard(row) {
     gradTop,
     gradMid,
     gradBot,
+    unlockOrder: parseInt(row.unlock_order ?? '0', 10) || 0,
   };
 }
 

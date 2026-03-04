@@ -61,7 +61,7 @@ export function buildRankingRows(ranking, currentId = null, limit = 10) {
     const s    = r.durationSec % 60;
 
     const vpTargetCell = r.vpTarget != null
-      ? `<td>목표&nbsp;${r.vpTarget}VP</td>`
+      ? `<td>목표&nbsp;${r.vpTarget}승점</td>`
       : '<td></td>';
 
     const grid = buildMiniGrid(r.marketCards);
@@ -69,7 +69,7 @@ export function buildRankingRows(ranking, currentId = null, limit = 10) {
     return `
       <tr class="${cls}">
         <td>${i === 0 ? '🏆' : `#${i + 1}`}</td>
-        <td>${r.vp}&nbsp;VP</td>
+        <td>${r.vp}&nbsp;승점</td>
         <td>${r.turns}턴</td>
         <td>${m}:${String(s).padStart(2, '0')}</td>
         <td>${r.date}</td>
@@ -115,7 +115,7 @@ export class RankingPanel {
     this._el.innerHTML = `
       <div class="ds-card">
         <h1 class="ds-title">개인 랭킹</h1>
-        <p class="ds-subtitle">VP 기준 상위 10위</p>
+        <p class="ds-subtitle">승점 기준 상위 10위</p>
         <div class="ds-divider">✦ ── ✦</div>
         ${buildRankingTable(ranking, currentId, 10)}
         <div style="margin-top:18px">

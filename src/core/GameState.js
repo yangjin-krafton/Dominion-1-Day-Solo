@@ -49,7 +49,7 @@ export function resetResources(gs) {
   gs.merchantBonus = 0;
 }
 
-/** VP 합산 (덱 전체 기준) */
+/** 승점 합산 (덱 전체 기준) */
 export function calcVP(gs) {
   const all = [...gs.deck, ...gs.hand, ...gs.play, ...gs.discard];
   let vp = 0;

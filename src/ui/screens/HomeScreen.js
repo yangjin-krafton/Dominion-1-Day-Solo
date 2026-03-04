@@ -1,6 +1,6 @@
 // ============================================================
 // ui/screens/HomeScreen.js — 메인 홈 화면
-// 레이아웃: 타이틀 → 목표 VP → 시장 미니그리드 → 이 세팅 랭킹 Top5
+// 레이아웃: 타이틀 → 목표 승점 → 시장 미니그리드 → 이 세팅 랭킹 Top5
 // ============================================================
 import { buildMiniGrid } from './RankingPanel.js';
 
@@ -37,7 +37,7 @@ export class HomeScreen {
       <tr>
         <td>${i === 0 ? '🏆' : `#${i + 1}`}</td>
         <td>${name}</td>
-        <td>${r.vp} VP</td>
+        <td>${r.vp} 승점</td>
       </tr>`).join('');
 
     // 5위 미만이면 빈 행으로 채움
@@ -60,7 +60,7 @@ export class HomeScreen {
       sixthRow = `<tr class="ds-home-rank-me">
         <td>#${myRank}</td>
         <td>${name}</td>
-        <td>${myLatest.vp} VP</td>
+        <td>${myLatest.vp} 승점</td>
       </tr>`;
     }
 
@@ -74,7 +74,7 @@ export class HomeScreen {
 
         <div class="ds-home-target">
           <span class="ds-home-target-label">게임 목표 승점</span>
-          <span class="ds-home-target-vp">${vpTarget}<span class="ds-home-target-unit">VP</span></span>
+          <span class="ds-home-target-vp">${vpTarget}<span class="ds-home-target-unit">승점</span></span>
         </div>
 
         <div class="ds-kingdom">

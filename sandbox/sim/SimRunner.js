@@ -23,7 +23,7 @@ export class SimRunner {
    * @param {import('./LLMAdapter.js').LLMAdapter} opts.llmAdapter   - PlayerAgent용 LLM
    * @param {string[]} [opts.kingdomIds]     - 킹덤 카드 ID 6장 (미지정 시 무작위)
    * @param {number}   [opts.seed]           - 게임 시드
-   * @param {number}   [opts.targetVp]       - 목표 VP (기본 18)
+   * @param {number}   [opts.targetVp]       - 목표 승점 (기본 18)
    * @param {boolean}  [opts.verbose]        - 상세 로그
    * @param {import('./SimStorage.js').SimStorage} [opts.storage]
    */
@@ -97,7 +97,7 @@ export class SimRunner {
       const possible = gameMaster.getAvailableActions();
 
       if (this.verbose) {
-        console.log(`\n[턴 ${state.turn}] VP:${state.vp}/${state.targetVp} | 행동${state.actions} 구매${state.buys} 코인${state.coins}`);
+        console.log(`\n[턴 ${state.turn}] 승점:${state.vp}/${state.targetVp} | 행동${state.actions} 구매${state.buys} 코인${state.coins}`);
         console.log(`  손패: [${state.hand.join(', ')}]`);
       }
 
@@ -170,7 +170,7 @@ export class SimRunner {
     console.log('\n' + '═'.repeat(60));
     console.log(`  ${r.displayName} 게임 종료`);
     console.log(`  결과: ${r.victory.won ? '✓ 승리' : '✗ 미완'} (${r.victory.reason})`);
-    console.log(`  턴수: ${r.turns} | VP: ${r.vp} / ${r.targetVp}`);
+    console.log(`  턴수: ${r.turns} | 승점: ${r.vp} / ${r.targetVp}`);
     console.log(`  구매: ${r.totalBuys}회 | 카드플레이: ${r.totalPlays}회`);
     console.log(`  LLM 호출: ${r.llmCalls}회 | 소요: ${r.durationSec}초`);
     console.log(`  킹덤: [${r.kingdom.join(', ')}]`);

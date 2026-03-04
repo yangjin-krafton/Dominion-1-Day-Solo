@@ -118,7 +118,7 @@ function _buildInfoPanel(def) {
   const infoY = CY + DH + 20;
 
   const lines = [
-    `${def.nameEn}  ·  ${def.set}  ·  Cost ${def.cost}${def.points !== 0 ? `  ·  VP ${def.points > 0 ? '+' : ''}${def.points}` : ''}`,
+    `${def.nameEn}  ·  ${def.set}  ·  Cost ${def.cost}${def.points !== 0 ? `  ·  승점 ${def.points > 0 ? '+' : ''}${def.points}` : ''}`,
     '아무 곳이나 클릭하면 닫힙니다',
   ];
 

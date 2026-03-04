@@ -7,21 +7,20 @@ import {
   C,
   SCREEN_W as W, SCREEN_H as H,
   DETAIL_W as DW, DETAIL_H as DH,
-  CARD_W,
   BASIC_IDS, KINGDOM_POOL,
 } from '../config.js';
 import { buildDetailCard } from './CardDetail.js';
+import { getWins } from '../core/Storage.js';
 
-// ─── 도감 카드 스케일 (CARD_W × 1.5 / DETAIL_W) ──────────────
-// CARD_W=90 → 90×1.5=135 / DW=300 = 0.45
-const CAT_SCALE = (CARD_W * 1.5) / DW;         // 0.45
-const CAT_CW    = Math.round(DW * CAT_SCALE);  // 135px
-const CAT_CH    = Math.round(DH * CAT_SCALE);  // 202px
-
+// ─── 도감 카드 스케일 (3열 기준 자동 계산) ───────────────────
 const HEADER_H = 52;
-const COLS     = 2;
+const COLS     = 3;
 const GAP      = 8;
 const PAD      = 12;
+
+const CAT_CW    = Math.floor((W - PAD * 2 - GAP * (COLS - 1)) / COLS); // ~116px
+const CAT_SCALE = CAT_CW / DW;                                          // ~0.387
+const CAT_CH    = Math.round(DH * CAT_SCALE);
 
 // ─── 싱글턴 상태 ─────────────────────────────────────────────
 let _layer   = null;
@@ -82,7 +81,8 @@ export function show(cardMap) {
   _overlay.addChild(scrollCont);
 
   // ── 카드 그리드 콘텐츠 ────────────────────────────────────
-  let contentY = PAD;
+  const wins      = getWins();
+  let contentY    = PAD;
   const colStartX = Math.round((W - (CAT_CW * COLS + GAP * (COLS - 1))) / 2);
 
   const _addSection = (label, ids) => {
@@ -107,13 +107,21 @@ export function show(cardMap) {
 
     // 카드 배치
     defs.forEach((def, i) => {
-      const col  = i % COLS;
-      const row  = Math.floor(i / COLS);
-      const card = buildDetailCard(def);
-      card.scale.set(CAT_SCALE);
-      card.x = colStartX + col * (CAT_CW + GAP);
-      card.y = contentY  + row * (CAT_CH + GAP);
-      scrollCont.addChild(card);
+      const col = i % COLS;
+      const row = Math.floor(i / COLS);
+      const cx  = colStartX + col * (CAT_CW + GAP);
+      const cy  = contentY  + row * (CAT_CH + GAP);
+
+      if (def.unlockOrder === 0 || wins >= def.unlockOrder) {
+        // ── 언락된 카드
+        const card = buildDetailCard(def);
+        card.scale.set(CAT_SCALE);
+        card.x = cx; card.y = cy;
+        scrollCont.addChild(card);
+      } else {
+        // ── 잠긴 카드 (실루엣)
+        scrollCont.addChild(_buildLockedCard(cx, cy, CAT_CW, CAT_CH, def.unlockOrder));
+      }
     });
 
     contentY += Math.ceil(defs.length / COLS) * (CAT_CH + GAP) + PAD;
@@ -203,6 +211,37 @@ export function hide() {
     _overlay.destroy({ children: true });
     _overlay = null;
   }
+}
+
+// ─── 잠긴 카드 실루엣 ────────────────────────────────────────
+function _buildLockedCard(x, y, w, h, unlockOrder) {
+  const c = new PIXI.Container();
+  c.x = x; c.y = y;
+
+  // 어두운 카드 배경
+  const bg = new PIXI.Graphics();
+  bg.beginFill(0x0d0b14, 1);
+  bg.lineStyle(1, 0x3a2f5a, 0.7);
+  bg.drawRoundedRect(0, 0, w, h, 4);
+  bg.endFill();
+  c.addChild(bg);
+
+  // 자물쇠 아이콘
+  const lock = new PIXI.Text('🔒', { fontSize: Math.round(h * 0.22) });
+  lock.anchor.set(0.5);
+  lock.x = w / 2; lock.y = h * 0.42;
+  c.addChild(lock);
+
+  // "N승 후 해금" 텍스트
+  const lbl = new PIXI.Text(`${unlockOrder}승 후 해금`, {
+    fontFamily: 'Georgia, serif', fontSize: 9,
+    fill: 0x7a6a9a, letterSpacing: 1,
+  });
+  lbl.anchor.set(0.5);
+  lbl.x = w / 2; lbl.y = h * 0.70;
+  c.addChild(lbl);
+
+  return c;
 }
 
 // ─── ✕ 닫기 버튼 ─────────────────────────────────────────────

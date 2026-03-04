@@ -9,7 +9,7 @@
 //   --model <id>        모델 ID (기본: qwen/qwen3.5-35b-a3b)
 //   --url <url>         LM Studio URL (기본: http://100.66.65.124:1234)
 //   --seed <number>     게임 시드
-//   --target-vp <n>     목표 VP (기본: 18)
+//   --target-vp <n>     목표 승점 (기본: 18)
 //   --kingdom <ids>     킹덤 카드 콤마 구분 (예: village,smithy,market,cellar,chapel,harbinger)
 //   --count <n>         연속 실행 횟수 (기본: 1)
 //   --verbose           상세 로그 출력
@@ -105,7 +105,7 @@ async function main() {
     const avgVp    = (results.reduce((s, r) => s + r.vp, 0) / results.length).toFixed(1);
     const avgCalls = (results.reduce((s, r) => s + r.llmCalls, 0) / results.length).toFixed(0);
     console.log(`  승리: ${won} / ${results.length}`);
-    console.log(`  평균 턴수: ${avgTurns} | 평균 VP: ${avgVp}`);
+    console.log(`  평균 턴수: ${avgTurns} | 평균 승점: ${avgVp}`);
     console.log(`  평균 LLM 호출: ${avgCalls}회`);
     console.log('═'.repeat(60));
   }

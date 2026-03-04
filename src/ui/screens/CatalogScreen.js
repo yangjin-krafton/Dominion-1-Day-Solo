@@ -76,7 +76,7 @@ function _buildCardHTML(def) {
     badge = `<div class="ds-catalog-coins">+${def.coins} 코인</div>`;
   }
   if (def.points !== 0) {
-    badge += `<div class="ds-catalog-vp">${def.points > 0 ? '+' : ''}${def.points} VP</div>`;
+    badge += `<div class="ds-catalog-vp">${def.points > 0 ? '+' : ''}${def.points} 승점</div>`;
   }
 
   return `

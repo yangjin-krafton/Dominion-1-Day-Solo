@@ -188,7 +188,7 @@ export function buildUI(layer, gs) {
 /** 게임 상태 변경 시 UI 텍스트 갱신 */
 export function updateUI(gs) {
   if (refs.hudRight) {
-    refs.hudRight.text = `VP ✦ ${gs.vp}   Turn ✦ ${gs.turn}`;
+    refs.hudRight.text = `승점 ✦ ${gs.vp}   턴 ✦ ${gs.turn}`;
   }
   if (refs.resTxt) {
     refs.resTxt.text = `Actions: ${gs.actions}   Buys: ${gs.buys}   Coins: ${gs.coins}`;

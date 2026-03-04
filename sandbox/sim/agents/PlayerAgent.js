@@ -16,7 +16,7 @@ const DOMINION_RULES = `/no_think
 중요: 반드시 JSON만 출력하세요. 설명/생각 과정 절대 금지.
 
 ## 게임 규칙
-- 목표: 목표 VP(승점)에 먼저 도달하거나, Province 더미가 소진되거나, 3개 공급 더미가 소진되면 승리
+- 목표: 목표 승점에 먼저 도달하거나, Province 더미가 소진되거나, 3개 공급 더미가 소진되면 승리
 - 매 턴: 행동 페이즈 → 구매 페이즈 → 클린업
 
 ## 턴 순서
@@ -87,7 +87,7 @@ function buildStatePrompt(state, availableActions, feedback) {
 
   const lines = [
     `=== 턴 ${state.turn} 상태 ===`,
-    `VP: ${state.vp} / 목표: ${state.targetVp}`,
+    `승점: ${state.vp} / 목표: ${state.targetVp}`,
     `자원: 행동${state.actions} 구매${state.buys} 코인${state.coins}`,
     `손패: [${handDesc}]`,
     `플레이 영역: [${state.playArea.join(', ') || '없음'}]`,
@@ -258,7 +258,7 @@ export class PlayerAgent {
   /**
    * LLM 실패 시 Big Money 기반 폴백
    * 1) 재물 카드 모두 플레이
-   * 2) 가장 비싼 카드 구매 (VP 우선)
+   * 2) 가장 비싼 카드 구매 (승점 우선)
    * 3) 턴 종료
    */
   _fallback(state, availableActions) {
@@ -274,7 +274,7 @@ export class PlayerAgent {
       return this._fallbackResolve(state.pending);
     }
 
-    // 구매: VP 카드 우선, 없으면 가장 비싼 카드
+    // 구매: 승점 카드 우선, 없으면 가장 비싼 카드
     const buyPriority = ['province', 'duchy', 'gold', 'silver', 'estate'];
     for (const id of buyPriority) {
       const buyable = availableActions.find(a => a.action === 'buy' && a.card === id);

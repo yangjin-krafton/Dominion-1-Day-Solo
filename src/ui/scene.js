@@ -528,14 +528,14 @@ export function buildUI(layer, gs, profile = null) {
 
   // ── 승점 칩 (첫 번째, 녹색) ──────────────────────────────
   // 레이아웃: [승점       8 /15]
-  //   - 현재 VP "8"  : 오른쪽에서 목표 너비만큼 띄워서
+  //   - 현재 승점 "8"  : 오른쪽에서 목표 너비만큼 띄워서
   //   - 목표 "/15"   : 칩 우측 끝에 고정
   const vpChip = makeStatChip('승점', 0, 0x22bb55);
   vpChip.container.x = 6; vpChip.container.y = R1_Y;
   layer.addChild(vpChip.container);
   refs.vpVal  = vpChip.valueTxt;
   refs.vpAnim = vpChip.animate;
-  // 현재 VP: 우측 끝에서 목표 텍스트 폭(26px)만큼 안쪽에 배치
+  // 현재 승점: 우측 끝에서 목표 텍스트 폭(26px)만큼 안쪽에 배치
   refs.vpVal.style.fontSize = 13;
   refs.vpVal.x = CHIP_W - 28;  // 우측 끝(72) - 목표폭(26) - 여백(2) ≈ 44
   refs.vpVal.y = CHIP_H / 2;

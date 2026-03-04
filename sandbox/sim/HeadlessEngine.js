@@ -70,7 +70,7 @@ export function makeSimCard(def) {
  * @param {Map<string,object>} opts.cardMap
  * @param {string[]}           opts.marketIds   - 시장 카드 ID 배열
  * @param {number}             [opts.seed]
- * @param {number}             [opts.targetVp]  - 목표 VP (기본 18)
+ * @param {number}             [opts.targetVp]  - 목표 승점 (기본 18)
  */
 export function createHeadlessState({ cardMap, marketIds, seed, targetVp = 18 }) {
   const usedSeed = seed ?? (Date.now() & 0xffffffff);

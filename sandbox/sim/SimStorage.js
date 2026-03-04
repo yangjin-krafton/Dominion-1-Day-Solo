@@ -105,7 +105,7 @@ export class SimStorage {
     console.log('\n' + '─'.repeat(W));
     console.log('  🏆  도미니언 LLM 시뮬레이션 명예의 전당');
     console.log('─'.repeat(W));
-    console.log('  순위 | 날짜       | 플레이어           | 턴  | VP  | 호출  | 결과');
+    console.log('  순위 | 날짜       | 플레이어           | 턴  | 승점 | 호출  | 결과');
     console.log('─'.repeat(W));
     ranking.forEach((r, i) => {
       const rank   = String(i + 1).padStart(4);

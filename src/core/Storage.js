@@ -41,6 +41,24 @@ export function incrementGames() {
   _save(d);
 }
 
+// ─── 도감 언락 ────────────────────────────────────────────────
+
+/**
+ * 총 승리 횟수 반환 (= 현재 언락된 최대 unlock_order)
+ * unlock_order 0 카드는 항상 언락, 1~N은 wins >= N 이면 언락
+ */
+export function getWins() {
+  return _load().wins ?? 0;
+}
+
+/** 승리 시 호출 — wins++ 저장 */
+export function addWin() {
+  const d = _load();
+  d.wins = (d.wins ?? 0) + 1;
+  _save(d);
+  return d.wins;
+}
+
 // ─── 게임 기록 ────────────────────────────────────────────────
 
 /** 전체 게임 기록 반환 (최신순) */
@@ -69,7 +87,7 @@ export function addRecord(record) {
 }
 
 /**
- * VP 기준 내림차순 랭킹 반환
+ * 승점 기준 내림차순 랭킹 반환
  * @param {number} limit
  * @returns {{ id, date, vp, turns, durationSec }[]}
  */
