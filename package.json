@@ -2,13 +2,17 @@
   "name": "dominion-1-day-solo",
   "version": "0.1.0",
   "description": "도미니언 기본 규칙은 그대로. 혼자서도 덱이 돌아가는 맛을 매일 한 판씩 가볍게 즐기는 데일리 솔로 챌린지.",
+  "type": "module",
   "scripts": {
     "dev": "cd src && python -m http.server 8080",
     "build": "echo 'No build step required for static site'",
     "deploy": "gh-pages -d src",
     "audio:encode": "node sandbox/encode_audio_ogg.js",
     "audio:encode:keep-wav": "node sandbox/encode_audio_ogg.js --keep-wav",
-    "audio:regen": "node sandbox/generate_sfx.js && node sandbox/generate_bgm.js && npm run audio:encode"
+    "audio:regen": "node sandbox/generate_sfx.js && node sandbox/generate_bgm.js && npm run audio:encode",
+    "sim": "node sandbox/run-sim.js",
+    "sim:verbose": "node sandbox/run-sim.js --verbose",
+    "sim:ranking": "node sandbox/run-sim.js --ranking"
   },
   "keywords": [
     "dominion",

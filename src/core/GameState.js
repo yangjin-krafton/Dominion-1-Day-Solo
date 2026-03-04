@@ -36,6 +36,8 @@ export function createGameState() {
     cardsContainer: null,
     /** 게임 종료 턴 콜백 */
     onEndTurn: null,
+    /** 덱 셔플 시 호출 (브라우저: () => SFX.shuffle() | 시뮬: null) */
+    onShuffle: null,
   };
 }
 

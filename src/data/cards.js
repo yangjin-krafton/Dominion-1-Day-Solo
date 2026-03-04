@@ -97,6 +97,10 @@ function rowToCard(row) {
   };
 }
 
+// ── 내부 파서 export (Node.js/시뮬레이션 환경에서 재사용 가능) ──
+// CardDataLoader.js 가 readFileSync 로 CSV 텍스트를 읽은 뒤 직접 호출
+export { parseCSV, rowToCard };
+
 // ── 공개 API ─────────────────────────────────────────────────
 
 /**

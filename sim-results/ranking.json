@@ -1,0 +1,25 @@
+[
+  {
+    "id": 1772623345782,
+    "date": "2026-03-04",
+    "model": "qwen/qwen3.5-35b-a3b",
+    "seed": 42,
+    "turns": 16,
+    "vp": 18,
+    "targetVp": 18,
+    "won": true,
+    "reason": "vp_reached",
+    "totalBuys": 14,
+    "totalPlays": 45,
+    "llmCalls": 91,
+    "durationSec": 438,
+    "kingdom": [
+      "village",
+      "smithy",
+      "market",
+      "cellar",
+      "chapel",
+      "harbinger"
+    ]
+  }
+]

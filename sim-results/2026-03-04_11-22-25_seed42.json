@@ -1,0 +1,875 @@
+{
+  "seed": 42,
+  "turns": 16,
+  "vp": 18,
+  "targetVp": 18,
+  "totalBuys": 14,
+  "totalPlays": 45,
+  "kingdom": [
+    "village",
+    "smithy",
+    "market",
+    "cellar",
+    "chapel",
+    "harbinger"
+  ],
+  "turnHistory": [
+    {
+      "turn": 1,
+      "actions": [],
+      "vp": 3
+    },
+    {
+      "turn": 2,
+      "actions": [
+        {
+          "action": "end_turn"
+        },
+        {
+          "action": "play",
+          "card": "copper",
+          "reason": "코인 획득을 위해 재물 카드를 먼저 플레이하여 구매 가능 코인 확보 필요"
+        },
+        {
+          "action": "play",
+          "card": "copper",
+          "reason": "fallback:treasure"
+        },
+        {
+          "action": "buy",
+          "card": "chapel",
+          "reason": "초반 덱 정리 및 은/금 획득을 위한 Chapel(예배당) 구매 우선순위"
+        }
+      ],
+      "vp": 3
+    },
+    {
+      "turn": 3,
+      "actions": [
+        {
+          "action": "end_turn",
+          "reason": "행동 카드를 플레이할 수 없으며, 현재 코인이 부족하여 구매할 카드가 없다."
+        },
+        {
+          "action": "play",
+          "card": "copper",
+          "reason": "코인을 얻어 다음 턴에 은을 구매할 자금 마련 필요"
+        },
+        {
+          "action": "play",
+          "card": "copper",
+          "reason": "코인을 획득하여 은 (3 코인) 을 구매할 수 있도록 준비해야 함"
+        },
+        {
+          "action": "play",
+          "card": "copper",
+          "reason": "코인을 얻어 구매 가능 코인 증가, 은이나 금 획득 준비"
+        },
+        {
+          "action": "buy",
+          "card": "silver",
+          "reason": "Turn 3, 3 coins available. Buying silver establishes a stronger economy for future turns compared to buying estate or copper."
+        },
+        {
+          "action": "play",
+          "card": "copper",
+          "reason": "코인을 얻어 은을 구매하기 위해 동 카드를 플레이해야 합니다."
+        }
+      ],
+      "vp": 3
+    },
+    {
+      "turn": 4,
+      "actions": [
+        {
+          "action": "end_turn",
+          "reason": "손패에 행동 카드가 없어 추가 행동을 할 수 없으며, 코인이 부족해 구매할 카드도 없음."
+        },
+        {
+          "action": "play",
+          "card": "chapel",
+          "reason": "초반 Chaple 을 플레이하여 덱에서 승점 카드(Estate)를 제거하고, 덱을 얇게 하여 코인 카드를 더 빨리 끌어올립니다. 이후 은이나 금을 구매할 수 있도록 합니다."
+        },
+        {
+          "action": "resolve",
+          "resolution": {
+            "cards": [
+              "copper",
+              "estate"
+            ]
+          }
+        },
+        {
+          "action": "play",
+          "card": "copper",
+          "reason": "재물 카드를 플레이하여 코인을 확보한 후, 턴 종료 시점에 은을 구매하기 위한 준비를 합니다."
+        }
+      ],
+      "vp": 2
+    },
+    {
+      "turn": 5,
+      "actions": [
+        {
+          "action": "end_turn",
+          "reason": "현재 턴에 플레이할 카드가 없으며, 손패의 Estate는 구매력이 낮고, 은/금을 살 코인이 부족하여 턴을 종료하고 덱을 리셋하는 것이 효율적입니다."
+        },
+        {
+          "action": "play",
+          "card": "copper",
+          "reason": "코인을 획득하여 다음 턴에 은이나 금을 구매할 수 있도록 준비해야 합니다."
+        },
+        {
+          "action": "play",
+          "card": "copper",
+          "reason": "fallback:treasure"
+        },
+        {
+          "action": "play",
+          "card": "copper",
+          "reason": "코인을 얻어 구매 페이즈에 더 많은 카드를 살 수 있음"
+        },
+        {
+          "action": "buy",
+          "card": "silver",
+          "reason": "초반 전략에 따라 코인 기반을 강화하기 위해 은 (3코인) 을 구매합니다."
+        }
+      ],
+      "vp": 2
+    },
+    {
+      "turn": 6,
+      "actions": [
+        {
+          "action": "end_turn",
+          "reason": "행동 카드가 없어 추가 코인을 벌 수 없고, 이미 은을 구매했으므로 턴 종료"
+        },
+        {
+          "action": "play",
+          "card": "chapel",
+          "reason": "초반에 카드를 버려서 덱을 얇게 하고 다음 턴에 더 많은 행동을 할 수 있도록 준비해야 합니다."
+        },
+        {
+          "action": "resolve",
+          "resolution": {
+            "cards": [
+              "copper"
+            ]
+          }
+        },
+        {
+          "action": "play",
+          "card": "silver",
+          "reason": "은 카드를 플레이하여 코인을 확보한 후, 다음 턴에 더 좋은 카드를 구매하기 위함입니다."
+        },
+        {
+          "action": "play",
+          "card": "copper",
+          "reason": "코인 획득을 위해 동 카드 플레이"
+        },
+        {
+          "action": "buy",
+          "card": "silver",
+          "reason": "Turn 6, early game phase. Need to secure economy with Silver for future Gold purchases."
+        },
+        {
+          "action": "play",
+          "card": "copper",
+          "reason": "코인을 획득하여 다음 턴에 더 좋은 카드를 구매하기 위함"
+        }
+      ],
+      "vp": 2
+    },
+    {
+      "turn": 7,
+      "actions": [
+        {
+          "action": "end_turn",
+          "reason": "행동 카드가 없으며, 코인이 부족하여 구매할 카드가 없음."
+        },
+        {
+          "action": "play",
+          "card": "chapel",
+          "reason": "턴 초반에 Chapel 을 플레이하여 손패의 저주나 승점 카드를 버리고 덱을 얇게 하여 은/금 획득 속도를 높이는 것이 중반 이후 시너지 확보에 유리함."
+        },
+        {
+          "action": "resolve",
+          "resolution": {
+            "cards": [
+              "copper"
+            ]
+          }
+        },
+        {
+          "action": "play",
+          "card": "silver",
+          "reason": "은을 플레이하여 코인을 확보한 후 동을 플레이하고, 은을 구매할 수 있는 코인(3)을 얻기 위함"
+        },
+        {
+          "action": "play",
+          "card": "copper",
+          "reason": "코인을 획득하여 은(3코인) 또는 예배당(2코인) 구매 가능"
+        },
+        {
+          "action": "buy",
+          "card": "silver",
+          "reason": "Turn 7, early-mid game phase. Need to secure coin base for buying gold and duchy later. Silver provides +2 coins, crucial for reaching higher cost cards."
+        }
+      ],
+      "vp": 2
+    },
+    {
+      "turn": 8,
+      "actions": [
+        {
+          "action": "end_turn",
+          "reason": "구매할 카드 없음, 턴 종료"
+        },
+        {
+          "action": "play",
+          "card": "silver",
+          "reason": "코인을 획득하여 다음 카드 구매를 위해 재물 카드를 먼저 플레이해야 합니다."
+        },
+        {
+          "action": "play",
+          "card": "copper",
+          "reason": "코인 획득을 위해 동 카드 플레이 필요 (현재 코인 2, 은 1개 보유 중)"
+        },
+        {
+          "action": "play",
+          "card": "silver",
+          "reason": "은을 플레이하여 코인을 추가한 후, 은이나 마을 카드를 구매할 수 있도록 준비합니다."
+        },
+        {
+          "action": "play",
+          "card": "copper",
+          "reason": "코인 획득을 위해 동 카드를 플레이하여 은 또는 사유지 구매 가능"
+        },
+        {
+          "action": "buy",
+          "card": "duchy",
+          "reason": "중반 이후 승점 확보를 위해 공작령(5코인) 구매가 유리하며, 현재 코인 6으로 구매 가능하고 VP 목표에 근접"
+        }
+      ],
+      "vp": 5
+    },
+    {
+      "turn": 9,
+      "actions": [
+        {
+          "action": "end_turn",
+          "reason": "행동 카드가 없어 추가 행동 불가, 코인도 부족해 구매 불가, 턴 종료"
+        },
+        {
+          "action": "play",
+          "card": "chapel",
+          "reason": "Turn 9, early game. Chapel allows trashing up to 4 cards from hand for free. Trashing Copper and Estate will thin the deck significantly, improving future draw quality. This is a strong opening move to accelerate towards buying Silver/Gold."
+        },
+        {
+          "action": "resolve",
+          "resolution": {
+            "cards": [
+              "copper"
+            ]
+          }
+        },
+        {
+          "action": "play",
+          "card": "copper",
+          "reason": "구매를 위해 코인이 필요합니다. copper를 플레이하여 코인 1을 얻습니다."
+        },
+        {
+          "action": "buy",
+          "card": "copper",
+          "reason": "코인 1개만 있어 은(3)이나 금(6)을 구매할 수 없으며, 초반 덱 정리를 위해 동을 구매하여 덱을 두껍게 유지하는 것이 타당함"
+        }
+      ],
+      "vp": 5
+    },
+    {
+      "turn": 10,
+      "actions": [
+        {
+          "action": "end_turn",
+          "reason": "코인 1개만 있어 구매 가능한 카드가 없으며, 턴 종료 후 덱에서 카드를 뽑아 다음 턴을 준비해야 합니다."
+        },
+        {
+          "action": "play",
+          "card": "silver",
+          "reason": "구매를 위해 코인이 필요합니다. 은을 플레이해 2코인을 획득합니다."
+        },
+        {
+          "action": "play",
+          "card": "copper",
+          "reason": "코인 획득을 위해 동 카드 플레이 필요"
+        },
+        {
+          "action": "play",
+          "card": "silver",
+          "reason": "재물 카드를 먼저 플레이하여 코인 획득 후 구매 단계로 진행합니다."
+        },
+        {
+          "action": "buy",
+          "card": "duchy",
+          "reason": "공작령(5코인)을 구매하여 승점 확보 (현재 코인 5, 목표 VP 18에 가까워짐)"
+        }
+      ],
+      "vp": 8
+    },
+    {
+      "turn": 11,
+      "actions": [
+        {
+          "action": "end_turn",
+          "reason": "구매할 카드 없음, 턴 종료"
+        },
+        {
+          "action": "play",
+          "card": "chapel",
+          "reason": "손패에 은 3장이므로, 예배당을 통해 손패를 정리하고 덱을 얇게 유지하여 다음 턴 구매력을 높이는 것이 유리함."
+        },
+        {
+          "action": "resolve",
+          "resolution": {
+            "cards": [
+              "copper"
+            ]
+          }
+        },
+        {
+          "action": "play",
+          "card": "silver",
+          "reason": "손패에 은이 3장 있으므로, 코인을 얻어 구매 페이즈에서 더 좋은 카드를 살 수 있다."
+        },
+        {
+          "action": "buy",
+          "card": "chapel",
+          "reason": "초반 덱 정리용 Chapel 을 구매하여 은/금 획득 속도를 높임"
+        },
+        {
+          "action": "play",
+          "card": "silver",
+          "reason": "코인을 획득하여 다음 턴에 더 좋은 카드를 구매하기 위해 재물 카드를 플레이합니다."
+        }
+      ],
+      "vp": 8
+    },
+    {
+      "turn": 12,
+      "actions": [
+        {
+          "action": "end_turn",
+          "reason": "코인 2개만 있어 구매할 카드가 없음 (은 3코인 필요). 턴 종료하여 다음 턴에 더 많은 코인을 확보해야 함."
+        },
+        {
+          "action": "play",
+          "card": "silver",
+          "reason": "은 카드를 플레이하여 코인을 확보하고, 이후 동이나 다른 재물 카드로 추가 코인을 얻어 구매 가능하게 함"
+        },
+        {
+          "action": "play",
+          "card": "copper",
+          "reason": "코인을 얻어 구매할 수 있게 하기 위함"
+        },
+        {
+          "action": "buy",
+          "card": "silver",
+          "reason": "중반 전략에 따라 코인 기반을 강화하기 위해 은을 구매합니다."
+        },
+        {
+          "action": "play",
+          "card": "copper",
+          "reason": "코인 획득 후 은 구매를 위해 행동 카드 플레이 필요"
+        }
+      ],
+      "vp": 8
+    },
+    {
+      "turn": 13,
+      "actions": [
+        {
+          "action": "end_turn",
+          "reason": "현재 코인 1개로는 구매 가능한 카드가 없으므로 턴을 종료합니다."
+        },
+        {
+          "action": "play",
+          "card": "silver",
+          "reason": "코인을 얻어 구매 가능하게 하기 위함"
+        },
+        {
+          "action": "play",
+          "card": "copper",
+          "reason": "코인을 확보하여 구매 가능 금액 증가"
+        },
+        {
+          "action": "play",
+          "card": "silver",
+          "reason": "은을 플레이하여 코인을 획득한 후, 금(6코인)이나 공작령(5코인) 구매를 준비해야 합니다."
+        },
+        {
+          "action": "buy",
+          "card": "duchy",
+          "reason": "현재 코인 5로 공작령(5코인)을 구매할 수 있으며, 승점 확보가 시급한 상황입니다."
+        }
+      ],
+      "vp": 11
+    },
+    {
+      "turn": 14,
+      "actions": [
+        {
+          "action": "end_turn",
+          "reason": "행동 카드가 없어 추가 플레이 불가, 코인도 없어 구매 불가, 턴 종료"
+        },
+        {
+          "action": "play",
+          "card": "silver",
+          "reason": "재물을 먼저 플레이하여 코인을 확보하고, 이후 다른 재물과 행동을 이어 구매할 수 있음"
+        },
+        {
+          "action": "play",
+          "card": "chapel",
+          "reason": "손패의 저평가된 카드를 버려 덱을 얇게 하고, 이후 더 효율적인 구매를 위해 준비한다."
+        },
+        {
+          "action": "resolve",
+          "resolution": {
+            "trash": [
+              "copper"
+            ]
+          }
+        },
+        {
+          "action": "play",
+          "card": "silver",
+          "reason": "은을 플레이하여 코인을 확보한 후, 다음 턴에 금이나 공작령을 구매할 수 있도록 준비합니다."
+        },
+        {
+          "action": "play",
+          "card": "copper",
+          "reason": "재물 카드를 플레이하여 코인을 획득해야 구매가 가능하다."
+        },
+        {
+          "action": "buy",
+          "card": "duchy",
+          "reason": "공작령(5코인)은 승점 카드 중 가장 효율적이며, 현재 코인 5로 구매 가능하고 VP가 11에서 14로 증가하여 승리 근접"
+        }
+      ],
+      "vp": 14
+    },
+    {
+      "turn": 15,
+      "actions": [
+        {
+          "action": "end_turn",
+          "reason": "행동 카드가 없으며, 코인이 부족해 구매할 카드가 없음. 턴을 종료하여 다음 턴에 더 많은 자원을 확보해야 함."
+        },
+        {
+          "action": "play",
+          "card": "chapel",
+          "reason": "손패의 Estate 카드를 버려 덱을 얇게 하고, 추후 더 많은 행동을 할 수 있도록 준비합니다."
+        },
+        {
+          "action": "resolve",
+          "resolution": {
+            "cards": [
+              "copper"
+            ]
+          },
+          "reason": "초반 덱 정리를 위해 동 하나를 버림"
+        },
+        {
+          "action": "play",
+          "card": "silver",
+          "reason": "재물 카드를 플레이하여 코인을 획득하고, 이후 은 또는 금을 구매할 수 있도록 준비합니다."
+        },
+        {
+          "action": "buy",
+          "card": "estate",
+          "reason": "VP가 14로 목표 18에 가까워졌으며, 은과 금을 확보한 후 승점 카드를 구매해야 함. 현재 코인 2로 사유지(비용 2)를 구매하여 VP를 늘리는 것이 적절함."
+        }
+      ],
+      "vp": 15
+    }
+  ],
+  "actionLog": [
+    {
+      "turn": 2,
+      "event": "end_turn"
+    },
+    {
+      "turn": 2,
+      "event": "play",
+      "card": "copper"
+    },
+    {
+      "turn": 2,
+      "event": "play",
+      "card": "copper"
+    },
+    {
+      "turn": 2,
+      "event": "buy",
+      "card": "chapel",
+      "cost": 2
+    },
+    {
+      "turn": 3,
+      "event": "end_turn"
+    },
+    {
+      "turn": 3,
+      "event": "play",
+      "card": "copper"
+    },
+    {
+      "turn": 3,
+      "event": "play",
+      "card": "copper"
+    },
+    {
+      "turn": 3,
+      "event": "play",
+      "card": "copper"
+    },
+    {
+      "turn": 3,
+      "event": "buy",
+      "card": "silver",
+      "cost": 3
+    },
+    {
+      "turn": 3,
+      "event": "play",
+      "card": "copper"
+    },
+    {
+      "turn": 4,
+      "event": "end_turn"
+    },
+    {
+      "turn": 4,
+      "event": "play",
+      "card": "chapel"
+    },
+    {
+      "turn": 4,
+      "event": "play",
+      "card": "copper"
+    },
+    {
+      "turn": 5,
+      "event": "end_turn"
+    },
+    {
+      "turn": 5,
+      "event": "play",
+      "card": "copper"
+    },
+    {
+      "turn": 5,
+      "event": "play",
+      "card": "copper"
+    },
+    {
+      "turn": 5,
+      "event": "play",
+      "card": "copper"
+    },
+    {
+      "turn": 5,
+      "event": "buy",
+      "card": "silver",
+      "cost": 3
+    },
+    {
+      "turn": 6,
+      "event": "end_turn"
+    },
+    {
+      "turn": 6,
+      "event": "play",
+      "card": "chapel"
+    },
+    {
+      "turn": 6,
+      "event": "play",
+      "card": "silver"
+    },
+    {
+      "turn": 6,
+      "event": "play",
+      "card": "copper"
+    },
+    {
+      "turn": 6,
+      "event": "buy",
+      "card": "silver",
+      "cost": 3
+    },
+    {
+      "turn": 6,
+      "event": "play",
+      "card": "copper"
+    },
+    {
+      "turn": 7,
+      "event": "end_turn"
+    },
+    {
+      "turn": 7,
+      "event": "play",
+      "card": "chapel"
+    },
+    {
+      "turn": 7,
+      "event": "play",
+      "card": "silver"
+    },
+    {
+      "turn": 7,
+      "event": "play",
+      "card": "copper"
+    },
+    {
+      "turn": 7,
+      "event": "buy",
+      "card": "silver",
+      "cost": 3
+    },
+    {
+      "turn": 8,
+      "event": "end_turn"
+    },
+    {
+      "turn": 8,
+      "event": "play",
+      "card": "silver"
+    },
+    {
+      "turn": 8,
+      "event": "play",
+      "card": "copper"
+    },
+    {
+      "turn": 8,
+      "event": "play",
+      "card": "silver"
+    },
+    {
+      "turn": 8,
+      "event": "play",
+      "card": "copper"
+    },
+    {
+      "turn": 8,
+      "event": "buy",
+      "card": "duchy",
+      "cost": 5
+    },
+    {
+      "turn": 9,
+      "event": "end_turn"
+    },
+    {
+      "turn": 9,
+      "event": "play",
+      "card": "chapel"
+    },
+    {
+      "turn": 9,
+      "event": "play",
+      "card": "copper"
+    },
+    {
+      "turn": 9,
+      "event": "buy",
+      "card": "copper",
+      "cost": 0
+    },
+    {
+      "turn": 10,
+      "event": "end_turn"
+    },
+    {
+      "turn": 10,
+      "event": "play",
+      "card": "silver"
+    },
+    {
+      "turn": 10,
+      "event": "play",
+      "card": "copper"
+    },
+    {
+      "turn": 10,
+      "event": "play",
+      "card": "silver"
+    },
+    {
+      "turn": 10,
+      "event": "buy",
+      "card": "duchy",
+      "cost": 5
+    },
+    {
+      "turn": 11,
+      "event": "end_turn"
+    },
+    {
+      "turn": 11,
+      "event": "play",
+      "card": "chapel"
+    },
+    {
+      "turn": 11,
+      "event": "play",
+      "card": "silver"
+    },
+    {
+      "turn": 11,
+      "event": "buy",
+      "card": "chapel",
+      "cost": 2
+    },
+    {
+      "turn": 11,
+      "event": "play",
+      "card": "silver"
+    },
+    {
+      "turn": 12,
+      "event": "end_turn"
+    },
+    {
+      "turn": 12,
+      "event": "play",
+      "card": "silver"
+    },
+    {
+      "turn": 12,
+      "event": "play",
+      "card": "copper"
+    },
+    {
+      "turn": 12,
+      "event": "buy",
+      "card": "silver",
+      "cost": 3
+    },
+    {
+      "turn": 12,
+      "event": "play",
+      "card": "copper"
+    },
+    {
+      "turn": 13,
+      "event": "end_turn"
+    },
+    {
+      "turn": 13,
+      "event": "play",
+      "card": "silver"
+    },
+    {
+      "turn": 13,
+      "event": "play",
+      "card": "copper"
+    },
+    {
+      "turn": 13,
+      "event": "play",
+      "card": "silver"
+    },
+    {
+      "turn": 13,
+      "event": "buy",
+      "card": "duchy",
+      "cost": 5
+    },
+    {
+      "turn": 14,
+      "event": "end_turn"
+    },
+    {
+      "turn": 14,
+      "event": "play",
+      "card": "silver"
+    },
+    {
+      "turn": 14,
+      "event": "play",
+      "card": "chapel"
+    },
+    {
+      "turn": 14,
+      "event": "play",
+      "card": "silver"
+    },
+    {
+      "turn": 14,
+      "event": "play",
+      "card": "copper"
+    },
+    {
+      "turn": 14,
+      "event": "buy",
+      "card": "duchy",
+      "cost": 5
+    },
+    {
+      "turn": 15,
+      "event": "end_turn"
+    },
+    {
+      "turn": 15,
+      "event": "play",
+      "card": "chapel"
+    },
+    {
+      "turn": 15,
+      "event": "play",
+      "card": "silver"
+    },
+    {
+      "turn": 15,
+      "event": "buy",
+      "card": "estate",
+      "cost": 2
+    },
+    {
+      "turn": 16,
+      "event": "end_turn"
+    },
+    {
+      "turn": 16,
+      "event": "play",
+      "card": "silver"
+    },
+    {
+      "turn": 16,
+      "event": "play",
+      "card": "copper"
+    },
+    {
+      "turn": 16,
+      "event": "play",
+      "card": "silver"
+    },
+    {
+      "turn": 16,
+      "event": "buy",
+      "card": "duchy",
+      "cost": 5
+    }
+  ],
+  "model": "qwen/qwen3.5-35b-a3b",
+  "victory": {
+    "won": true,
+    "reason": "vp_reached",
+    "vp": 18
+  },
+  "durationMs": 437873,
+  "durationSec": 438,
+  "llmCalls": 91
+}

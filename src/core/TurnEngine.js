@@ -1,11 +1,11 @@
 // ============================================================
 // core/TurnEngine.js — 순수 게임 로직 엔진
-// PixiJS 의존 없음. 상태 변이만 담당.
+// PixiJS/SFX 의존 없음. 상태 변이만 담당.
 // 시각 업데이트는 콜백(gs.onUpdate)으로 main.js에 위임.
+// 오디오: gs.onShuffle 콜백으로 위임 (브라우저: SFX.shuffle, 시뮬: null)
 // ============================================================
 import { AREAS } from '../config.js';
 import { executeCardEffect } from './CardEffect.js';
-import { SFX } from '../asset/audio/sfx.js';
 
 // ─── 유틸 ─────────────────────────────────────────────────────
 /** Fisher-Yates 셔플 (in-place) */
@@ -28,7 +28,7 @@ export function drawCard(gs) {
     if (gs.discard.length === 0) return null;
     gs.deck    = [...gs.discard];
     gs.discard = [];
-    SFX.shuffle();
+    gs.onShuffle?.();   // 브라우저: SFX.shuffle() | 시뮬: null
     shuffle(gs.deck);
     // 덱 재생성 시 카드 area 복원
     gs.deck.forEach(c => { c.area = AREAS.DECK; });
@@ -110,9 +110,9 @@ export function gainCard(gs, def, makeCardFn, dest = 'discard') {
   slot.count--;
 
   const card = makeCardFn(def);
-  card.isFaceUp          = true;
-  card.frontFace.visible = true;
-  card.backFace.visible  = false;
+  card.isFaceUp = true;
+  if (card.frontFace) card.frontFace.visible = true;   // PIXI 환경에서만 적용
+  if (card.backFace)  card.backFace.visible  = false;
 
   if (dest === 'hand') {
     card.area = AREAS.HAND;
@@ -146,10 +146,10 @@ export function buyCard(gs, def, makeCardFn) {
   gs.coins -= def.cost;
 
   const card = makeCardFn(def);
-  card.area              = AREAS.DISCARD;
-  card.isFaceUp          = true;
-  card.frontFace.visible = true;
-  card.backFace.visible  = false;
+  card.area     = AREAS.DISCARD;
+  card.isFaceUp = true;
+  if (card.frontFace) card.frontFace.visible = true;   // PIXI 환경에서만 적용
+  if (card.backFace)  card.backFace.visible  = false;
   gs.discard.push(card);
 
   return { ok: true, card };

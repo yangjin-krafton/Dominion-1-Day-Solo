@@ -297,6 +297,7 @@ function _onEndTurn() {
 
 gs.onEndTurn    = _onEndTurn;
 gs.onScrollHand = () => _sync();
+gs.onShuffle    = () => SFX.shuffle();
 
 // ============================================================
 // 화면 상태 머신
