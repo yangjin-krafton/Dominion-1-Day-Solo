@@ -100,27 +100,67 @@ export function buildRankingTable(ranking, currentId = null, limit = 10) {
 }
 
 /**
- * 인게임 랭킹 버튼용 오버레이 — 타이틀 + 랭킹 + 닫기
- * 순환 의존 방지: RankingListPanel 대신 buildRankingTable을 직접 사용
+ * 인게임 랭킹 버튼용 오버레이 — 이 세팅 Top 5
  */
-import { ScreenOverlay }   from './ScreenOverlay.js';
+import { ScreenOverlay }  from './ScreenOverlay.js';
 import { buildTitlePanel } from './TitlePanel.js';
 import { buildActionPanel } from './ActionPanel.js';
+
+/** Top 5 랭킹 테이블 HTML — 순위·이름·승점·턴·날짜 */
+function _buildTop5Table(ranking, profileName) {
+  const SLOTS = 5;
+  let rows = '';
+  for (let i = 0; i < SLOTS; i++) {
+    const r    = ranking[i];
+    const rank = i === 0 ? '🏆' : `#${i + 1}`;
+    if (r) {
+      const m = Math.floor(r.durationSec / 60);
+      const s = r.durationSec % 60;
+      rows += `
+        <tr>
+          <td>${rank}</td>
+          <td class="ds-rank-name">${profileName ?? '—'}</td>
+          <td>${r.vp}&nbsp;승점</td>
+          <td>${r.turns}턴</td>
+          <td>${m}:${String(s).padStart(2, '0')}</td>
+          <td>${r.date}</td>
+        </tr>`;
+    } else {
+      rows += `
+        <tr class="ds-rank-empty">
+          <td>${rank}</td>
+          <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
+        </tr>`;
+    }
+  }
+  return `
+    <table class="ds-rank-table">
+      <thead>
+        <tr style="color:#7a5c0a;font-size:15px">
+          <td>순위</td><td>이름</td><td>승점</td><td>턴</td><td>시간</td><td>날짜</td>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
 
 export class RankingPanel {
   constructor() {
     this._overlay = new ScreenOverlay();
   }
 
-  show(ranking, currentId = null) {
+  /**
+   * @param {Array}       ranking      - getSetupRanking() 결과 (최대 5개)
+   * @param {string|null} profileName  - 유저 이름 (top5 진입 시 표시)
+   */
+  show(ranking, profileName = null) {
     if (this._overlay.visible) return;
 
-    // 랭킹 내용 패널 (buildRankingTable — 같은 파일이므로 순환 없음)
     const rankingEl = document.createElement('div');
     rankingEl.className = 'ds-panel';
     rankingEl.innerHTML = `
-      <div class="ds-divider">— 개인 랭킹 —</div>
-      ${buildRankingTable(ranking, currentId, 10)}
+      <div class="ds-divider">— 이 세팅 Top 5 —</div>
+      ${_buildTop5Table(ranking, profileName)}
     `;
 
     this._overlay.show([

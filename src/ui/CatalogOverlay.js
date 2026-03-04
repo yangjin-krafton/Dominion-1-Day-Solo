@@ -225,39 +225,29 @@ export function show(cardMap, opts = {}) {
     const target = _unlockTarget;
 
     _seq([
-      // 페이드인 대기
       done => setTimeout(done, 380),
 
       // 대상 카드로 스크롤
       done => _animScroll(
-        () => _curScrollY,
-        _applyScroll,
+        () => _curScrollY, _applyScroll,
         scrollH * 0.38 - target.cy - CAT_CH / 2,
-        minScrollY,
-        900,
-        done,
+        minScrollY, 900, done,
       ),
 
-      // 잠깐 멈춤 (긴장감)
-      done => setTimeout(done, 220),
+      done => setTimeout(done, 120),
 
-      // 자물쇠 흔들기
-      done => _animShake(target.lockOverlay, target.cx, 640, done),
+      // Phase 1: 카드 테두리 자기장 글로우 + 먼지 파티클
+      done => _animPreGlow(target.lockOverlay, scrollCont, 520, done),
 
-      // 자물쇠 파괴 + 빛 번쩍
-      done => _animShatter(
-        target.lockOverlay,
-        scrollCont,
-        _overlay,
-        () => _curScrollY,
-        500,
-        done,
-      ),
+      // Phase 2: 강한 흔들기 + 골든 스파크
+      done => _animShake(target.lockOverlay, target.cx, scrollCont, 680, done),
 
-      // 카드 flip 등장 + 골든 글로우
-      done => _animFlip(target.realCard, scrollCont, 900, done),
+      // Phase 3: 자물쇠 폭파 (링 버스트 + 파편 + 빛 플래시 + 방사형 빔)
+      done => _animShatter(target.lockOverlay, scrollCont, _overlay, () => _curScrollY, 620, done),
 
-      // 닫기 버튼 활성화
+      // Phase 4: 카드 elastic flip + 대각선 빛 슬라이드 + 상승 스파크
+      done => _animFlip(target.realCard, scrollCont, target.cx, target.cy, 1050, done),
+
       done => { _closeLocked = false; done(); },
     ]);
   }
@@ -294,7 +284,6 @@ function _animScroll(getY, applyScroll, targetY, minScrollY, duration, done) {
   const fromY = getY();
   const toY   = Math.max(minScrollY, Math.min(0, targetY));
   if (Math.abs(toY - fromY) < 2) { done(); return; }
-
   const t0 = Date.now();
   const _tick = () => {
     if (!_overlay) { done(); return; }
@@ -307,63 +296,200 @@ function _animScroll(getY, applyScroll, targetY, minScrollY, duration, done) {
   requestAnimationFrame(_tick);
 }
 
-/** 자물쇠 흔들기 */
-function _animShake(cont, originalX, duration, done) {
+// ─── Phase 1: 자기장 글로우 + 먼지 파티클 ──────────────────
+function _animPreGlow(lockOverlay, scrollCont, duration, done) {
   if (!_overlay) { done(); return; }
+
+  const cx = lockOverlay.x;
+  const cy = lockOverlay.y;
+
+  // 테두리 글로우 그래픽
+  const border = new PIXI.Graphics();
+  scrollCont.addChildAt(border, scrollCont.getChildIndex(lockOverlay));
+
+  // 공전 먼지 파티클 12개
+  const DUST = 12;
+  const dusts = Array.from({ length: DUST }, (_, i) => {
+    const gfx = new PIXI.Graphics();
+    gfx.beginFill(0xa060f0, 0.85);
+    gfx.drawCircle(0, 0, 1.8 + Math.random() * 2);
+    gfx.endFill();
+    gfx.blendMode = PIXI.BLEND_MODES.ADD;
+    gfx.alpha = 0;
+    scrollCont.addChild(gfx);
+    const baseAngle = (i / DUST) * Math.PI * 2;
+    const baseR     = CAT_CW * 0.52 + Math.random() * 10;
+    return { gfx, baseAngle, baseR };
+  });
+
   const t0 = Date.now();
   const _tick = () => {
-    if (!_overlay) { done(); return; }
-    const t = (Date.now() - t0) / duration;
-    cont.x = originalX + Math.sin(t * Math.PI * 14) * 6 * (1 - t);
-    if (t < 1) requestAnimationFrame(_tick);
-    else { cont.x = originalX; done(); }
+    if (!_overlay) {
+      try { scrollCont.removeChild(border); border.destroy(); } catch (_) {}
+      dusts.forEach(d => { try { scrollCont.removeChild(d.gfx); d.gfx.destroy(); } catch (_) {} });
+      done(); return;
+    }
+    const t     = Math.min((Date.now() - t0) / duration, 1);
+    const pulse = 0.35 + 0.55 * Math.abs(Math.sin(t * Math.PI * 3));  // 1.5 주기 펄스
+    const expand = 3 + t * 6;
+
+    // 외곽선 글로우: 보라 + 안쪽 골드 이중 링
+    border.clear();
+    border.lineStyle(2.5, 0x9040e8, pulse);
+    border.drawRoundedRect(cx - expand / 2, cy - expand / 2, CAT_CW + expand, CAT_CH + expand, 7);
+    border.lineStyle(1.2, 0xd4a820, pulse * 0.55);
+    border.drawRoundedRect(cx - 1, cy - 1, CAT_CW + 2, CAT_CH + 2, 4);
+
+    // 자물쇠 숨쉬기 스케일
+    lockOverlay.scale.set(1 + Math.sin(t * Math.PI * 5) * 0.025);
+
+    // 먼지 공전
+    const orbit = t * Math.PI * 1.5;
+    dusts.forEach((d, i) => {
+      const a = d.baseAngle + orbit;
+      const r = d.baseR + Math.sin(t * Math.PI * 4 + i * 0.8) * 5;
+      d.gfx.x     = cx + CAT_CW / 2 + Math.cos(a) * r;
+      d.gfx.y     = cy + CAT_CH / 2 + Math.sin(a) * r;
+      d.gfx.alpha = pulse * 0.65;
+      d.gfx.scale.set(0.6 + 0.5 * Math.abs(Math.sin(t * Math.PI * 7 + i)));
+    });
+
+    if (t < 1) {
+      requestAnimationFrame(_tick);
+    } else {
+      lockOverlay.scale.set(1);
+      try { scrollCont.removeChild(border); border.destroy(); } catch (_) {}
+      dusts.forEach(d => { try { scrollCont.removeChild(d.gfx); d.gfx.destroy(); } catch (_) {} });
+      done();
+    }
   };
   requestAnimationFrame(_tick);
 }
 
-/** 자물쇠 파괴 파티클 + 카드 화면 빛 번쩍 */
+// ─── Phase 2: 강한 흔들기 + 골든 스파크 ────────────────────
+function _animShake(lockOverlay, originalX, scrollCont, duration, done) {
+  if (!_overlay) { done(); return; }
+
+  const cx = lockOverlay.x;
+  const cy = lockOverlay.y;
+
+  // 사전 생성 스파크 (지연 있음)
+  const SPARK = 22;
+  const SPARK_COLORS = [0xd4a820, 0xffffff, 0xff8844, 0xa060f0, 0xffd040];
+  const sparks = Array.from({ length: SPARK }, (_, i) => {
+    const sz  = 2 + Math.random() * 4;
+    const gfx = new PIXI.Graphics();
+    gfx.beginFill(SPARK_COLORS[i % SPARK_COLORS.length], 0.92);
+    gfx.drawRect(-sz / 2, -sz / 2, sz, sz);
+    gfx.endFill();
+    gfx.blendMode = PIXI.BLEND_MODES.ADD;
+    gfx.alpha = 0;
+    scrollCont.addChild(gfx);
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 18 + Math.random() * 38;
+    return {
+      gfx,
+      sx: cx + CAT_CW / 2, sy: cy + CAT_CH * 0.38,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      delay: (i / SPARK) * 0.55,  // 전체 duration의 비율
+    };
+  });
+
+  const t0 = Date.now();
+  const _tick = () => {
+    if (!_overlay) {
+      sparks.forEach(s => { try { scrollCont.removeChild(s.gfx); s.gfx.destroy(); } catch (_) {} });
+      done(); return;
+    }
+    const t = Math.min((Date.now() - t0) / duration, 1);
+
+    // 흔들기: 종 모양 엔벨롭 + 증가하는 주파수
+    const intensity = Math.sin(t * Math.PI) * 10;
+    const freq      = 13 + t * 9;
+    lockOverlay.x        = originalX + Math.sin(t * Math.PI * freq) * intensity;
+    lockOverlay.rotation = Math.sin(t * Math.PI * (freq * 0.65)) * 0.09 * Math.sin(t * Math.PI);
+
+    // 스파크 위치
+    sparks.forEach(s => {
+      const localT = t - s.delay;
+      if (localT < 0) return;
+      const dt = localT * duration / 1000;
+      s.gfx.x        = s.sx + s.vx * dt;
+      s.gfx.y        = s.sy + s.vy * dt;
+      s.gfx.rotation += 0.14;
+      s.gfx.alpha    = Math.max(0, (1 - localT / (1 - s.delay)) * 0.88);
+    });
+
+    if (t < 1) {
+      requestAnimationFrame(_tick);
+    } else {
+      lockOverlay.x        = originalX;
+      lockOverlay.rotation = 0;
+      sparks.forEach(s => { try { scrollCont.removeChild(s.gfx); s.gfx.destroy(); } catch (_) {} });
+      done();
+    }
+  };
+  requestAnimationFrame(_tick);
+}
+
+// ─── Phase 3: 자물쇠 폭파 (링 + 파편 + 빔 + 플래시) ────────
 function _animShatter(lockOverlay, scrollCont, overlay, getScrollY, duration, done) {
   if (!_overlay) { done(); return; }
 
-  // 파티클 발생 위치 (오버레이 공간)
-  const wx = lockOverlay.x + CAT_CW / 2;
-  const wy = HEADER_H + getScrollY() + lockOverlay.y + CAT_CH * 0.38;
+  const lockCX = lockOverlay.x + CAT_CW / 2;
+  const lockCY = HEADER_H + getScrollY() + lockOverlay.y + CAT_CH * 0.38;
+  const cardTop = HEADER_H + getScrollY() + lockOverlay.y;
 
-  const FRAG_COLORS = [0xd4a820, 0xf08820, 0xa040d8, 0xffffff, 0xf04040];
-  const frags = Array.from({ length: 16 }, () => {
+  // 링 버스트 (2개, overlay 공간)
+  const ring1 = new PIXI.Graphics();  overlay.addChild(ring1);
+  const ring2 = new PIXI.Graphics();  overlay.addChild(ring2);
+
+  // 방사형 빔 라인
+  const beams = new PIXI.Graphics(); overlay.addChild(beams);
+
+  // 파편 파티클 24개
+  const FRAG_COLORS = [0xd4a820, 0xf08820, 0xffffff, 0xa040d8, 0xf04040, 0x60c0ff, 0xffd040];
+  const frags = Array.from({ length: 24 }, (_, i) => {
     const s   = 3 + Math.random() * 9;
     const gfx = new PIXI.Graphics();
-    gfx.beginFill(FRAG_COLORS[Math.floor(Math.random() * FRAG_COLORS.length)]);
-    gfx.drawRect(-s / 2, -s / 2, s, s);
+    gfx.beginFill(FRAG_COLORS[i % FRAG_COLORS.length], 0.95);
+    if (i % 3 === 0) gfx.drawCircle(0, 0, s / 2);
+    else             gfx.drawRect(-s / 2, -s / 2, s, s);
     gfx.endFill();
-    gfx.x = wx; gfx.y = wy;
+    gfx.blendMode = PIXI.BLEND_MODES.ADD;
     overlay.addChild(gfx);
-    const angle = Math.random() * Math.PI * 2;
-    const speed = 70 + Math.random() * 160;
-    return { gfx, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed };
+    const angle = (i / 24) * Math.PI * 2 + Math.random() * 0.4;
+    const speed = 70 + Math.random() * 190;
+    const gravity = 280 + Math.random() * 180;
+    return {
+      gfx,
+      sx: lockCX + (Math.random() - 0.5) * 12,
+      sy: lockCY + (Math.random() - 0.5) * 12,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      gravity,
+      rot: (Math.random() - 0.5) * 10,
+    };
   });
 
-  // 카드 크기 흰 번쩍임 (오버레이 공간)
+  // 카드 사이즈 화이트 플래시 (ADD 블렌드)
   const flash = new PIXI.Graphics();
   flash.beginFill(0xffffff, 1);
-  flash.drawRoundedRect(
-    lockOverlay.x,
-    HEADER_H + getScrollY() + lockOverlay.y,
-    CAT_CW, CAT_CH, 4,
-  );
+  flash.drawRoundedRect(lockOverlay.x, cardTop, CAT_CW, CAT_CH, 4);
   flash.endFill();
+  flash.blendMode = PIXI.BLEND_MODES.ADD;
   overlay.addChild(flash);
 
-  // 자물쇠 오버레이 즉시 제거
+  // 자물쇠 즉시 제거
   scrollCont.removeChild(lockOverlay);
   lockOverlay.destroy({ children: true });
 
   let _done = false;
   const _finish = () => {
-    if (_done) return;
-    _done = true;
+    if (_done) return; _done = true;
+    [ring1, ring2, beams, flash].forEach(g => { try { overlay.removeChild(g); g.destroy(); } catch (_) {} });
     frags.forEach(f => { try { overlay.removeChild(f.gfx); f.gfx.destroy(); } catch (_) {} });
-    try { overlay.removeChild(flash); flash.destroy(); } catch (_) {}
     done();
   };
 
@@ -372,55 +498,146 @@ function _animShatter(lockOverlay, scrollCont, overlay, getScrollY, duration, do
     if (!_overlay) { _finish(); return; }
     const t  = Math.min((Date.now() - t0) / duration, 1);
     const dt = (Date.now() - t0) / 1000;
-    for (const f of frags) {
-      f.gfx.x = wx + f.vx * dt;
-      f.gfx.y = wy + f.vy * dt + 0.5 * 520 * dt * dt;
-      f.gfx.alpha = 1 - t;
+
+    // 링1: 빠른 금색 팽창
+    ring1.clear();
+    ring1.lineStyle(3.5 * (1 - t), 0xd4a820, Math.max(0, 1 - t * 1.4));
+    ring1.drawCircle(lockCX, lockCY, t * CAT_CW * 0.92);
+
+    // 링2: 느린 보라 팽창
+    ring2.clear();
+    ring2.lineStyle(2 * (1 - t), 0xa060f0, Math.max(0, 1 - t * 2.2));
+    ring2.drawCircle(lockCX, lockCY, t * CAT_CW * 0.52);
+
+    // 방사형 빔 (초반 0.35 동안)
+    beams.clear();
+    if (t < 0.35) {
+      const beamAlpha = (1 - t / 0.35) * 0.55;
+      const beamLen   = (t / 0.35) * CAT_CW * 0.8;
+      beams.lineStyle(1.8, 0xffeeaa, beamAlpha);
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        beams.moveTo(lockCX, lockCY);
+        beams.lineTo(lockCX + Math.cos(a) * beamLen, lockCY + Math.sin(a) * beamLen);
+      }
     }
-    flash.alpha = Math.max(0, 1 - t * 2);  // 앞 절반에 빠르게 사라짐
+
+    // 파편 물리
+    frags.forEach(f => {
+      f.gfx.x        = f.sx + f.vx * dt;
+      f.gfx.y        = f.sy + f.vy * dt + 0.5 * f.gravity * dt * dt;
+      f.gfx.rotation = f.rot * dt;
+      f.gfx.alpha    = Math.max(0, 1 - t * 1.9);
+    });
+
+    // 플래시 빠르게 소멸
+    flash.alpha = Math.max(0, 1 - t * 3.2);
+
     if (t < 1) requestAnimationFrame(_tick);
     else _finish();
   };
   requestAnimationFrame(_tick);
 }
 
-/** 카드 flip 등장 + 골든 글로우 */
-function _animFlip(realCard, scrollCont, duration, done) {
+// ─── Phase 4: Elastic flip + 대각선 빛 슬라이드 + 상승 스파크
+function _animFlip(realCard, scrollCont, cx, cy, duration, done) {
   if (!_overlay) { done(); return; }
 
-  // 카드 뒤에 골든 글로우 삽입
+  // 골든 글로우 (카드 뒤)
   const glow = new PIXI.Graphics();
-  glow.beginFill(0xd4a820, 0.6);
-  glow.drawRoundedRect(
-    realCard.x - 10, realCard.y - 10,
-    CAT_CW + 20, CAT_CH + 20, 10,
-  );
+  glow.beginFill(0xd4a820, 0.55);
+  glow.drawRoundedRect(cx - 12, cy - 12, CAT_CW + 24, CAT_CH + 24, 10);
   glow.endFill();
+  glow.blendMode = PIXI.BLEND_MODES.ADD;
   glow.alpha = 0;
-  const idx = scrollCont.getChildIndex(realCard);
-  scrollCont.addChildAt(glow, idx);
+  scrollCont.addChildAt(glow, scrollCont.getChildIndex(realCard));
 
-  // 카드를 edge-on 상태에서 시작
+  // 대각선 빛 줄기 (카드 좌→우 sweep)
+  const shine = new PIXI.Graphics();
+  shine.beginFill(0xffffff, 0.65);
+  shine.drawRect(-26, 0, 52, CAT_CH * 1.5);
+  shine.endFill();
+  shine.rotation  = Math.PI / 6;
+  shine.blendMode = PIXI.BLEND_MODES.ADD;
+  shine.alpha = 0;
+  shine.y = cy - CAT_CH * 0.15;
+  scrollCont.addChild(shine);
+
+  // 상승 반짝이 파티클 (flip 완료 후 등장)
+  const SPARK = 18;
+  const SPARK_COLORS = [0xd4a820, 0xffffff, 0xffd040, 0xa060ff, 0xffa040];
+  const sparks = Array.from({ length: SPARK }, (_, i) => {
+    const sz  = 2 + Math.random() * 4;
+    const gfx = new PIXI.Graphics();
+    gfx.beginFill(SPARK_COLORS[i % SPARK_COLORS.length], 0.9);
+    gfx.drawCircle(0, 0, sz / 2);
+    gfx.endFill();
+    gfx.blendMode = PIXI.BLEND_MODES.ADD;
+    gfx.alpha = 0;
+    scrollCont.addChild(gfx);
+    return {
+      gfx,
+      sx: cx + CAT_CW * (0.08 + Math.random() * 0.84),
+      sy: cy + CAT_CH * (0.4 + Math.random() * 0.5),
+      vx: (Math.random() - 0.5) * 44,
+      vy: -(28 + Math.random() * 72),
+      gravity: 70 + Math.random() * 60,
+      delay: 0.48 + Math.random() * 0.18,
+    };
+  });
+
   realCard.scale.x = 0;
 
   const t0 = Date.now();
   const _tick = () => {
-    if (!_overlay) { done(); return; }
-    const t    = Math.min((Date.now() - t0) / duration, 1);
-    const ease = 1 - (1 - t) ** 3;  // easeOut cubic
+    if (!_overlay) {
+      [glow, shine].forEach(g => { try { scrollCont.removeChild(g); g.destroy(); } catch (_) {} });
+      sparks.forEach(s => { try { scrollCont.removeChild(s.gfx); s.gfx.destroy(); } catch (_) {} });
+      done(); return;
+    }
+    const t = Math.min((Date.now() - t0) / duration, 1);
 
-    realCard.scale.x = ease * CAT_SCALE;
-    glow.alpha       = Math.sin(t * Math.PI) * 0.75;  // 0 → 0.75 → 0
+    // Elastic scaleX
+    realCard.scale.x = _easeElastic(t) * CAT_SCALE;
+
+    // 글로우: sin 펄스
+    glow.alpha = Math.sin(t * Math.PI) * 0.7;
+
+    // shine sweep: t=0.18 ~ 0.72 사이
+    const shineT = (t - 0.18) / 0.54;
+    if (shineT >= 0 && shineT <= 1) {
+      shine.x     = cx - 50 + shineT * (CAT_CW + 100);
+      shine.alpha = Math.sin(shineT * Math.PI) * 0.52;
+    } else {
+      shine.alpha = 0;
+    }
+
+    // 상승 스파크
+    sparks.forEach(s => {
+      if (t < s.delay) return;
+      const dt = (t - s.delay) * duration / 1000;
+      s.gfx.x     = s.sx + s.vx * dt;
+      s.gfx.y     = s.sy + s.vy * dt + 0.5 * s.gravity * dt * dt;
+      s.gfx.alpha = Math.max(0, (1 - (t - s.delay) / (1 - s.delay)) * 0.88);
+    });
 
     if (t < 1) {
       requestAnimationFrame(_tick);
     } else {
       realCard.scale.x = CAT_SCALE;
-      try { scrollCont.removeChild(glow); glow.destroy(); } catch (_) {}
+      [glow, shine].forEach(g => { try { scrollCont.removeChild(g); g.destroy(); } catch (_) {} });
+      sparks.forEach(s => { try { scrollCont.removeChild(s.gfx); s.gfx.destroy(); } catch (_) {} });
       done();
     }
   };
   requestAnimationFrame(_tick);
+}
+
+/** Elastic easing — 1.1 오버슈트 후 1.0 안착 */
+function _easeElastic(t) {
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+  return Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * (2 * Math.PI / 3)) + 1;
 }
 
 // ============================================================

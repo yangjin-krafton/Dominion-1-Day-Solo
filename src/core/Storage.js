@@ -97,6 +97,19 @@ export function getRanking(limit = 10) {
     .slice(0, limit);
 }
 
+/**
+ * 특정 킹덤 세팅의 Top N 랭킹 반환
+ * @param {string[]} kingdomIds  현재 게임의 킹덤 카드 ID 목록
+ * @param {number}   limit
+ */
+export function getSetupRanking(kingdomIds, limit = 5) {
+  const key = [...kingdomIds].sort().join(',');
+  return (_load().records ?? [])
+    .filter(r => r.kingdom?.length && [...r.kingdom].sort().join(',') === key)
+    .sort((a, b) => b.vp - a.vp || a.turns - b.turns)
+    .slice(0, limit);
+}
+
 /** 오늘 날짜(YYYY-MM-DD) 기록만 반환 */
 export function getTodayRecords() {
   const today = new Date().toISOString().split('T')[0];

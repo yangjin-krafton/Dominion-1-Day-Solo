@@ -113,7 +113,11 @@ const gs = {
   cardsContainer: lCards,
   onEndTurn:    null,
   onScrollHand: null,
-  onOpenRanking:  () => _rankingPanel.show(Storage.getRanking(10)),
+  onOpenRanking:  () => {
+    const top5 = Storage.getSetupRanking(_activeKingdomIds, 5);
+    const name = Storage.getProfile()?.name ?? null;
+    _rankingPanel.show(top5, name);
+  },
   onOpenCatalog:  () => CatalogOverlay.show(_cardMap),
   onOpenVolume:   () => console.log('[UI] 음량설정 (준비 중)'),
 };

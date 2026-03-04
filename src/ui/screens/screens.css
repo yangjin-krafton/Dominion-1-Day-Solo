@@ -296,6 +296,8 @@
 .ds-rank-table td:first-child { color: #7a5c0a; }
 .ds-rank-me td  { color: #d4a520 !important; font-weight: bold; }
 .ds-rank-me td:first-child { color: #ffe066 !important; }
+.ds-rank-name   { color: #ffe066; font-weight: bold; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-rank-empty td { opacity: 0.3; }
 /* 1위 행 특별 배경 */
 .ds-rank-table tr:first-child td {
   background: rgba(212,165,32,0.04);
