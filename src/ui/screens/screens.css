@@ -3,6 +3,14 @@
    ProfileScreen / HomeScreen / ResultScreen
    ============================================================ */
 
+/* ── 파티클 캔버스 ──────────────────────────────────────────── */
+.ds-particles-canvas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
 /* ── 오버레이 배경 ──────────────────────────────────────────── */
 .ds-screen {
   position: fixed;
@@ -13,54 +21,97 @@
   justify-content: center;
   z-index: 1000;
   font-family: 'Georgia', serif;
-  animation: ds-fadein 0.25s ease-out;
+  animation: ds-fadein 0.28s ease-out;
+  overflow: hidden;
 }
 
 @keyframes ds-fadein {
-  from { opacity: 0; transform: scale(0.97); }
+  from { opacity: 0; transform: scale(0.96); }
   to   { opacity: 1; transform: scale(1);    }
 }
 
 /* ── 카드 패널 ──────────────────────────────────────────────── */
 .ds-card {
-  background: #110d20;
+  position: relative;
+  z-index: 1;
+  /* 인게임 배경과 동일한 다이아몬드 격자 패턴 */
+  background:
+    repeating-linear-gradient( 45deg, transparent, transparent 13px, rgba(212,165,32,0.035) 13px, rgba(212,165,32,0.035) 14px),
+    repeating-linear-gradient(-45deg, transparent, transparent 13px, rgba(212,165,32,0.035) 13px, rgba(212,165,32,0.035) 14px),
+    #110d20;
   border: 1.5px solid #d4a520;
+  /* 이중 내부선 장식 */
+  outline: 1px solid rgba(212,165,32,0.13);
+  outline-offset: -9px;
   width: min(390px, 98vw);
   padding: 28px 16px 24px;
   text-align: center;
-  box-shadow: 0 0 40px rgba(212, 165, 32, 0.12);
+  box-shadow:
+    0 0 80px rgba(212,165,32,0.20),
+    0 0 24px rgba(153,51,204,0.10),
+    inset 0 0 60px rgba(212,165,32,0.03);
   max-height: 92vh;
   overflow-y: auto;
+}
+
+/* ── 패널 구분 ──────────────────────────────────────────────── */
+/* 연속 패널 사이에 미세한 구분선 */
+.ds-panel + .ds-panel {
+  border-top: 1px solid rgba(212,165,32,0.07);
+  padding-top: 2px;
+  margin-top: 2px;
 }
 
 /* ── 타이포그래피 ───────────────────────────────────────────── */
 .ds-title {
   color: #d4a520;
-  font-size: 26px;
+  font-size: 42px;
   font-style: italic;
   font-weight: bold;
   margin-bottom: 4px;
-  letter-spacing: 1px;
+  letter-spacing: 3px;
+  animation: ds-title-glow 4s ease-in-out infinite;
+}
+
+@keyframes ds-title-glow {
+  0%, 100% { text-shadow: 0 0 12px rgba(212,165,32,0.25), 0 2px 4px rgba(0,0,0,0.8); }
+  50%       { text-shadow: 0 0 28px rgba(212,165,32,0.55), 0 0 50px rgba(212,165,32,0.15), 0 2px 4px rgba(0,0,0,0.8); }
 }
 
 .ds-subtitle {
   color: #aa9966;
-  font-size: 12px;
+  font-size: 18px;
   margin-bottom: 18px;
+  letter-spacing: 1.5px;
 }
 
 .ds-label {
   color: #7a5c0a;
-  font-size: 11px;
+  font-size: 17px;
   margin-bottom: 8px;
   font-style: italic;
+  letter-spacing: 1px;
 }
 
+/* 골드 그라디언트 라인 + 텍스트 장식 */
 .ds-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   color: #7a5c0a;
-  font-size: 11px;
+  font-size: 17px;
   margin: 14px 0;
-  letter-spacing: 4px;
+  letter-spacing: 3px;
+}
+.ds-divider::before,
+.ds-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, transparent, #7a5c0a 70%, transparent);
+}
+.ds-divider::after {
+  background: linear-gradient(to left, transparent, #7a5c0a 70%, transparent);
 }
 
 /* ── 입력 ───────────────────────────────────────────────────── */
@@ -71,41 +122,53 @@
   color: #fff3d6;
   padding: 11px 14px;
   font-family: 'Georgia', serif;
-  font-size: 15px;
+  font-size: 22px;
   margin-bottom: 20px;
   outline: none;
   box-sizing: border-box;
   transition: border-color 0.2s;
 }
-.ds-input:focus { border-color: #d4a520; }
-.ds-input::placeholder { color: #554433; }
+.ds-input:focus {
+  border-color: #d4a520;
+  box-shadow: 0 0 12px rgba(212,165,32,0.20), inset 0 0 6px rgba(212,165,32,0.04);
+}
+.ds-input::placeholder { color: #3a2a40; }
 
 /* ── 버튼 ───────────────────────────────────────────────────── */
 .ds-btn {
-  background: #1a1030;
+  background: linear-gradient(135deg, #1e1240 0%, #140c30 100%);
   border: 1.5px solid #d4a520;
   color: #d4a520;
-  padding: 12px 28px;
+  padding: 13px 28px;
   font-family: 'Georgia', serif;
-  font-size: 15px;
+  font-size: 22px;
   font-style: italic;
   cursor: pointer;
   width: 100%;
-  transition: background 0.18s;
+  letter-spacing: 1px;
+  transition: background 0.2s, box-shadow 0.2s;
+  box-shadow: 0 0 10px rgba(212,165,32,0.08);
 }
-.ds-btn:hover { background: #281a48; }
+.ds-btn:hover {
+  background: linear-gradient(135deg, #2e1a54 0%, #1e1040 100%);
+  box-shadow: 0 0 18px rgba(212,165,32,0.22), inset 0 0 12px rgba(212,165,32,0.05);
+}
 
 .ds-btn-s {
   background: transparent;
-  border: 1px solid #554433;
-  color: #aa9966;
+  border: 1px solid #3a2a50;
+  color: #7a6a8a;
   padding: 10px 16px;
   font-family: 'Georgia', serif;
-  font-size: 13px;
+  font-size: 20px;
   cursor: pointer;
-  transition: border-color 0.18s;
+  transition: border-color 0.18s, color 0.18s, box-shadow 0.18s;
 }
-.ds-btn-s:hover { border-color: #d4a520; color: #d4a520; }
+.ds-btn-s:hover {
+  border-color: #d4a520;
+  color: #d4a520;
+  box-shadow: 0 0 10px rgba(212,165,32,0.12);
+}
 
 .ds-btn-row {
   display: flex;
@@ -127,43 +190,61 @@
   border: 1px solid #5a3a9a;
   border-radius: 8px;
 }
-.ds-unlock-icon  { font-size: 22px; }
-.ds-unlock-name  { font-size: 16px; font-weight: bold; color: #c8a8f0; letter-spacing: 1px; }
-.ds-unlock-sub   { font-size: 11px; color: #8a6ab0; }
+.ds-unlock-icon  { font-size: 33px; }
+.ds-unlock-name  { font-size: 24px; font-weight: bold; color: #c8a8f0; letter-spacing: 1px; }
+.ds-unlock-sub   { font-size: 17px; color: #8a6ab0; }
 
 /* ── 홈화면 목표 승점 블록 ──────────────────────────────────── */
 .ds-home-target {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   margin: 10px 0 16px;
-  padding: 12px 0;
-  border-top: 1px solid #1a1030;
-  border-bottom: 1px solid #1a1030;
+  padding: 14px 0;
+  border-top: 1px solid rgba(212,165,32,0.15);
+  border-bottom: 1px solid rgba(212,165,32,0.15);
+  /* 상단 은은한 빛 번짐 */
+  background: radial-gradient(ellipse 70% 50% at 50% 50%, rgba(212,165,32,0.04) 0%, transparent 100%);
 }
 .ds-home-target-label {
-  font-size: 10px;
+  font-size: 15px;
   color: #7a5c0a;
   font-style: italic;
-  letter-spacing: 2px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
 }
 .ds-home-target-vp {
-  font-size: 52px;
+  font-size: 84px;
   font-weight: bold;
   color: #d4a520;
   line-height: 1;
   font-family: Georgia, serif;
+  animation: ds-vp-pulse 3.5s ease-in-out infinite;
+}
+@keyframes ds-vp-pulse {
+  0%, 100% { text-shadow: 0 0 16px rgba(212,165,32,0.30); }
+  50%       { text-shadow: 0 0 36px rgba(212,165,32,0.65), 0 0 60px rgba(212,165,32,0.20); }
 }
 .ds-home-target-unit {
-  font-size: 20px;
-  color: #aa9966;
-  margin-left: 4px;
+  font-size: 30px;
+  color: #7a5c0a;
+  margin-left: 6px;
   vertical-align: middle;
+  letter-spacing: 2px;
 }
 
 /* ── 홈화면 시장/킹덤 ───────────────────────────────────────── */
 .ds-kingdom { margin: 14px 0; }
+
+/* 게임 번호 시드 코드 */
+.ds-seed-code {
+  font-family: 'Courier New', monospace;
+  font-size: 17px;
+  color: #d4a520;
+  letter-spacing: 3px;
+  opacity: 0.75;
+}
 
 /* ── 홈화면 랭킹 테이블 특수 행 ─────────────────────────────── */
 /* 빈 자리 행 (아직 달성 기록 없음) */
@@ -187,21 +268,38 @@
 
 /* ── 결과화면 ───────────────────────────────────────────────── */
 .ds-result-main { margin: 12px 0 6px; }
-.ds-big-vp      { display: block; font-size: 60px; color: #d4a520; font-weight: bold; line-height: 1; }
-.ds-big-label   { font-size: 13px; color: #aa9966; }
-.ds-meta        { color: #7a5c0a; font-size: 12px; margin-bottom: 16px; font-style: italic; }
+.ds-big-vp {
+  display: block;
+  font-size: 96px;
+  color: #d4a520;
+  font-weight: bold;
+  line-height: 1;
+  text-shadow: 0 0 30px rgba(212,165,32,0.50), 0 2px 6px rgba(0,0,0,0.9);
+}
+.ds-big-label   { font-size: 20px; color: #7a5c0a; letter-spacing: 3px; }
+.ds-meta        { color: #554433; font-size: 18px; margin-bottom: 16px; font-style: italic; }
 
 .ds-rank-table  { width: 100%; border-collapse: collapse; margin: 8px 0; }
 .ds-rank-table td {
-  padding: 6px 8px;
-  font-size: 12px;
-  color: #aa9966;
-  border-bottom: 1px solid #1a1030;
+  padding: 8px 8px;
+  font-size: 18px;
+  color: #8a7a60;
+  border-bottom: 1px solid rgba(212,165,32,0.06);
   text-align: center;
+  transition: background 0.15s;
+}
+/* 랭킹 행 호버 — 은은한 골드 하이라이트 */
+.ds-rank-table tr:not(.ds-rank-me):hover td {
+  background: rgba(212,165,32,0.05);
+  color: #aa9966;
 }
 .ds-rank-table td:first-child { color: #7a5c0a; }
 .ds-rank-me td  { color: #d4a520 !important; font-weight: bold; }
 .ds-rank-me td:first-child { color: #ffe066 !important; }
+/* 1위 행 특별 배경 */
+.ds-rank-table tr:first-child td {
+  background: rgba(212,165,32,0.04);
+}
 
 /* ── 랭킹 시장카드 서브행 ───────────────────────────────────── */
 .ds-rank-setup td {
@@ -228,17 +326,20 @@
   border-radius: 3px;
   overflow: hidden;
   box-sizing: border-box;
-  /* 오른쪽 카드가 왼쪽 위로 겹침 */
   margin-left: -16px;
-  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.55);
-  transition: transform 0.15s ease, z-index 0s;
+  box-shadow: -2px 0 6px rgba(0,0,0,0.65);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 .ds-mini-card:first-child { margin-left: 0; }
 
-/* 마우스 오버 시 살짝 위로 */
+/* 호버 — 위로 팝 + 타입 컬러 글로우 */
 .ds-mini-card:hover {
-  transform: translateY(-6px);
+  transform: translateY(-8px) scale(1.06);
   z-index: 10;
+  box-shadow:
+    -2px 0 6px rgba(0,0,0,0.65),
+    0 0 14px rgba(212,165,32,0.35),
+    0 4px 16px rgba(0,0,0,0.6);
 }
 
 /* ── 도감 화면 ──────────────────────────────────────────────── */

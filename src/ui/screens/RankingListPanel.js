@@ -80,8 +80,8 @@ function _buildSetupHtml(records, kingdomIds, profile) {
     <div class="ds-divider">— 이 세팅 랭킹 —</div>
     <table class="ds-rank-table">
       <thead>
-        <tr style="color:#7a5c0a;font-size:10px">
-          <td style="width:30px">순위</td><td>이름</td><td>승점</td>
+        <tr style="color:#7a5c0a;font-size:15px">
+          <td style="width:40px">순위</td><td>이름</td><td>승점</td>
         </tr>
       </thead>
       <tbody>${top5Rows}${padRows}${sixthRow}</tbody>

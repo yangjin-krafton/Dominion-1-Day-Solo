@@ -28,6 +28,7 @@ import { HomeScreen }                          from './ui/screens/HomeScreen.js'
 import { ResultScreen }                        from './ui/screens/ResultScreen.js';
 import { RankingPanel }                        from './ui/screens/RankingPanel.js';
 import * as CatalogOverlay                     from './ui/CatalogOverlay.js';
+import * as VictoryCelebration                 from './ui/VictoryCelebration.js';
 
 // ── data ───────────────────────────────────────────────────
 import { loadCards, resolveCards } from './data/cards.js';
@@ -86,6 +87,7 @@ let _nextSetup         = null;   // 다음 게임 랜덤 시장 구성 (buildMar
 let _activeKingdomIds  = [];     // 현재 게임에 사용 중인 킹덤 카드 IDs
 let _initialSupplyData = [];     // 게임 시작 시 공급량 스냅샷 [{name, initCount}]
 let _previewVpTarget   = 0;      // HomeScreen 표시용 사전 확정 목표 승점
+let _previewGameSeed   = 0;      // HomeScreen 표시용 사전 확정 게임 시드
 let _marketQueueState  = null;   // { queue, rng } — 시장 이벤트 롤링 큐
 let _timeline          = null;   // MarketTimeline 인스턴스
 
@@ -348,12 +350,14 @@ flow
           .filter(Boolean),
       };
     });
-    // 게임 목표 승점 사전 확정 (HomeScreen 표시 + _startGame 재사용)
+    // 게임 시드 + 목표 승점 사전 확정 (HomeScreen 표시 + _startGame 재사용)
+    _previewGameSeed = (Date.now() ^ (Math.random() * 0x100000000)) >>> 0;
     _previewVpTarget = 10 + Math.floor(Math.random() * 11);
     homeScr.onStart = () => flow.go(STATES.GAME);
     homeScr.show({ profile, records: enrichedRecords,
                    kingdomIds: _nextSetup.kingdomIds, kingdomNames,
-                   todayMarketCards, vpTarget: _previewVpTarget });
+                   todayMarketCards, vpTarget: _previewVpTarget,
+                   gameSeed: _previewGameSeed });
   })
 
   .on(STATES.GAME, () => { _startGame(); })
@@ -361,7 +365,16 @@ flow
   .on(STATES.RESULT, ({ record, ranking, newUnlock }) => {
     resultScr.onNextGame = () => flow.go(STATES.GAME);
     resultScr.onHome     = () => flow.go(STATES.HOME);
-    resultScr.show({ record, ranking, newUnlock });
+
+    const _showResult = () => resultScr.show({ record, ranking });
+
+    VictoryCelebration.show(() => {
+      if (newUnlock) {
+        CatalogOverlay.showWithUnlock(_cardMap, newUnlock.id, _showResult);
+      } else {
+        _showResult();
+      }
+    });
   });
 
 // ============================================================
@@ -380,7 +393,10 @@ export function _startGame() {
   gs.marketRevealBonus = 0;
   // ── 게임 시드 확정 (모든 랜덤의 원천) ──────────────────────
   // 같은 gameSeed → 시장 구성·공급 수량·이벤트 큐 모두 동일 재현
-  gs.gameSeed = (Date.now() ^ (Math.random() * 0x100000000)) >>> 0;
+  // HomeScreen에서 사전 확정된 시드 사용 (없으면 신규 생성)
+  gs.gameSeed = _previewGameSeed > 0 ? _previewGameSeed
+    : (Date.now() ^ (Math.random() * 0x100000000)) >>> 0;
+  _previewGameSeed = 0;
 
   // 서브 시드: gameSeed를 XOR 변형해 독립 시퀀스 생성
   const rngSetup  = seededRng(gs.gameSeed);                       // 시장 카드 선택
@@ -497,6 +513,7 @@ gs._handArrows = buildHandArrows(lUI);
 
 CardDetail.init(lUI);
 CatalogOverlay.init(lUI);
+VictoryCelebration.init(lUI);
 
 // ── 핸드 드래그 스크롤 (연속 캐러셀 + 그룹 스냅) ─────────────
 // ‣ pointermove: 손가락 따라 카드 즉시 이동 (lerp 우회)

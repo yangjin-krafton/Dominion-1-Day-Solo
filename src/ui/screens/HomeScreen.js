@@ -22,12 +22,13 @@ export class HomeScreen {
    * @param {string[]} opts.kingdomNames
    * @param {Array}    opts.todayMarketCards
    * @param {number}   opts.vpTarget
+   * @param {number}   [opts.gameSeed]
    */
-  show({ profile, records, kingdomIds, kingdomNames, todayMarketCards, vpTarget }) {
+  show({ profile, records, kingdomIds, kingdomNames, todayMarketCards, vpTarget, gameSeed }) {
     if (this._overlay.visible) return;
     this._overlay.show([
       buildTitlePanel(),
-      buildSetupPanel({ vpTarget, todayMarketCards, kingdomNames }),
+      buildSetupPanel({ vpTarget, gameSeed, todayMarketCards, kingdomNames }),
       buildRankingListPanel({ mode: 'setup', records, kingdomIds, profile }),
       buildActionPanel({
         onStart: () => { this.hide(); this.onStart?.(); },

@@ -91,7 +91,7 @@ export function buildRankingTable(ranking, currentId = null, limit = 10) {
   return `
     <table class="ds-rank-table">
       <thead>
-        <tr style="color:#7a5c0a;font-size:10px">
+        <tr style="color:#7a5c0a;font-size:15px">
           <td>순위</td><td>승점</td><td>턴</td><td>시간</td><td>날짜</td><td>목표</td>
         </tr>
       </thead>

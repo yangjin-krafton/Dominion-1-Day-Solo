@@ -11,7 +11,7 @@ export function buildProfilePanel({ name = '', onSubmit }) {
   const el = document.createElement('div');
   el.className = 'ds-panel';
   el.innerHTML = `
-    <p style="color:#fff3d6;font-size:14px;margin-bottom:20px;line-height:1.7">
+    <p style="color:#fff3d6;font-size:21px;margin-bottom:20px;line-height:1.7">
       ${name ? `<strong style="color:#d4a520">${_esc(name)}</strong> 님, 이름을 수정하세요.`
              : '처음 오셨군요!<br>플레이어 이름을 입력해 주세요.'}
     </p>
