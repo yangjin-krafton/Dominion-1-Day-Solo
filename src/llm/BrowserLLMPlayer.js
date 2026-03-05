@@ -1004,15 +1004,35 @@ ${buyOptions || 'end_turn만 가능'}
 
     // 시장에 있는 카드 분석
     const has = (id) => (gs.supply.get(id)?.count ?? 0) > 0;
+    const stock = (id) => gs.supply.get(id)?.count ?? 0;
     const kingdom = [...gs.supply.entries()]
       .filter(([, v]) => v.count > 0 && v.def.type === 'Action')
       .map(([k]) => k);
 
-    // 승리 조건 분석
-    const provNeeded = Math.ceil(vpTarget / 6);
-    const winPlan = vpTarget <= 12
-      ? `Province ${Math.ceil(vpTarget/6)}장이면 승리 (빠른 러시)`
-      : `Province ${provNeeded}장 또는 Province+Duchy 조합 필요`;
+    // 핵심 재고 현황
+    const provStock   = stock('province');
+    const duchyStock  = stock('duchy');
+    const estateStock = stock('estate');
+    const goldStock   = stock('gold');
+    const silverStock = stock('silver');
+    const curseStock  = stock('curse');
+    const maxProvVP   = provStock * 6;
+    const maxDuchyVP  = duchyStock * 3;
+    const maxEstVP    = estateStock * 1;
+    const startingVP  = 3; // Estate 3장 시작
+
+    // 승리 조건 분석 — 재고 기반
+    const totalAvailVP = maxProvVP + maxDuchyVP + maxEstVP + startingVP;
+    const provNeeded = Math.min(provStock, Math.ceil(vpTarget / 6));
+
+    let winPlan;
+    if (totalAvailVP < vpTarget) {
+      winPlan = `경고: VP 카드 재고 부족! 최대 ${totalAvailVP}VP (목표 ${vpTarget}). 시장 소멸 전 VP 카드 구매 급선무!`;
+    } else if (vpTarget <= 12) {
+      winPlan = `Province ${Math.ceil(vpTarget/6)}장이면 승리 (빠른 러시). Province 재고: ${provStock}장`;
+    } else {
+      winPlan = `Province ${provNeeded}장(${provNeeded*6}VP) + Duchy ${Math.ceil((vpTarget - provNeeded*6 - startingVP) / 3)}장 필요. 재고: Province ${provStock}, Duchy ${duchyStock}`;
+    }
 
     // 카드 시너지 분석
     const synergies = [];
@@ -1072,6 +1092,16 @@ ${buyOptions || 'end_turn만 가능'}
       `- 같은 액션카드 중복 구매 금지 (Silver/Gold/드로우카드 제외)`,
       `- 재물 고갈 주의: Copper 최소 3장 유지`,
       `- 시장 이벤트로 핵심 카드 소멸 전에 구매`,
+      ``,
+      `### 재고 현황`,
+      `- Province: ${provStock}장 (최대 ${maxProvVP}VP)`,
+      `- Duchy: ${duchyStock}장 (최대 ${maxDuchyVP}VP)`,
+      `- Gold: ${goldStock}장, Silver: ${silverStock}장`,
+      `- Curse: ${curseStock}장 (시장 이벤트 저주 위험)`,
+      curseStock > 5 ? `- 경고: 저주 재고 많음! Chapel/Remodel로 저주 폐기 준비 필요` : '',
+      silverStock < 10 ? `- 경고: Silver 재고 적음(${silverStock})! 빠르게 구매` : '',
+      goldStock < 5 ? `- 경고: Gold 재고 적음(${goldStock})! 시장 소멸 전 구매 우선` : '',
+      provStock <= 3 ? `- 긴급: Province 재고 ${provStock}장! 시장 소멸 전 VP 러시 필수` : '',
     ];
 
     this._gamePlan = lines.filter(l => l !== '').join('\n');
