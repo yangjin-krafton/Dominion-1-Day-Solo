@@ -58,11 +58,27 @@ The LLM reviews its gameplay and accumulates strategic insights here.
 - Bandit gives Gold + 3-turn protection — strong defensive play.
 - Don't panic-buy cards just because market threatens them unless they're core to your strategy.
 
+### Curse Defense Strategy
+- curse_player events (18% chance per turn) add Curse (-1 VP) to your discard.
+- Curses are dead draws AND reduce VP — they must be dealt with.
+- **Chapel**: Best curse removal. Trash Curses immediately when drawn with Chapel in hand.
+- **Remodel**: Trash Curse (cost 0) to gain a card costing up to 2 (Cellar, Moat, or Chapel).
+- **Prioritize Chapel if curse_player events keep firing** — it removes the -1 VP permanently.
+- If no trash cards available, offset curses by buying more VP cards (Duchy/Province).
+- Market defense cards (Moat, Militia, Witch) also prevent future curse events by skipping/reducing market events.
+
+### Market Defense Card Priority
+- **Moat** (cost 2): Cheapest defense. Hold in hand → skip entire next market event. Buy early.
+- **Militia** (cost 4): +2 coins AND reduces next vanish. Economy + defense in one card.
+- **Witch** (cost 5): +2 cards AND permanent 3-turn skip cycle. Best long-term defense.
+- **Bandit** (cost 5): Gain Gold + 3-turn vanish reduction + 2-turn reveal. Strongest single-play defense.
+- Buy at least 1 market defense card by turn 5-7 to protect supply.
+
 ### Deck Composition Guidelines
 - Ideal deck size: 12-18 cards (thin is better than bloated).
 - Treasure ratio: aim for 60%+ of your deck to be treasure/action that produces coins.
 - Victory card timing: only start buying when you're 2-3 Provinces from winning.
-- Curse defense: if curse_player events are frequent, prioritize VP rush.
+- Curse defense: if curse_player events are frequent, prioritize Chapel for trashing + VP rush.
 
 ## Key Lessons Learned
 (Will be populated after games)

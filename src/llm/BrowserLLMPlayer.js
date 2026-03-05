@@ -29,21 +29,10 @@ fetch(new URL('./rules.md', import.meta.url))
   .then(t => { _rulesText = t; console.log('[LLM] rules.md 로드 완료 (%d chars)', t.length); })
   .catch(e => console.warn('[LLM] rules.md 로드 실패:', e.message));
 
-// ── 프롬프트 상수 ──────────────────────────────────────────
-
-const RESPONSE_FORMAT = `
-## Response Format (JSON only, no explanation)
-{"action": "play", "card": "card_id", "reason": "reason"}
-{"action": "buy",  "card": "card_id", "reason": "reason"}
-{"action": "end_turn", "reason": "reason"}
-
-Pending resolve:
-{"action": "resolve", "resolution": {"cards": ["copper"]}}       // discard/trash
-{"action": "resolve", "resolution": {"card": "silver"}}          // gain/pick
-{"action": "resolve", "resolution": {"decisions": [...]}}        // sentry
-{"action": "resolve", "resolution": {"skip": []}}                // library
-{"action": "resolve", "resolution": {"trash": "copper"}}         // two_step step1
-{"action": "resolve", "resolution": {"gain": "silver"}}          // two_step step2`;
+// ── 시스템 프롬프트 조립 ─────────────────────────────────────
+// rules.md   = 게임 규칙 + 카드 정보 + 응답 형식 (고정)
+// strategy.md = 전략 (localStorage, 매 게임 후 LLM이 자동 갱신)
+// recentLogs  = 최근 3게임 리뷰
 
 function getSystemPrompt() {
   const strategy = getStrategy();
@@ -54,17 +43,12 @@ function getSystemPrompt() {
     .join('\n---\n');
 
   return `/no_think
-You are a Dominion card game AI player.
-IMPORTANT: Output ONLY JSON. No explanation, no thinking.
-
 ${_rulesText}
 
-## Your Accumulated Strategy (from past games)
+## Your Accumulated Strategy
 ${strategy}
 
-${recentReviews ? `## Recent Game Reviews\n${recentReviews}` : ''}
-
-${RESPONSE_FORMAT}`;
+${recentReviews ? `## Recent Game Reviews\n${recentReviews}` : ''}`;
 }
 
 // ── 스냅샷 헬퍼 ───────────────────────────────────────────
@@ -93,7 +77,7 @@ function buildSnapshot(gs) {
   };
 }
 
-function buildPrompt(gs, availableActions, pending) {
+function buildPrompt(gs, availableActions, pending, gamePlan = '') {
   const snap = buildSnapshot(gs);
   const supplyAll = Object.entries(snap.supply)
     .filter(([, s]) => s.count > 0)
@@ -124,18 +108,18 @@ function buildPrompt(gs, availableActions, pending) {
     `=== Turn ${snap.turn} ===`,
     `VP: ${snap.vp}/${snap.targetVp} | Actions:${snap.actions} Buys:${snap.buys} Coins:${snap.coins}`,
     `Hand: [${handDesc}] | Deck:${snap.deckSize} Discard:${snap.discardSize}`,
-    `My deck composition: [${ownedDesc}] (${allCards.length} total)`,
-    `(Treasures auto-play when no action cards remain. Do NOT buy action cards you already own unless it is a draw card.)`,
+    `My deck: [${ownedDesc}] (${allCards.length} total)`,
     '',
     '=== Supply ===',
     supplyAll,
     '',
     pending ? `=== PENDING (must resolve) ===\n${JSON.stringify(pending, null, 2)}` : '',
+    gamePlan ? `\n=== THIS GAME PLAN (follow this) ===\n${gamePlan}` : '',
     '',
-    '=== 가능한 행동 ===',
+    '=== Available Actions ===',
     actionsDesc,
     '',
-    '최선의 행동 1개를 JSON으로 응답하세요.',
+    'Choose the best action. Output JSON only.',
   ];
   return lines.filter(l => l !== null && l !== undefined).join('\n');
 }
@@ -193,6 +177,7 @@ export class BrowserLLMPlayer {
     this._retryCount = 0;
     this.actionLog   = [];     // 턴별 행동 기록 (장기 메모리용)
     this._onGameEnd  = null;   // 게임 종료 → 다음 게임 시작 콜백
+    this._gamePlan   = '';     // 게임 시작 시 LLM이 생성한 단기 전략 캐시
   }
 
   // ── 공개 API ────────────────────────────────────────────
@@ -217,7 +202,9 @@ export class BrowserLLMPlayer {
     console.log(`  모델: ${this.model}`);
     console.log(`  URL:  ${this.baseURL}`);
     console.log(`  속도: ${this.delay}ms/행동`);
-    this._loop();
+
+    // 게임 시작 시 시장 분석 + 단기 전략 계획 생성
+    this._generateGamePlan().then(() => this._loop());
   }
 
   stop() {
@@ -307,7 +294,7 @@ export class BrowserLLMPlayer {
       return;
     }
 
-    const prompt   = buildPrompt(gs, actions, null);
+    const prompt   = buildPrompt(gs, actions, null, this._gamePlan);
     let decision;
 
     try {
@@ -427,7 +414,7 @@ export class BrowserLLMPlayer {
     // ── LLM에게 판단 요청이 필요한 pending ──────────────────
     const summary = this._summarizePending(field, pd);
     const actions = [{ action: 'resolve', pending: summary }];
-    const prompt  = buildPrompt(gs, actions, summary);
+    const prompt  = buildPrompt(gs, actions, summary, this._gamePlan);
 
     let resolution;
     try {
@@ -932,6 +919,73 @@ export class BrowserLLMPlayer {
       }
     }
     return false;
+  }
+
+  /** 게임 시작 시 시장 분석 + 단기 전략 계획 생성 */
+  async _generateGamePlan() {
+    const gs = this.gs;
+    this._gamePlan = '';
+
+    // 시장 카드 목록
+    const marketCards = [...gs.supply.entries()]
+      .filter(([, v]) => v.count > 0)
+      .map(([id, v]) => `${id}(${v.def.name}) cost:${v.def.cost} stock:${v.count} [${v.def.type}] — ${v.def.summary || v.def.desc || ''}`)
+      .join('\n');
+
+    const prompt = `You are starting a new Dominion solo game.
+
+## Game Setup
+- Target VP: ${gs.vpTarget}
+- Starting deck: 7 Copper + 3 Estate
+
+## Available Market Cards (12 slots)
+${marketCards}
+
+## Task
+Analyze the available kingdom cards and create a game plan. Output in this format:
+
+### Win Condition Analysis
+(How to reach ${gs.vpTarget} VP fastest — how many Provinces/Duchies needed)
+
+### Priority Buy Order
+(Turn 1-4 buys, Turn 5-10 buys, Turn 10+ buys — specific to THIS market)
+
+### Key Synergies
+(Which cards work well together in this specific market)
+
+### Cards to Avoid
+(Cards that are weak or traps in this specific market setup)
+
+### Warnings
+(Market event risks, supply pile concerns)
+
+Write concisely in Korean. Max 500 chars.`;
+
+    try {
+      const res = await fetch(`${this.baseURL}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer local' },
+        body: JSON.stringify({
+          model: this.model,
+          temperature: 0.4,
+          max_tokens: 800,
+          messages: [
+            { role: 'system', content: getSystemPrompt() },
+            { role: 'user',   content: prompt },
+          ],
+        }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        this._gamePlan = data?.choices?.[0]?.message?.content ?? '';
+        console.log(`%c[LLM] 게임 전략 계획 생성 완료`, 'color:#88ff88;font-weight:bold');
+        console.log(this._gamePlan);
+      }
+    } catch (e) {
+      console.warn('[LLM] 게임 계획 생성 실패:', e.message);
+      this._gamePlan = '';
+    }
   }
 
   _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }

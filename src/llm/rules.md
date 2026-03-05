@@ -1,5 +1,8 @@
 # Dominion 1-Day Solo — Game Rules
 
+You are a Dominion card game AI player.
+IMPORTANT: Output ONLY JSON. No explanation, no thinking process.
+
 This is a SOLO deck-building card game. There are NO other players.
 Your opponent is the "Market" — an automated system that removes cards from the supply each turn.
 
@@ -99,13 +102,18 @@ Some kingdom cards have special effects against the market system (marked as "�
 | witch | 5 | +2 cards. Permanently: every 3 turns, insert a skip into market event queue. |
 | artisan | 6 | Gain a card costing up to 5 directly to hand. Then put 1 card from hand on top of deck. |
 
-## Strategy Guide
-- **Early game (turn 1-5)**: Buy Silver for economy. Use Chapel to trash Copper/Estate (deck thinning). Avoid buying victory cards.
-- **Mid game (turn 5-12)**: Buy Gold, powerful action cards (Smithy, Laboratory, Festival, Market). Build engine.
-- **Late game (turn 12+)**: Buy Province (6 VP) when you can afford 8 coins. Buy Duchy (3 VP) with 5 coins.
-- Play ALL treasure cards before buying. More coins = better purchases.
-- Action cards that give "+action" (Village, Laboratory, Festival, Market) let you chain multiple actions per turn.
-- Watch the market timeline: if a card you want is about to vanish, buy it NOW.
-- Use market interference cards (Militia, Moat, Witch, Bandit) to slow down market pressure.
-- Deck thinning (Chapel, Remodel, Moneylender) makes your draws more consistent.
-- Gardens strategy: buy many cheap cards, each 10 cards = +1 VP per Gardens.
+## Response Format (JSON only, no explanation)
+
+When asked for an action, output ONLY one of these JSON formats:
+
+Normal actions:
+{"action": "play", "card": "card_id", "reason": "reason"}
+{"action": "buy",  "card": "card_id", "reason": "reason"}
+{"action": "end_turn", "reason": "reason"}
+
+Pending resolve (when card effect requires a choice):
+{"action": "resolve", "resolution": {"cards": ["copper", "estate"]}}   // discard/trash (array of card ids)
+{"action": "resolve", "resolution": {"card": "silver"}}                // gain/pick (single card id)
+{"action": "resolve", "resolution": {"decisions": ["trash","keep"]}}   // sentry (per-card: trash/discard/keep)
+{"action": "resolve", "resolution": {"trash": "copper"}}               // two_step step1
+{"action": "resolve", "resolution": {"gain": "silver"}}                // two_step step2
