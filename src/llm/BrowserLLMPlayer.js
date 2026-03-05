@@ -282,9 +282,10 @@ export class BrowserLLMPlayer {
     if (actions.length === 0) return;
 
     // 의미 있는 선택지가 없으면 LLM 호출 불필요
+    // copper/curse 구매만 남은 경우도 무의미
     const meaningful = actions.filter(a =>
       a.action === 'play' ||
-      (a.action === 'buy' && a.card !== 'curse') ||
+      (a.action === 'buy' && a.card !== 'curse' && a.card !== 'copper') ||
       a.action === 'resolve'
     );
     if (meaningful.length === 0) {
@@ -320,6 +321,29 @@ export class BrowserLLMPlayer {
     if (!valid) {
       console.warn(`[LLM] 유효하지 않은 행동: ${JSON.stringify(decision)}`);
       decision = this._fallback(actions);
+    }
+
+    // ── end_turn 검증: 아직 할 수 있는 행동이 있으면 재고 ────
+    if (decision.action === 'end_turn') {
+      const remaining = actions.filter(a =>
+        a.action === 'play' ||
+        (a.action === 'buy' && a.card !== 'curse' && a.card !== 'copper')
+      );
+      if (remaining.length > 0) {
+        // 플레이 가능한 액션이 있으면 강제 실행
+        const playable = remaining.find(a => a.action === 'play');
+        if (playable) {
+          console.log(`%c[LLM 턴${gs.turn}] end_turn 거부 → play "${playable.card}" 강제`, 'color:#ffaa55');
+          decision = { action: 'play', card: playable.card, reason: 'override:had_playable_action' };
+        } else {
+          // 구매 가능한 유의미한 카드가 있으면 폴백 구매
+          const buyable = this._fallback(remaining);
+          if (buyable.action === 'buy') {
+            console.log(`%c[LLM 턴${gs.turn}] end_turn 거부 → buy "${buyable.card}" 강제`, 'color:#ffaa55');
+            decision = buyable;
+          }
+        }
+      }
     }
 
     console.log(`%c[LLM 턴${gs.turn}] ${decision.action}${decision.card ? ' "'+decision.card+'"' : ''}`, 'color:#88ddff');
@@ -932,34 +956,29 @@ export class BrowserLLMPlayer {
       .map(([id, v]) => `${id}(${v.def.name}) cost:${v.def.cost} stock:${v.count} [${v.def.type}] — ${v.def.summary || v.def.desc || ''}`)
       .join('\n');
 
-    const prompt = `You are starting a new Dominion solo game.
+    const strategy = getStrategy();
 
-## Game Setup
-- Target VP: ${gs.vpTarget}
-- Starting deck: 7 Copper + 3 Estate
+    const systemMsg = `/no_think
+You are a Dominion solo game strategist. Analyze the market and create a concise game plan.
+Write in Korean. Output plain text (NOT JSON). Be concise (max 500 chars).
 
-## Available Market Cards (12 slots)
+${strategy}`;
+
+    const userMsg = `## 이번 게임 설정
+- 목표 승점: ${gs.vpTarget}
+- 시작 덱: 동화 7장 + 사유지 3장
+
+## 시장 카드 (12슬롯)
 ${marketCards}
 
-## Task
-Analyze the available kingdom cards and create a game plan. Output in this format:
+## 분석 요청
+이 시장 구성을 분석하고 게임 계획을 작성하세요:
 
-### Win Condition Analysis
-(How to reach ${gs.vpTarget} VP fastest — how many Provinces/Duchies needed)
-
-### Priority Buy Order
-(Turn 1-4 buys, Turn 5-10 buys, Turn 10+ buys — specific to THIS market)
-
-### Key Synergies
-(Which cards work well together in this specific market)
-
-### Cards to Avoid
-(Cards that are weak or traps in this specific market setup)
-
-### Warnings
-(Market event risks, supply pile concerns)
-
-Write concisely in Korean. Max 500 chars.`;
+1. 승리 조건 (Province/Duchy 몇 장 필요?)
+2. 구매 우선순위 (Turn 1-4 / 5-10 / 10+)
+3. 핵심 시너지 (이 시장에서 강한 조합)
+4. 회피 카드 (함정/약한 카드)
+5. 주의점 (시장 이벤트 리스크)`;
 
     try {
       const res = await fetch(`${this.baseURL}/v1/chat/completions`, {
@@ -970,15 +989,20 @@ Write concisely in Korean. Max 500 chars.`;
           temperature: 0.4,
           max_tokens: 800,
           messages: [
-            { role: 'system', content: getSystemPrompt() },
-            { role: 'user',   content: prompt },
+            { role: 'system', content: systemMsg },
+            { role: 'user',   content: userMsg },
           ],
         }),
         signal: AbortSignal.timeout(30_000),
       });
       if (res.ok) {
         const data = await res.json();
-        this._gamePlan = data?.choices?.[0]?.message?.content ?? '';
+        let plan = data?.choices?.[0]?.message?.content ?? '';
+        // thinking 태그 제거
+        plan = plan.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/<\/?think>/gi, '').trim();
+        // "Thinking Process" 같은 메타 텍스트 제거
+        plan = plan.replace(/^(Thinking Process|Analysis|Let me|I need to|Wait|Actually|Looking)[\s\S]*?(?=###|##|1\.|$)/i, '').trim();
+        this._gamePlan = plan.slice(0, 1500); // 프롬프트 크기 제한
         console.log(`%c[LLM] 게임 전략 계획 생성 완료`, 'color:#88ff88;font-weight:bold');
         console.log(this._gamePlan);
       }
