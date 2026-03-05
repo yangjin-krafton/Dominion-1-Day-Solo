@@ -17,7 +17,8 @@
 // ============================================================
 
 import { AREAS } from '../config.js';
-import { drawCards } from '../core/TurnEngine.js';
+import { drawCards, shuffle } from '../core/TurnEngine.js';
+import { executeCardEffect } from '../core/CardEffect.js';
 import { getStrategy, getRecentLogs } from './MemoryManager.js';
 
 // ── 규칙 MD 로드 ────────────────────────────────────────────
@@ -354,13 +355,48 @@ export class BrowserLLMPlayer {
   /** CardActionHandler._tryDispatch 에서 호출됨 */
   async _resolvePending(field, pd) {
     if (!this._running) return;
+    const gs = this.gs;
+    const type = pd.type ?? field.replace('pending', '').toLowerCase();
 
-    // 잠시 대기 후 LLM에게 결정 요청
+    // ── pendingThrone (알현실 2차): 즉시 실행 ──────────────────
+    if (field === 'pendingThrone') {
+      console.log(`%c[LLM] auto throne_room 2nd: ${pd.card?.def?.id}`, 'color:#aaddaa');
+      if (pd.card?.def?.effectCode) {
+        executeCardEffect(pd.card.def, gs, { drawCards });
+      }
+      this.sync();
+      return;
+    }
+
+    // ── 시장 연출 카드: LLM 판단 불필요, 즉시 처리 ──────────
+    if (['militia', 'bureaucrat', 'council_room', 'witch'].includes(type)) {
+      console.log(`%c[LLM] auto-resolve market effect: ${type}`, 'color:#aaddaa');
+      // bureaucrat: silver를 덱 위에 획득
+      if (type === 'bureaucrat') {
+        const silverSlot = gs.supply.get('silver');
+        if (silverSlot && silverSlot.count > 0) {
+          silverSlot.count--;
+          const card = this.makeCard(silverSlot.def);
+          card.area = AREAS.DECK;
+          card.isFaceUp = false;
+          gs.deck.push(card);
+        }
+        gs.marketRevealBonus = 0;
+      }
+      // militia: marketReduce already set by effect token, clear for turn-end
+      if (type === 'militia') gs.marketReduce = 0;
+      // council_room: marketIncrease already set
+      if (type === 'council_room') gs.marketIncrease = 0;
+      this.sync();
+      return;
+    }
+
     await this._sleep(this.delay);
 
-    const pending = { field, pd, type: pd.type ?? field.replace('pending', '').toLowerCase() };
-    const actions = [{ action: 'resolve', pending: this._summarizePending(field, pd) }];
-    const prompt  = buildPrompt(this.gs, actions, this._summarizePending(field, pd));
+    // ── LLM에게 판단 요청이 필요한 pending ──────────────────
+    const summary = this._summarizePending(field, pd);
+    const actions = [{ action: 'resolve', pending: summary }];
+    const prompt  = buildPrompt(gs, actions, summary);
 
     let resolution;
     try {
@@ -370,18 +406,66 @@ export class BrowserLLMPlayer {
       resolution = {};
     }
 
-    console.log(`%c[LLM] pending(${field}) 해결: ${JSON.stringify(resolution)}`, 'color:#ffaa55');
+    console.log(`%c[LLM] pending(${type}) 해결: ${JSON.stringify(resolution)}`, 'color:#ffaa55');
     this._applyResolution(field, pd, resolution);
     this.sync();
   }
 
   _summarizePending(field, pd) {
+    const gs = this.gs;
     switch (field) {
-      case 'pendingDiscard': return { type: 'discard', count: pd.exact ?? null, filter: pd.filter ?? null, drawAfter: !!pd.drawAfter };
-      case 'pendingTrash':   return { type: 'trash', maxCount: pd.maxCount, filter: pd.filter ?? null };
-      case 'pendingGain':    return { type: 'gain', maxCost: pd.maxCost, dest: pd.dest };
-      case 'pendingPick':    return { type: pd.type, source: pd.source ?? null };
-      case 'pendingTwoStep': return { type: 'two_step', step: pd.step ?? 1, stepType: pd.type, trashed: pd.trashed?.def?.id ?? null };
+      case 'pendingDiscard': {
+        const handIds = gs.hand.map(c => c.def.id);
+        return { type: pd.type ?? 'discard', count: pd.exact ?? null, drawAfter: !!pd.drawAfter, hand: handIds };
+      }
+      case 'pendingTrash': {
+        const handIds = gs.hand.filter(c => !pd.filter || c.def.id === pd.filter).map(c => c.def.id);
+        return { type: pd.type ?? 'trash', maxCount: pd.maxCount, filter: pd.filter ?? null, eligible: handIds };
+      }
+      case 'pendingGain': {
+        const options = [...gs.supply.entries()]
+          .filter(([, v]) => v.count > 0 && v.def.cost <= (pd.maxCost ?? Infinity))
+          .map(([id, v]) => `${id}(cost:${v.def.cost})`);
+        return { type: pd.type ?? 'gain', maxCost: pd.maxCost, dest: pd.dest, options };
+      }
+      case 'pendingPick': {
+        if (pd.type === 'harbinger') {
+          return { type: 'harbinger', discardIds: gs.discard.map(c => c.def.id) };
+        }
+        if (pd.type === 'vassal') {
+          return { type: 'vassal', info: 'auto-resolved' };
+        }
+        if (pd.type === 'throne_room') {
+          const actionIds = gs.hand.filter(c => c.def.type === 'Action').map(c => c.def.id);
+          return { type: 'throne_room', actions: actionIds };
+        }
+        if (pd.type === 'library') {
+          return { type: 'library', info: 'auto-resolved' };
+        }
+        if (pd.type === 'sentry') {
+          return { type: 'sentry', info: 'auto-resolved' };
+        }
+        return { type: pd.type };
+      }
+      case 'pendingTwoStep': {
+        if ((pd.step ?? 1) === 1) {
+          const eligible = pd.type === 'mine'
+            ? gs.hand.filter(c => c.def.type === 'Treasure').map(c => c.def.id)
+            : pd.type === 'artisan'
+              ? [] // artisan step1 is gain, not trash
+              : gs.hand.map(c => c.def.id);
+          return { type: pd.type, step: 1, eligible };
+        } else {
+          const maxCost = pd.type === 'mine' ? (pd.trashed?.def?.cost ?? 0) + 3
+                        : pd.type === 'remodel' ? (pd.trashed?.def?.cost ?? 0) + 2
+                        : 5;
+          const filter = pd.type === 'mine' ? 'Treasure' : null;
+          const options = [...gs.supply.entries()]
+            .filter(([, v]) => v.count > 0 && v.def.cost <= maxCost && (!filter || v.def.type === filter))
+            .map(([id, v]) => `${id}(cost:${v.def.cost})`);
+          return { type: pd.type, step: 2, trashed: pd.trashed?.def?.id, maxCost, options };
+        }
+      }
       default: return { type: field };
     }
   }
@@ -393,93 +477,249 @@ export class BrowserLLMPlayer {
     const removeFromHand = (id) => {
       const idx = gs.hand.findIndex(c => c.def.id === id);
       if (idx === -1) return null;
-      const card = gs.hand.splice(idx, 1)[0];
-      return card;
+      return gs.hand.splice(idx, 1)[0];
+    };
+
+    const setCardArea = (card, area) => {
+      card.area = area;
+      card.isFaceUp = true;
+      if (card.frontFace) { card.frontFace.visible = true; card.backFace.visible = false; }
     };
 
     switch (field) {
       case 'pendingDiscard': {
+        // cellar, poacher
         const targets = resolution.cards ?? [];
+        const count = pd.exact ?? targets.length; // poacher: exact N required
+        let discarded = 0;
         for (const id of targets) {
+          if (pd.exact && discarded >= pd.exact) break;
           const card = removeFromHand(id);
-          if (card) {
-            card.area = AREAS.DISCARD;
-            gs.discard.push(card);
+          if (card) { setCardArea(card, AREAS.DISCARD); gs.discard.push(card); discarded++; }
+        }
+        // poacher: if not enough selected, force discard from hand
+        if (pd.exact && discarded < pd.exact) {
+          while (discarded < pd.exact && gs.hand.length > 0) {
+            const card = gs.hand.shift();
+            setCardArea(card, AREAS.DISCARD); gs.discard.push(card); discarded++;
           }
         }
-        if (pd.drawAfter) drawCards(gs, targets.length); // cellar
+        if (pd.drawAfter && discarded > 0) drawCards(gs, discarded); // cellar
         break;
       }
 
       case 'pendingTrash': {
+        // chapel, moneylender
         const targets = (resolution.cards ?? []).slice(0, pd.maxCount ?? Infinity);
         for (const id of targets) {
           if (pd.filter && id !== pd.filter) continue;
           const card = removeFromHand(id);
           if (card) {
-            card.area = AREAS.TRASH;
-            gs.trash.push(card);
-            if (pd.bonus?.coins) gs.coins += pd.bonus.coins;
+            setCardArea(card, AREAS.TRASH); gs.trash.push(card);
+            // moneylender: +3 coins when trashing copper
+            if (pd.type === 'moneylender') gs.coins += 3;
           }
         }
         break;
       }
 
       case 'pendingGain': {
-        const id   = resolution.card ?? this._cheapest(pd.maxCost);
+        // workshop, gain (general)
+        const id = resolution.card ?? this._bestGain(pd.maxCost);
         const slot = gs.supply.get(id);
         if (slot && slot.count > 0 && slot.def.cost <= (pd.maxCost ?? Infinity)) {
           slot.count--;
           const card = this.makeCard(slot.def);
-          card.area      = pd.dest === 'hand' ? AREAS.HAND : AREAS.DISCARD;
-          card.isFaceUp  = true;
-          if (card.frontFace) { card.frontFace.visible = true; card.backFace.visible = false; }
-          if (pd.dest === 'hand') gs.hand.push(card);
-          else                   gs.discard.push(card);
+          const dest = pd.dest === 'hand' ? AREAS.HAND : AREAS.DISCARD;
+          setCardArea(card, dest);
+          if (dest === AREAS.HAND) gs.hand.push(card);
+          else gs.discard.push(card);
         }
         break;
       }
 
       case 'pendingPick': {
         if (pd.type === 'harbinger') {
-          const id  = resolution.card;
-          const idx = gs.discard.findIndex(c => c.def.id === id);
-          if (idx !== -1) {
-            const card = gs.discard.splice(idx, 1)[0];
-            card.area = AREAS.DECK;
-            gs.deck.push(card);
+          const id = resolution.card;
+          if (id) {
+            const idx = gs.discard.findIndex(c => c.def.id === id);
+            if (idx !== -1) {
+              const card = gs.discard.splice(idx, 1)[0];
+              card.area = AREAS.DECK; gs.deck.push(card);
+            }
           }
+        } else if (pd.type === 'vassal') {
+          this._resolveVassal();
+        } else if (pd.type === 'throne_room') {
+          this._resolveThroneRoom(resolution);
+        } else if (pd.type === 'library') {
+          this._resolveLibrary();
+        } else if (pd.type === 'sentry') {
+          this._resolveSentry(resolution);
         }
-        // 다른 pick 타입(vassal, throne_room 등)은 복잡하므로 UI 핸들러에 위임
         break;
       }
 
       case 'pendingTwoStep': {
-        if ((pd.step ?? 1) === 1) {
-          // step 1: trash
-          const card = removeFromHand(resolution.trash ?? this._firstFromHand());
+        if (pd.type === 'artisan') {
+          this._resolveArtisan(pd, resolution);
+        } else if ((pd.step ?? 1) === 1) {
+          // remodel/mine step 1: trash
+          const eligible = pd.type === 'mine'
+            ? gs.hand.filter(c => c.def.type === 'Treasure')
+            : gs.hand;
+          const trashId = resolution.trash ?? eligible[0]?.def?.id;
+          const card = trashId ? removeFromHand(trashId) : null;
           if (card) {
-            card.area = AREAS.TRASH;
-            gs.trash.push(card);
-            // step 2 pending 설정
+            setCardArea(card, AREAS.TRASH); gs.trash.push(card);
             gs.pendingTwoStep = { ...pd, step: 2, trashed: card };
           }
         } else {
-          // step 2: gain
-          const gainId = resolution.gain ?? this._cheapest(pd.trashed?.def?.cost + (pd.type === 'mine' ? 3 : 2));
-          const slot   = gs.supply.get(gainId);
-          if (slot && slot.count > 0) {
+          // remodel/mine step 2: gain
+          const maxCost = (pd.trashed?.def?.cost ?? 0) + (pd.type === 'mine' ? 3 : 2);
+          const gainId = resolution.gain ?? this._bestGain(maxCost, pd.type === 'mine' ? 'Treasure' : null);
+          const slot = gs.supply.get(gainId);
+          if (slot && slot.count > 0 && slot.def.cost <= maxCost) {
             slot.count--;
             const gained = this.makeCard(slot.def);
-            const dest   = pd.type === 'mine' ? AREAS.HAND : AREAS.DISCARD;
-            gained.area  = dest;
-            gained.isFaceUp = true;
-            if (gained.frontFace) { gained.frontFace.visible = true; gained.backFace.visible = false; }
+            const dest = pd.type === 'mine' ? AREAS.HAND : AREAS.DISCARD;
+            setCardArea(gained, dest);
             if (dest === AREAS.HAND) gs.hand.push(gained);
-            else                     gs.discard.push(gained);
+            else gs.discard.push(gained);
           }
         }
         break;
+      }
+    }
+  }
+
+  // ── 복잡한 pending 개별 처리 ─────────────────────────────
+
+  /** Vassal: 덱 위 1장 공개 → 액션이면 자동 플레이 */
+  _resolveVassal() {
+    const gs = this.gs;
+    if (gs.deck.length === 0) {
+      if (gs.discard.length === 0) return;
+      gs.deck = [...gs.discard]; gs.discard = []; shuffle(gs.deck);
+      gs.deck.forEach(c => { c.area = AREAS.DECK; });
+    }
+    if (gs.deck.length === 0) return;
+    const card = gs.deck.pop();
+    card.isFaceUp = true;
+    if (card.frontFace) { card.frontFace.visible = true; card.backFace.visible = false; }
+    if (card.def.type === 'Action') {
+      // 액션이면 자동 플레이 (행동 소모 없음)
+      card.area = AREAS.PLAY; gs.play.push(card);
+      if (card.def.effectCode) executeCardEffect(card.def, gs, { drawCards });
+      console.log(`%c[LLM] vassal auto-play: ${card.def.id}`, 'color:#aaddaa');
+    } else {
+      card.area = AREAS.DISCARD; gs.discard.push(card);
+    }
+  }
+
+  /** Throne Room: 액션 카드 선택 → 2회 실행 */
+  _resolveThroneRoom(resolution) {
+    const gs = this.gs;
+    const actionCards = gs.hand.filter(c => c.def.type === 'Action');
+    if (actionCards.length === 0) return;
+    const targetId = resolution.card ?? actionCards[0].def.id;
+    const idx = gs.hand.findIndex(c => c.def.type === 'Action' && c.def.id === targetId);
+    if (idx === -1) return;
+    const card = gs.hand.splice(idx, 1)[0];
+    card.area = AREAS.PLAY; gs.play.push(card);
+    // 1차 + 2차 효과 실행
+    if (card.def.effectCode) {
+      executeCardEffect(card.def, gs, { drawCards });
+      executeCardEffect(card.def, gs, { drawCards });
+    }
+    console.log(`%c[LLM] throne_room: ${card.def.id} x2`, 'color:#aaddaa');
+  }
+
+  /** Library: 손패 7장까지 뽑기 (액션 skip) */
+  _resolveLibrary() {
+    const gs = this.gs;
+    const skipped = [];
+    while (gs.hand.length < 7) {
+      if (gs.deck.length === 0) {
+        if (gs.discard.length === 0) break;
+        gs.deck = [...gs.discard]; gs.discard = []; shuffle(gs.deck);
+        gs.deck.forEach(c => { c.area = AREAS.DECK; });
+      }
+      if (gs.deck.length === 0) break;
+      const card = gs.deck.pop();
+      card.isFaceUp = true;
+      if (card.frontFace) { card.frontFace.visible = true; card.backFace.visible = false; }
+      if (card.def.type === 'Action') {
+        // 액션 카드 skip (간단한 폴백: 모두 skip)
+        skipped.push(card);
+      } else {
+        card.area = AREAS.HAND; gs.hand.push(card);
+      }
+    }
+    // skipped 카드 → 버림더미
+    for (const c of skipped) { c.area = AREAS.DISCARD; gs.discard.push(c); }
+  }
+
+  /** Sentry: 덱 위 2장 → 폐기/버리기/덱위 복귀 (LLM 판단 or 폴백) */
+  _resolveSentry(resolution) {
+    const gs = this.gs;
+    const revealed = [];
+    for (let i = 0; i < 2; i++) {
+      if (gs.deck.length === 0) {
+        if (gs.discard.length === 0) break;
+        gs.deck = [...gs.discard]; gs.discard = []; shuffle(gs.deck);
+        gs.deck.forEach(c => { c.area = AREAS.DECK; });
+      }
+      if (gs.deck.length === 0) break;
+      revealed.push(gs.deck.pop());
+    }
+    if (revealed.length === 0) return;
+
+    // LLM이 decisions 배열을 줬으면 사용, 아니면 폴백
+    const decisions = resolution.decisions ?? [];
+    for (let i = 0; i < revealed.length; i++) {
+      const card = revealed[i];
+      const dec = decisions[i] ?? 'keep'; // 'trash', 'discard', 'keep'
+      card.isFaceUp = true;
+      if (card.frontFace) { card.frontFace.visible = true; card.backFace.visible = false; }
+      if (dec === 'trash') {
+        // 저주/사유지 같은 약한 카드 폐기
+        card.area = AREAS.TRASH; gs.trash.push(card);
+      } else if (dec === 'discard') {
+        card.area = AREAS.DISCARD; gs.discard.push(card);
+      } else {
+        // keep: 덱 위로 복귀
+        card.area = AREAS.DECK; gs.deck.push(card);
+      }
+    }
+    console.log(`%c[LLM] sentry: ${revealed.map((c,i) => `${c.def.id}→${decisions[i]??'keep'}`).join(', ')}`, 'color:#aaddaa');
+  }
+
+  /** Artisan: step1 gain→hand, step2 hand→deck top */
+  _resolveArtisan(pd, resolution) {
+    const gs = this.gs;
+    if ((pd.step ?? 1) === 1) {
+      // step 1: gain card cost<=5 to hand
+      const gainId = resolution.gain ?? resolution.card ?? this._bestGain(5);
+      const slot = gs.supply.get(gainId);
+      if (slot && slot.count > 0 && slot.def.cost <= 5) {
+        slot.count--;
+        const card = this.makeCard(slot.def);
+        card.area = AREAS.HAND; card.isFaceUp = true;
+        if (card.frontFace) { card.frontFace.visible = true; card.backFace.visible = false; }
+        gs.hand.push(card);
+      }
+      // step 2: put 1 card from hand on top of deck
+      gs.pendingTwoStep = { ...pd, step: 2 };
+    } else {
+      // step 2: hand → deck top
+      const putId = resolution.card ?? resolution.put ?? gs.hand[0]?.def?.id;
+      if (putId) {
+        const idx = gs.hand.findIndex(c => c.def.id === putId);
+        if (idx !== -1) {
+          const card = gs.hand.splice(idx, 1)[0];
+          card.area = AREAS.DECK; gs.deck.push(card);
+        }
       }
     }
   }
@@ -488,7 +728,7 @@ export class BrowserLLMPlayer {
 
   _getActivePending() {
     const gs = this.gs;
-    const KEYS = ['pendingGain','pendingDiscard','pendingTrash','pendingPick','pendingTwoStep'];
+    const KEYS = ['pendingGain','pendingDiscard','pendingTrash','pendingPick','pendingTwoStep','pendingThrone'];
     for (const field of KEYS) {
       if (gs[field]) return { field, pd: gs[field] };
     }
@@ -598,18 +838,16 @@ export class BrowserLLMPlayer {
     return { action: 'end_turn', reason: 'fallback:end' };
   }
 
-  _cheapest(maxCost = Infinity) {
-    let best = null, bestCost = Infinity;
+  /** 최대 비용 이하에서 가장 비싼 카드 선택 (폴백용) */
+  _bestGain(maxCost = Infinity, typeFilter = null) {
+    let best = null, bestCost = -1;
     for (const [id, { def, count }] of this.gs.supply) {
-      if (count > 0 && def.cost <= maxCost && def.cost < bestCost) {
+      if (count > 0 && def.cost <= maxCost && def.cost > bestCost) {
+        if (typeFilter && def.type !== typeFilter) continue;
         best = id; bestCost = def.cost;
       }
     }
     return best ?? 'copper';
-  }
-
-  _firstFromHand() {
-    return this.gs.hand[0]?.def?.id ?? 'copper';
   }
 
   _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
