@@ -384,7 +384,7 @@ export class BrowserLLMPlayer {
     if (field === 'pendingThrone') {
       console.log(`%c[LLM] auto throne_room 2nd: ${pd.card?.def?.id}`, 'color:#aaddaa');
       if (pd.card?.def?.effectCode) {
-        executeCardEffect(pd.card.def, gs, { drawCards });
+        executeCardEffect(pd.card.def, gs, { drawCards: (g, n) => { const d = drawCards(g, n); d.forEach(c => { c.isFaceUp = true; if (c.frontFace) { c.frontFace.visible = true; c.backFace.visible = false; } }); return d; } });
       }
       this.sync();
       return;
@@ -508,6 +508,16 @@ export class BrowserLLMPlayer {
       if (card.frontFace) { card.frontFace.visible = true; card.backFace.visible = false; }
     };
 
+    /** drawCards 후 뽑은 카드들을 앞면으로 전환 */
+    const drawAndFlip = (n) => {
+      const drawn = drawCards(gs, n);
+      for (const c of drawn) {
+        c.isFaceUp = true;
+        if (c.frontFace) { c.frontFace.visible = true; c.backFace.visible = false; }
+      }
+      return drawn;
+    };
+
     switch (field) {
       case 'pendingDiscard': {
         // cellar, poacher
@@ -535,7 +545,7 @@ export class BrowserLLMPlayer {
             setCardArea(card, AREAS.DISCARD); gs.discard.push(card); discarded++;
           }
         }
-        if (pd.drawAfter && discarded > 0) drawCards(gs, discarded); // cellar
+        if (pd.drawAfter && discarded > 0) drawAndFlip(discarded); // cellar
         break;
       }
 
@@ -661,7 +671,7 @@ export class BrowserLLMPlayer {
     if (card.def.type === 'Action') {
       // 액션이면 자동 플레이 (행동 소모 없음)
       card.area = AREAS.PLAY; gs.play.push(card);
-      if (card.def.effectCode) executeCardEffect(card.def, gs, { drawCards });
+      if (card.def.effectCode) executeCardEffect(card.def, gs, { drawCards: (g, n) => { const d = drawCards(g, n); d.forEach(c => { c.isFaceUp = true; if (c.frontFace) { c.frontFace.visible = true; c.backFace.visible = false; } }); return d; } });
       console.log(`%c[LLM] vassal auto-play: ${card.def.id}`, 'color:#aaddaa');
     } else {
       card.area = AREAS.DISCARD; gs.discard.push(card);
@@ -680,8 +690,8 @@ export class BrowserLLMPlayer {
     card.area = AREAS.PLAY; gs.play.push(card);
     // 1차 + 2차 효과 실행
     if (card.def.effectCode) {
-      executeCardEffect(card.def, gs, { drawCards });
-      executeCardEffect(card.def, gs, { drawCards });
+      executeCardEffect(card.def, gs, { drawCards: (g, n) => { const d = drawCards(g, n); d.forEach(c => { c.isFaceUp = true; if (c.frontFace) { c.frontFace.visible = true; c.backFace.visible = false; } }); return d; } });
+      executeCardEffect(card.def, gs, { drawCards: (g, n) => { const d = drawCards(g, n); d.forEach(c => { c.isFaceUp = true; if (c.frontFace) { c.frontFace.visible = true; c.backFace.visible = false; } }); return d; } });
     }
     console.log(`%c[LLM] throne_room: ${card.def.id} x2`, 'color:#aaddaa');
   }
