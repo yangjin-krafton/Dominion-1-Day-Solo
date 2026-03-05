@@ -356,7 +356,7 @@ gs.llmResolver  = null;   // BrowserLLMPlayer 가 주입 — pending 상태 LLM 
 
 // ── window.dominion — 콘솔 명령어 ─────────────────────────
 const _llmPlayer = new BrowserLLMPlayer({
-  baseURL:    'http://100.66.65.124:1234',
+  baseURL:    'http://100.66.68.140:1234',
   model:      'qwen/qwen3.5-35b-a3b',
   gs,
   onPlayCard: (card) => _onPlayCard?.(card),

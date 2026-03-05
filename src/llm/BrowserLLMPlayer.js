@@ -19,27 +19,23 @@
 import { AREAS } from '../config.js';
 import { drawCards } from '../core/TurnEngine.js';
 
+// ── 규칙 MD 로드 ────────────────────────────────────────────
+
+let _rulesText = '';
+fetch(new URL('./rules.md', import.meta.url))
+  .then(r => r.text())
+  .then(t => { _rulesText = t; console.log('[LLM] rules.md 로드 완료 (%d chars)', t.length); })
+  .catch(e => console.warn('[LLM] rules.md 로드 실패:', e.message));
+
 // ── 프롬프트 상수 ──────────────────────────────────────────
 
-const SYSTEM_PROMPT = `/no_think
-당신은 도미니언(Dominion) 카드게임 플레이어 AI입니다.
-중요: 반드시 JSON만 출력하세요. 설명/생각 과정 절대 금지.
+const RESPONSE_FORMAT = `
+## Response Format (JSON only, no explanation)
+{"action": "play", "card": "card_id", "reason": "reason"}
+{"action": "buy",  "card": "card_id", "reason": "reason"}
+{"action": "end_turn", "reason": "reason"}
 
-## 규칙 요약
-- 목표: 목표 승점 도달 또는 Province 소진 또는 3더미 소진
-- 매 턴: 행동카드 → 재물카드 플레이 → 구매 → 턴종료
-
-## 전략
-- 초반: 은화 구매로 코인 기반 확보
-- 중반: 금화, 행동카드 확보
-- 후반: 속주(province)/공작령(duchy) 구매
-
-## 응답 형식 (JSON only)
-{"action": "play", "card": "카드_id", "reason": "이유"}
-{"action": "buy",  "card": "카드_id", "reason": "이유"}
-{"action": "end_turn", "reason": "이유"}
-
-Pending 해결:
+Pending resolve:
 {"action": "resolve", "resolution": {"cards": ["copper"]}}       // discard/trash
 {"action": "resolve", "resolution": {"card": "silver"}}          // gain/pick
 {"action": "resolve", "resolution": {"decisions": [...]}}        // sentry
@@ -47,12 +43,22 @@ Pending 해결:
 {"action": "resolve", "resolution": {"trash": "copper"}}         // two_step step1
 {"action": "resolve", "resolution": {"gain": "silver"}}          // two_step step2`;
 
+function getSystemPrompt() {
+  return `/no_think
+You are a Dominion card game AI player.
+IMPORTANT: Output ONLY JSON. No explanation, no thinking.
+
+${_rulesText}
+
+${RESPONSE_FORMAT}`;
+}
+
 // ── 스냅샷 헬퍼 ───────────────────────────────────────────
 
 function buildSnapshot(gs) {
   const supplySnap = {};
   for (const [id, { def, count }] of gs.supply) {
-    supplySnap[id] = { name: def.name, cost: def.cost, count, type: def.type };
+    supplySnap[id] = { name: def.name, cost: def.cost, count, type: def.type, desc: def.summary || def.desc || '' };
   }
   const handIds = gs.hand.map(c => c.def.id);
   const handCounts = {};
@@ -77,7 +83,7 @@ function buildPrompt(gs, availableActions, pending) {
   const snap = buildSnapshot(gs);
   const supplyAll = Object.entries(snap.supply)
     .filter(([, s]) => s.count > 0)
-    .map(([id, s]) => `  ${id}(${s.name}) 비용:${s.cost} 재고:${s.count} [${s.type}]`)
+    .map(([id, s]) => `  ${id}(${s.name}) 비용:${s.cost} 재고:${s.count} [${s.type}]${s.desc ? ' — ' + s.desc : ''}`)
     .join('\n');
 
   const handDesc = Object.entries(snap.handCounts)
@@ -171,7 +177,9 @@ export class BrowserLLMPlayer {
 
   // ── 공개 API ────────────────────────────────────────────
 
-  start({ baseURL, model, delay } = {}) {
+  start(opts = {}) {
+    if (typeof opts === 'string') opts = { baseURL: opts };
+    const { baseURL, model, delay } = opts;
     if (baseURL) this.baseURL = baseURL;
     if (model)   this.model   = model;
     if (delay)   this.delay   = delay;
@@ -491,7 +499,7 @@ export class BrowserLLMPlayer {
       temperature: 0.3,
       max_tokens:  400,
       messages: [
-        { role: 'system',    content: SYSTEM_PROMPT },
+        { role: 'system',    content: getSystemPrompt() },
         { role: 'user',      content: userPrompt },
         { role: 'assistant', content: '{' },
       ],
