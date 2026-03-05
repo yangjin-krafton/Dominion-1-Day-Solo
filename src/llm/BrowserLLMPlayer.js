@@ -854,7 +854,7 @@ export class BrowserLLMPlayer {
     const body = {
       model:       this.model,
       temperature: 0.3,
-      max_tokens:  400,
+      max_tokens:  2000,
       messages: [
         { role: 'system',    content: getSystemPrompt() },
         { role: 'user',      content: userPrompt },
@@ -1059,7 +1059,7 @@ ${buyOptions || 'end_turn만 가능'}
         body: JSON.stringify({
           model: this.model,
           temperature: 0.95,
-          max_tokens: 30,
+          max_tokens: 200,
           messages: [
             { role: 'system', content: '/no_think\nOutput ONLY the nickname. Nothing else.' },
             { role: 'user', content: `인터넷 게임 닉네임을 하나 만들어주세요.
@@ -1153,7 +1153,7 @@ ${prevPlan}
         body: JSON.stringify({
           model: this.model,
           temperature: 0.3,
-          max_tokens: 2000,
+          max_tokens: 4000,
           messages: [
             { role: 'system', content: `도미니언 솔로 게임 전략가. 시장 상황을 깊이 분석하고 구매 전략을 세우세요.
 <think> 태그 안에서 충분히 사고한 후, 최종 전략을 한국어 300자 이내로 출력.
@@ -1181,7 +1181,7 @@ ${getStrategy()}` },
           .replace(/```json[\s\S]*?```/gi, '')  // JSON 코드블록 제거 (전략은 텍스트)
           .trim();
         if (plan.length > 20) {
-          this._gamePlan = plan.slice(0, 800);
+          this._gamePlan = plan.slice(0, 2000);
           console.log(`%c[LLM] 전략 생성 (Turn ${gs.turn})`, 'color:#88ff88;font-weight:bold');
           console.log(this._gamePlan);
           return;

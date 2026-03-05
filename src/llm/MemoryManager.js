@@ -187,7 +187,7 @@ async function callLLM(baseURL, model, system, user) {
     body: JSON.stringify({
       model,
       temperature: 0.4,
-      max_tokens: 2000,
+      max_tokens: 4000,
       messages: [
         { role: 'system', content: system },
         { role: 'user',   content: user },
