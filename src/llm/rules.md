@@ -104,12 +104,11 @@ Some kingdom cards have special effects against the market system (marked as "í–
 
 ## Response Format (JSON only, no explanation)
 
-When asked for an action, output ONLY one of these JSON formats:
+Output ONLY one JSON object for the best action:
 
-Normal actions:
-{"action": "play", "card": "card_id", "reason": "reason"}
-{"action": "buy",  "card": "card_id", "reason": "reason"}
-{"action": "end_turn", "reason": "reason"}
+{"action": "play", "card": "card_id", "reason": "short reason"}
+{"action": "buy",  "card": "card_id", "reason": "short reason"}
+{"action": "end_turn", "reason": "short reason"}
 
 Pending resolve (when card effect requires a choice):
 {"action": "resolve", "resolution": {"cards": ["copper", "estate"]}}   // discard/trash (array of card ids)

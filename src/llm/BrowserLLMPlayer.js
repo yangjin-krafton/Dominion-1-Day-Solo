@@ -295,56 +295,36 @@ export class BrowserLLMPlayer {
       return;
     }
 
-    const prompt   = buildPrompt(gs, actions, null, this._gamePlan);
-    let decision;
+    // ── [1차] 제안 에이전트 ─────────────────────────────────
+    const prompt = buildPrompt(gs, actions, null, this._gamePlan);
+    let proposal = null;
 
     try {
-      decision = await this._callLLM(prompt);
+      const raw = await this._callLLM(prompt);
+      // candidates 또는 단일 응답 처리
+      if (raw?.candidates && Array.isArray(raw.candidates)) {
+        const valid = raw.candidates.filter(c => c?.action && this._validate(c, actions));
+        proposal = valid[0] ?? null;
+      } else if (raw?.action && this._validate(raw, actions)) {
+        proposal = raw;
+      }
     } catch (e) {
-      console.warn('[LLM] API 오류:', e.message, '→ 폴백');
-      decision = this._fallback(actions);
+      console.warn('[LLM] API 오류:', e.message);
     }
 
-    if (!decision) {
+    if (!proposal) {
       this._retryCount++;
-      if (this._retryCount > 5) {
-        console.warn('[LLM] 응답 파싱 실패 반복 → 폴백');
-        decision = this._fallback(actions);
+      if (this._retryCount > 3) {
+        proposal = this._fallback(actions);
         this._retryCount = 0;
-      }
-      return;
+      } else { return; }
     }
     this._retryCount = 0;
 
-    // 유효성 검사
-    const valid = this._validate(decision, actions);
-    if (!valid) {
-      console.warn(`[LLM] 유효하지 않은 행동: ${JSON.stringify(decision)}`);
-      decision = this._fallback(actions);
-    }
+    console.log(`%c[LLM 1차] 제안: ${proposal.action}${proposal.card ? ' "'+proposal.card+'"' : ''}`, 'color:#aaccff');
 
-    // ── end_turn 검증: 아직 할 수 있는 행동이 있으면 재고 ────
-    if (decision.action === 'end_turn') {
-      const remaining = actions.filter(a =>
-        a.action === 'play' ||
-        (a.action === 'buy' && a.card !== 'curse' && a.card !== 'copper')
-      );
-      if (remaining.length > 0) {
-        // 플레이 가능한 액션이 있으면 강제 실행
-        const playable = remaining.find(a => a.action === 'play');
-        if (playable) {
-          console.log(`%c[LLM 턴${gs.turn}] end_turn 거부 → play "${playable.card}" 강제`, 'color:#ffaa55');
-          decision = { action: 'play', card: playable.card, reason: 'override:had_playable_action' };
-        } else {
-          // 구매 가능한 유의미한 카드가 있으면 폴백 구매
-          const buyable = this._fallback(remaining);
-          if (buyable.action === 'buy') {
-            console.log(`%c[LLM 턴${gs.turn}] end_turn 거부 → buy "${buyable.card}" 강제`, 'color:#ffaa55');
-            decision = buyable;
-          }
-        }
-      }
-    }
+    // ── [2차] 검증 에이전트: 항상 호출 ────────────────────────
+    let decision = await this._reviewCandidates([proposal], actions);
 
     console.log(`%c[LLM 턴${gs.turn}] ${decision.action}${decision.card ? ' "'+decision.card+'"' : ''}`, 'color:#88ddff');
     if (decision.reason) console.log(`  이유: ${decision.reason}`);
@@ -890,6 +870,71 @@ export class BrowserLLMPlayer {
     return true;
   }
 
+  /** [2차] 검증 에이전트: 1차 제안을 검토하고 대안과 비교 */
+  async _reviewCandidates(candidates, actions) {
+    const gs = this.gs;
+    const proposal = candidates[0];
+
+    // play는 검증 불필요
+    if (proposal.action === 'play' || proposal.action === 'resolve') return proposal;
+
+    // 덱 보유 현황
+    const allCards = [...gs.deck, ...gs.hand, ...gs.play, ...gs.discard];
+    const owned = {};
+    for (const c of allCards) owned[c.def.id] = (owned[c.def.id] ?? 0) + 1;
+    const ownedStr = Object.entries(owned).map(([id, n]) => `${id}×${n}`).join(', ');
+    const ownedActions = Object.entries(owned)
+      .filter(([id]) => { const s = gs.supply.get(id); return s?.def?.type === 'Action'; })
+      .map(([id, n]) => `${id}×${n}`)
+      .join(', ');
+
+    const vpRemaining = (gs.vpTarget ?? 20) - (gs.vp ?? 0);
+
+    // 대안 목록 (1차 제안 외)
+    const alternatives = actions
+      .filter(a => (a.action === 'buy' || a.action === 'play') && a.card !== 'curse' && a.card !== 'copper')
+      .filter(a => !(a.action === proposal.action && a.card === proposal.card))
+      .map(a => `${a.action} "${a.card}"${a.cost != null ? ` (cost:${a.cost})` : ''}`)
+      .slice(0, 8)
+      .join(', ');
+
+    const reviewPrompt = `Review this Dominion AI decision. Accept or pick a better alternative.
+
+## State
+Turn ${gs.turn} | VP ${gs.vp}/${gs.vpTarget} (need ${vpRemaining}) | Coins ${gs.coins} | Buys ${gs.buys}
+Deck: [${ownedStr}]
+Owned action cards: [${ownedActions || 'none'}]
+
+## 1차 제안
+${JSON.stringify(proposal)}
+
+## 대안
+${alternatives || 'none'}
+
+## 판단 기준 (중요도 순)
+1. ${gs.coins >= 8 ? 'COINS 8+ → Province 구매 필수!' : gs.coins >= 6 ? 'COINS 6+ → Gold 구매 우선' : gs.coins >= 5 ? 'Duchy 또는 강력 액션' : 'Silver 또는 저비용 액션'}
+2. ${gs.turn >= 10 ? 'Turn 10+ VP RUSH: Province/Duchy/Gold만 구매! 액션카드 구매 금지!' : 'Turn<10: 경제/엔진 구축 OK'}
+3. 이미 보유한 액션카드 중복 구매 금지 (Silver/Gold 제외)
+4. end_turn은 play/buy 가능할 때 최악의 선택
+5. Estate는 VP ${vpRemaining}점 남았을 때만 (현재 ${vpRemaining <= 3 ? 'OK' : '금지'})
+
+## 출력
+제안이 올바르면 그대로, 아니면 교정된 JSON. JSON만 출력.`;
+
+    try {
+      const chosen = await this._callLLM(reviewPrompt);
+      if (chosen?.action && this._validate(chosen, actions)) {
+        if (chosen.action !== proposal.action || chosen.card !== proposal.card) {
+          console.log(`%c[LLM 2차] 교정: ${proposal.action} "${proposal.card ?? ''}" → ${chosen.action} "${chosen.card ?? ''}"`, 'color:#ff8800');
+        }
+        return chosen;
+      }
+    } catch {
+      // 검증 실패
+    }
+    return proposal;
+  }
+
   _fallback(actions) {
     // Big Money 폴백 (재물은 자동 플레이됨)
     const resolve = actions.find(a => a.action === 'resolve');
@@ -945,71 +990,86 @@ export class BrowserLLMPlayer {
     return false;
   }
 
-  /** 게임 시작 시 시장 분석 + 단기 전략 계획 생성 */
+  /** 게임 시작 시 시장 분석 + 단기 전략 계획 생성 (로컬 분석) */
   async _generateGamePlan() {
     const gs = this.gs;
-    this._gamePlan = '';
+    const vpTarget = gs.vpTarget ?? 18;
 
-    // 시장 카드 목록
-    const marketCards = [...gs.supply.entries()]
-      .filter(([, v]) => v.count > 0)
-      .map(([id, v]) => `${id}(${v.def.name}) cost:${v.def.cost} stock:${v.count} [${v.def.type}] — ${v.def.summary || v.def.desc || ''}`)
-      .join('\n');
+    // 시장에 있는 카드 분석
+    const has = (id) => (gs.supply.get(id)?.count ?? 0) > 0;
+    const kingdom = [...gs.supply.entries()]
+      .filter(([, v]) => v.count > 0 && v.def.type === 'Action')
+      .map(([k]) => k);
 
-    const strategy = getStrategy();
+    // 승리 조건 분석
+    const provNeeded = Math.ceil(vpTarget / 6);
+    const winPlan = vpTarget <= 12
+      ? `Province ${Math.ceil(vpTarget/6)}장이면 승리 (빠른 러시)`
+      : `Province ${provNeeded}장 또는 Province+Duchy 조합 필요`;
 
-    const systemMsg = `/no_think
-You are a Dominion solo game strategist. Analyze the market and create a concise game plan.
-Write in Korean. Output plain text (NOT JSON). Be concise (max 500 chars).
+    // 카드 시너지 분석
+    const synergies = [];
+    if (has('village') && (has('smithy') || has('laboratory')))
+      synergies.push('Village + Smithy/Lab: 엔진 핵심');
+    if (has('chapel')) synergies.push('Chapel: 덱 씨닝 (1장만 구매!)');
+    if (has('moneylender')) synergies.push('Moneylender: 초반 Copper→+3코인');
+    if (has('festival')) synergies.push('Festival: +2행동+1구매+2코인 올인원');
+    if (has('market')) synergies.push('Market: +1만능 카드');
+    if (has('laboratory')) synergies.push('Laboratory: +2카드+1행동 자급자족');
+    if (has('throne_room') && kingdom.length > 2)
+      synergies.push('Throne Room + 강력 액션: 2배 효과');
+    if (has('merchant') && has('silver'))
+      synergies.push('Merchant + Silver: 첫 Silver 플레이 시 +1코인');
+    if (has('remodel')) synergies.push('Remodel: Estate→Silver, Copper→Estate');
+    if (has('mine')) synergies.push('Mine: Copper→Silver→Gold 업그레이드');
 
-${strategy}`;
+    // 구매 우선순위 결정
+    const earlyBuys = ['Silver'];
+    if (has('chapel')) earlyBuys.unshift('Chapel (1장만!)');
+    else if (has('moneylender')) earlyBuys.push('Moneylender');
 
-    const userMsg = `## 이번 게임 설정
-- 목표 승점: ${gs.vpTarget}
-- 시작 덱: 동화 7장 + 사유지 3장
-
-## 시장 카드 (12슬롯)
-${marketCards}
-
-## 분석 요청
-이 시장 구성을 분석하고 게임 계획을 작성하세요:
-
-1. 승리 조건 (Province/Duchy 몇 장 필요?)
-2. 구매 우선순위 (Turn 1-4 / 5-10 / 10+)
-3. 핵심 시너지 (이 시장에서 강한 조합)
-4. 회피 카드 (함정/약한 카드)
-5. 주의점 (시장 이벤트 리스크)`;
-
-    try {
-      const res = await fetch(`${this.baseURL}/v1/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer local' },
-        body: JSON.stringify({
-          model: this.model,
-          temperature: 0.4,
-          max_tokens: 800,
-          messages: [
-            { role: 'system', content: systemMsg },
-            { role: 'user',   content: userMsg },
-          ],
-        }),
-        signal: AbortSignal.timeout(30_000),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        let plan = data?.choices?.[0]?.message?.content ?? '';
-        // thinking 태그 제거
-        plan = plan.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/<\/?think>/gi, '').trim();
-        // "Thinking Process" 같은 메타 텍스트 제거
-        plan = plan.replace(/^(Thinking Process|Analysis|Let me|I need to|Wait|Actually|Looking)[\s\S]*?(?=###|##|1\.|$)/i, '').trim();
-        this._gamePlan = plan.slice(0, 1500); // 프롬프트 크기 제한
-        console.log(`%c[LLM] 게임 전략 계획 생성 완료`, 'color:#88ff88;font-weight:bold');
-        console.log(this._gamePlan);
-      }
-    } catch (e) {
-      console.warn('[LLM] 게임 계획 생성 실패:', e.message);
-      this._gamePlan = '';
+    const midBuys = [];
+    if (has('smithy')) midBuys.push('Smithy');
+    if (has('laboratory')) midBuys.push('Laboratory');
+    if (has('festival')) midBuys.push('Festival');
+    if (has('market')) midBuys.push('Market');
+    if (has('village') && midBuys.length > 0) midBuys.unshift('Village (1장)');
+    midBuys.push('Gold');
+    if (has('militia') || has('moat') || has('witch') || has('bandit')) {
+      const defense = ['moat','militia','witch','bandit'].filter(has);
+      midBuys.push(`시장방어: ${defense.join('/')}`);
     }
+
+    // 회피 카드
+    const avoid = [];
+    if (has('cellar')) avoid.push('Cellar (Chapel 있으면 불필요)');
+    if (has('workshop')) avoid.push('Workshop (Silver 구매가 더 효율적)');
+    if (has('council_room')) avoid.push('Council Room (시장 소멸 증가 패널티)');
+
+    // 계획 조립
+    const lines = [
+      `## 이번 게임 계획 (목표: ${vpTarget}VP)`,
+      ``,
+      `### 승리 조건`,
+      winPlan,
+      ``,
+      `### 구매 우선순위`,
+      `Turn 1-4: ${earlyBuys.join(', ')}`,
+      `Turn 5-10: ${midBuys.join(', ')}`,
+      `Turn 10+: Province(8코인) > Duchy(5코인)`,
+      ``,
+      synergies.length > 0 ? `### 핵심 시너지\n${synergies.join('\n')}` : '',
+      avoid.length > 0 ? `\n### 회피 카드\n${avoid.join('\n')}` : '',
+      ``,
+      `### 주의점`,
+      `- 같은 액션카드 중복 구매 금지 (Silver/Gold/드로우카드 제외)`,
+      `- 재물 고갈 주의: Copper 최소 3장 유지`,
+      `- 시장 이벤트로 핵심 카드 소멸 전에 구매`,
+    ];
+
+    this._gamePlan = lines.filter(l => l !== '').join('\n');
+    console.log(`%c[LLM] 게임 전략 계획 생성 완료`, 'color:#88ff88;font-weight:bold');
+    console.log(this._gamePlan);
   }
 
   _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
