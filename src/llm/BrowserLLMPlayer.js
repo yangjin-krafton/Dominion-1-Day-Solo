@@ -997,116 +997,82 @@ ${buyOptions || 'end_turn만 가능'}
     return false;
   }
 
-  /** 게임 시작 시 시장 분석 + 단기 전략 계획 생성 (로컬 분석) */
+  /** 게임 시작 시 시장 분석 → LLM이 전략 계획 생성 */
   async _generateGamePlan() {
     const gs = this.gs;
-    const vpTarget = gs.vpTarget ?? 18;
+    this._gamePlan = '';
 
-    // 시장에 있는 카드 분석
-    const has = (id) => (gs.supply.get(id)?.count ?? 0) > 0;
+    // ── 시장 데이터 요약 (로컬) ─────────────────────────────
     const stock = (id) => gs.supply.get(id)?.count ?? 0;
-    const kingdom = [...gs.supply.entries()]
-      .filter(([, v]) => v.count > 0 && v.def.type === 'Action')
-      .map(([k]) => k);
+    const marketLines = [...gs.supply.entries()]
+      .filter(([, v]) => v.count > 0)
+      .map(([id, v]) => `  ${id}: ${v.def.type}, cost ${v.def.cost}, stock ${v.count}${v.def.summary ? ' — ' + v.def.summary : ''}`)
+      .join('\n');
 
-    // 핵심 재고 현황
-    const provStock   = stock('province');
-    const duchyStock  = stock('duchy');
-    const estateStock = stock('estate');
-    const goldStock   = stock('gold');
-    const silverStock = stock('silver');
-    const curseStock  = stock('curse');
-    const maxProvVP   = provStock * 6;
-    const maxDuchyVP  = duchyStock * 3;
-    const maxEstVP    = estateStock * 1;
-    const startingVP  = 3; // Estate 3장 시작
+    const dataPrompt = `새 게임이 시작됩니다. 시장을 분석하고 이번 판 전략을 세워주세요.
 
-    // 승리 조건 분석 — 재고 기반
-    const totalAvailVP = maxProvVP + maxDuchyVP + maxEstVP + startingVP;
-    const provNeeded = Math.min(provStock, Math.ceil(vpTarget / 6));
+## 게임 설정
+- 목표 승점: ${gs.vpTarget}
+- 시작 덱: Copper 7장 + Estate 3장 (3VP)
+- 상대: 시장 (매 턴 카드 1-2장 소멸)
 
-    let winPlan;
-    if (totalAvailVP < vpTarget) {
-      winPlan = `경고: VP 카드 재고 부족! 최대 ${totalAvailVP}VP (목표 ${vpTarget}). 시장 소멸 전 VP 카드 구매 급선무!`;
-    } else if (vpTarget <= 12) {
-      winPlan = `Province ${Math.ceil(vpTarget/6)}장이면 승리 (빠른 러시). Province 재고: ${provStock}장`;
-    } else {
-      winPlan = `Province ${provNeeded}장(${provNeeded*6}VP) + Duchy ${Math.ceil((vpTarget - provNeeded*6 - startingVP) / 3)}장 필요. 재고: Province ${provStock}, Duchy ${duchyStock}`;
+## 시장 재고
+${marketLines}
+
+## 핵심 수치
+- Province ${stock('province')}장 (최대 ${stock('province')*6}VP)
+- Duchy ${stock('duchy')}장 (최대 ${stock('duchy')*3}VP)
+- Estate ${stock('estate')}장
+- Gold ${stock('gold')}장, Silver ${stock('silver')}장
+- Curse ${stock('curse')}장 (시장 이벤트로 내 덱에 추가될 위험)
+- VP 카드 합계: 최대 ${stock('province')*6 + stock('duchy')*3 + stock('estate') + 3}VP (시작 3VP 포함)
+
+## 요청
+다음 형식으로 간결하게 전략을 작성하세요 (한국어, 500자 이내):
+
+1. 승리 계획: Province/Duchy 몇 장 필요? Silver/Gold 재고 부족하면 대체 경제 전략은?
+2. 턴별 구매: Turn 1-4 / Turn 5-10 / Turn 10+ 각각 뭘 사야 하나
+3. 핵심 카드 조합: 이 시장에서 강한 시너지
+4. 위험 요소: 재고 부족, 저주, 시장 소멸로 인한 게임 막힘 리스크
+5. 회피: 이 시장에서 함정/약한 카드`;
+
+    try {
+      const res = await fetch(`${this.baseURL}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer local' },
+        body: JSON.stringify({
+          model: this.model,
+          temperature: 0.4,
+          max_tokens: 800,
+          messages: [
+            { role: 'system', content: `/no_think\n당신은 도미니언 솔로 게임 전략가입니다. 시장 분석 후 전략을 세우세요.\n한국어로, 간결하게 (500자 이내). JSON 아닌 일반 텍스트.\n\n${getStrategy()}` },
+            { role: 'user', content: dataPrompt },
+          ],
+        }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        let plan = data?.choices?.[0]?.message?.content ?? '';
+        // thinking 잔해 제거
+        plan = plan.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/<\/?think>/gi, '').trim();
+        plan = plan.replace(/^[\s\S]*?(?=1\.|##|###|승리|턴별)/i, '').trim();
+        if (plan.length > 50) {
+          this._gamePlan = plan.slice(0, 1500);
+          console.log(`%c[LLM] 게임 전략 계획 생성 완료 (LLM)`, 'color:#88ff88;font-weight:bold');
+          console.log(this._gamePlan);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('[LLM] 전략 생성 실패:', e.message);
     }
 
-    // 카드 시너지 분석
-    const synergies = [];
-    if (has('village') && (has('smithy') || has('laboratory')))
-      synergies.push('Village + Smithy/Lab: 엔진 핵심');
-    if (has('chapel')) synergies.push('Chapel: 덱 씨닝 (1장만 구매!)');
-    if (has('moneylender')) synergies.push('Moneylender: 초반 Copper→+3코인');
-    if (has('festival')) synergies.push('Festival: +2행동+1구매+2코인 올인원');
-    if (has('market')) synergies.push('Market: +1만능 카드');
-    if (has('laboratory')) synergies.push('Laboratory: +2카드+1행동 자급자족');
-    if (has('throne_room') && kingdom.length > 2)
-      synergies.push('Throne Room + 강력 액션: 2배 효과');
-    if (has('merchant') && has('silver'))
-      synergies.push('Merchant + Silver: 첫 Silver 플레이 시 +1코인');
-    if (has('remodel')) synergies.push('Remodel: Estate→Silver, Copper→Estate');
-    if (has('mine')) synergies.push('Mine: Copper→Silver→Gold 업그레이드');
-
-    // 구매 우선순위 결정
-    const earlyBuys = ['Silver'];
-    if (has('chapel')) earlyBuys.unshift('Chapel (1장만!)');
-    else if (has('moneylender')) earlyBuys.push('Moneylender');
-
-    const midBuys = [];
-    if (has('smithy')) midBuys.push('Smithy');
-    if (has('laboratory')) midBuys.push('Laboratory');
-    if (has('festival')) midBuys.push('Festival');
-    if (has('market')) midBuys.push('Market');
-    if (has('village') && midBuys.length > 0) midBuys.unshift('Village (1장)');
-    midBuys.push('Gold');
-    if (has('militia') || has('moat') || has('witch') || has('bandit')) {
-      const defense = ['moat','militia','witch','bandit'].filter(has);
-      midBuys.push(`시장방어: ${defense.join('/')}`);
-    }
-
-    // 회피 카드
-    const avoid = [];
-    if (has('cellar')) avoid.push('Cellar (Chapel 있으면 불필요)');
-    if (has('workshop')) avoid.push('Workshop (Silver 구매가 더 효율적)');
-    if (has('council_room')) avoid.push('Council Room (시장 소멸 증가 패널티)');
-
-    // 계획 조립
-    const lines = [
-      `## 이번 게임 계획 (목표: ${vpTarget}VP)`,
-      ``,
-      `### 승리 조건`,
-      winPlan,
-      ``,
-      `### 구매 우선순위`,
-      `Turn 1-4: ${earlyBuys.join(', ')}`,
-      `Turn 5-10: ${midBuys.join(', ')}`,
-      `Turn 10+: Province(8코인) > Duchy(5코인)`,
-      ``,
-      synergies.length > 0 ? `### 핵심 시너지\n${synergies.join('\n')}` : '',
-      avoid.length > 0 ? `\n### 회피 카드\n${avoid.join('\n')}` : '',
-      ``,
-      `### 주의점`,
-      `- 같은 액션카드 중복 구매 금지 (Silver/Gold/드로우카드 제외)`,
-      `- 재물 고갈 주의: Copper 최소 3장 유지`,
-      `- 시장 이벤트로 핵심 카드 소멸 전에 구매`,
-      ``,
-      `### 재고 현황`,
-      `- Province: ${provStock}장 (최대 ${maxProvVP}VP)`,
-      `- Duchy: ${duchyStock}장 (최대 ${maxDuchyVP}VP)`,
-      `- Gold: ${goldStock}장, Silver: ${silverStock}장`,
-      `- Curse: ${curseStock}장 (시장 이벤트 저주 위험)`,
-      curseStock > 5 ? `- 경고: 저주 재고 많음! Chapel/Remodel로 저주 폐기 준비 필요` : '',
-      silverStock < 10 ? `- 경고: Silver 재고 적음(${silverStock})! 빠르게 구매` : '',
-      goldStock < 5 ? `- 경고: Gold 재고 적음(${goldStock})! 시장 소멸 전 구매 우선` : '',
-      provStock <= 3 ? `- 긴급: Province 재고 ${provStock}장! 시장 소멸 전 VP 러시 필수` : '',
-    ];
-
-    this._gamePlan = lines.filter(l => l !== '').join('\n');
-    console.log(`%c[LLM] 게임 전략 계획 생성 완료`, 'color:#88ff88;font-weight:bold');
-    console.log(this._gamePlan);
+    // ── LLM 실패 시 로컬 폴백 ───────────────────────────────
+    console.log(`%c[LLM] 게임 전략: 로컬 폴백`, 'color:#ffaa55');
+    this._gamePlan = `목표: ${gs.vpTarget}VP. Province ${stock('province')}장, Duchy ${stock('duchy')}장.
+Turn 1-4: Silver 구매. Turn 5-10: Gold + 드로우카드. Turn 10+: Province/Duchy.
+Gold ${stock('gold')}장, Silver ${stock('silver')}장, Curse ${stock('curse')}장.`;
   }
 
   _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
