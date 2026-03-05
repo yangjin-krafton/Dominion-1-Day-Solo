@@ -43,6 +43,7 @@ import { initDebug } from './debug/DebugAPI.js';
 
 // ── LLM 자동 플레이 ─────────────────────────────────────────
 import { BrowserLLMPlayer } from './llm/BrowserLLMPlayer.js';
+import { reviewGame as llmReviewGame } from './llm/MemoryManager.js';
 
 // ── audio ──────────────────────────────────────────────────
 import { SFX } from './asset/audio/sfx.js';
@@ -547,6 +548,16 @@ function _finishGame(won = false) {
   });
   const ranking = Storage.getRanking();
   flow.go(STATES.RESULT, { record, ranking, newUnlock });
+
+  // LLM 장기 메모리: 게임 리뷰 + 전략 업데이트 (비동기, 백그라운드)
+  if (_llmPlayer._running || _llmPlayer.actionLog.length > 0) {
+    llmReviewGame({
+      gs, record, won,
+      baseURL:   _llmPlayer.baseURL,
+      model:     _llmPlayer.model,
+      actionLog: _llmPlayer.actionLog,
+    }).then(() => { _llmPlayer.actionLog = []; });
+  }
 }
 
 // ============================================================

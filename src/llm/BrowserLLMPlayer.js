@@ -18,6 +18,7 @@
 
 import { AREAS } from '../config.js';
 import { drawCards } from '../core/TurnEngine.js';
+import { getStrategy, getRecentLogs } from './MemoryManager.js';
 
 // ── 규칙 MD 로드 ────────────────────────────────────────────
 
@@ -44,11 +45,23 @@ Pending resolve:
 {"action": "resolve", "resolution": {"gain": "silver"}}          // two_step step2`;
 
 function getSystemPrompt() {
+  const strategy = getStrategy();
+  const recentLogs = getRecentLogs(3);
+  const recentReviews = recentLogs
+    .filter(l => l.review)
+    .map(l => `[${l.timestamp}] ${l.won ? 'WIN' : 'LOSS'} ${l.vp}VP/${l.vpTarget} ${l.turns}T\n${l.review}`)
+    .join('\n---\n');
+
   return `/no_think
 You are a Dominion card game AI player.
 IMPORTANT: Output ONLY JSON. No explanation, no thinking.
 
 ${_rulesText}
+
+## Your Accumulated Strategy (from past games)
+${strategy}
+
+${recentReviews ? `## Recent Game Reviews\n${recentReviews}` : ''}
 
 ${RESPONSE_FORMAT}`;
 }
@@ -173,6 +186,7 @@ export class BrowserLLMPlayer {
     this.delay       = 600;   // ms — 행동 간격 (시각적 감상용)
     this.calls       = 0;
     this._retryCount = 0;
+    this.actionLog   = [];    // 턴별 행동 기록 (장기 메모리용)
   }
 
   // ── 공개 API ────────────────────────────────────────────
@@ -271,6 +285,12 @@ export class BrowserLLMPlayer {
 
     console.log(`%c[LLM 턴${gs.turn}] ${decision.action}${decision.card ? ' "'+decision.card+'"' : ''}`, 'color:#88ddff');
     if (decision.reason) console.log(`  이유: ${decision.reason}`);
+
+    // 행동 로그 기록
+    this.actionLog.push({
+      turn: gs.turn, action: decision.action,
+      card: decision.card ?? null, reason: decision.reason ?? '',
+    });
 
     await this._execute(decision, actions);
   }
