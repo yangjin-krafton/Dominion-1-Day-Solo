@@ -1098,44 +1098,51 @@ ${buyOptions || 'end_turn만 가능'}
     console.log(`%c[LLM] 플레이어 이름: ${this._playerName}`, 'color:#ffd700');
   }
 
-  /** 게임 시작 시 시장 분석 → LLM이 전략 계획 생성 */
+  /** 시장 분석 → 전략 계획 생성 (LLM + 로컬 폴백) */
   async _generateGamePlan() {
     const gs = this.gs;
-    this._gamePlan = '';
-
-    // ── 시장 데이터 요약 (로컬) ─────────────────────────────
     const stock = (id) => gs.supply.get(id)?.count ?? 0;
-    const marketLines = [...gs.supply.entries()]
+
+    // 덱 보유 현황 (재생성 시)
+    const allCards = [...gs.deck, ...gs.hand, ...gs.play, ...gs.discard];
+    const owned = {};
+    for (const c of allCards) owned[c.def.id] = (owned[c.def.id] ?? 0) + 1;
+    const ownedStr = gs.turn > 1
+      ? `\n내 덱: ${Object.entries(owned).map(([id,n])=>`${id}×${n}`).join(', ')} (${allCards.length}장)`
+      : '';
+
+    // 시장 전체 카드 (효과 포함)
+    const marketFull = [...gs.supply.entries()]
       .filter(([, v]) => v.count > 0)
-      .map(([id, v]) => `  ${id}: ${v.def.type}, cost ${v.def.cost}, stock ${v.count}${v.def.summary ? ' — ' + v.def.summary : ''}`)
+      .map(([id, v]) => `${id}(${v.def.type}, cost${v.def.cost}, stock${v.count}) ${v.def.summary || ''}`)
       .join('\n');
 
-    const dataPrompt = `새 게임이 시작됩니다. 시장을 분석하고 이번 판 전략을 세워주세요.
+    // 최근 리뷰
+    const recentLogs = getRecentLogs(2);
+    const recentReviews = recentLogs
+      .filter(l => l.review)
+      .map(l => `[${l.won?'WIN':'LOSS'} ${l.vp}VP/${l.vpTarget} ${l.turns}T] ${l.review.slice(0, 200)}`)
+      .join('\n');
 
-## 게임 설정
-- 목표 승점: ${gs.vpTarget}
-- 시작 덱: Copper 7장 + Estate 3장 (3VP)
-- 상대: 시장 (매 턴 카드 1-2장 소멸)
+    // 이전 전략 (있으면)
+    const prevPlan = this._gamePlan ? `\n## 이전 전략\n${this._gamePlan}` : '';
+
+    const prompt = `Turn ${gs.turn}, VP ${gs.vp}/${gs.vpTarget}.${ownedStr}
 
 ## 시장 재고
-${marketLines}
+${marketFull}
 
 ## 핵심 수치
-- Province ${stock('province')}장 (최대 ${stock('province')*6}VP)
-- Duchy ${stock('duchy')}장 (최대 ${stock('duchy')*3}VP)
-- Estate ${stock('estate')}장
-- Gold ${stock('gold')}장, Silver ${stock('silver')}장
-- Curse ${stock('curse')}장 (시장 이벤트로 내 덱에 추가될 위험)
-- VP 카드 합계: 최대 ${stock('province')*6 + stock('duchy')*3 + stock('estate') + 3}VP (시작 3VP 포함)
+Province ${stock('province')}장, Duchy ${stock('duchy')}장, Gold ${stock('gold')}장, Silver ${stock('silver')}장, Curse ${stock('curse')}장
 
-## 요청
-다음 형식으로 간결하게 전략을 작성하세요 (한국어, 500자 이내):
+${recentReviews ? `## 최근 게임 교훈\n${recentReviews}` : ''}
+${prevPlan}
 
-1. 승리 계획: Province/Duchy 몇 장 필요? Silver/Gold 재고 부족하면 대체 경제 전략은?
-2. 턴별 구매: Turn 1-4 / Turn 5-10 / Turn 10+ 각각 뭘 사야 하나
-3. 핵심 카드 조합: 이 시장에서 강한 시너지
-4. 위험 요소: 재고 부족, 저주, 시장 소멸로 인한 게임 막힘 리스크
-5. 회피: 이 시장에서 함정/약한 카드`;
+깊이 분석하고 이번 게임 전략을 세워주세요:
+1. 승리 계획 (VP 카드 몇 장 필요?)
+2. 턴별 구매 우선순위
+3. 핵심 시너지
+4. 위험 요소와 대응`;
 
     try {
       const res = await fetch(`${this.baseURL}/v1/chat/completions`, {
@@ -1143,24 +1150,28 @@ ${marketLines}
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer local' },
         body: JSON.stringify({
           model: this.model,
-          temperature: 0.4,
-          max_tokens: 800,
+          temperature: 0.3,
+          max_tokens: 2000,
           messages: [
-            { role: 'system', content: `/no_think\n당신은 도미니언 솔로 게임 전략가입니다. 시장 분석 후 전략을 세우세요.\n한국어로, 간결하게 (500자 이내). JSON 아닌 일반 텍스트.\n\n${getStrategy()}` },
-            { role: 'user', content: dataPrompt },
+            { role: 'system', content: `도미니언 솔로 게임 전략가. 시장 상황을 깊이 분석하고 구매 전략을 세우세요.
+<think> 태그 안에서 충분히 사고한 후, 최종 전략을 한국어 300자 이내로 출력.
+
+${_rulesText}
+
+## 장기 전략 노하우
+${getStrategy()}` },
+            { role: 'user', content: prompt },
           ],
         }),
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(300_000),  // 5분 — thinking 모드에 충분한 시간
       });
       if (res.ok) {
         const data = await res.json();
         let plan = data?.choices?.[0]?.message?.content ?? '';
-        // thinking 잔해 제거
         plan = plan.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/<\/?think>/gi, '').trim();
-        plan = plan.replace(/^[\s\S]*?(?=1\.|##|###|승리|턴별)/i, '').trim();
-        if (plan.length > 50) {
-          this._gamePlan = plan.slice(0, 1500);
-          console.log(`%c[LLM] 게임 전략 계획 생성 완료 (LLM)`, 'color:#88ff88;font-weight:bold');
+        if (plan.length > 20) {
+          this._gamePlan = plan.slice(0, 800);
+          console.log(`%c[LLM] 전략 생성 (Turn ${gs.turn})`, 'color:#88ff88;font-weight:bold');
           console.log(this._gamePlan);
           return;
         }
@@ -1169,11 +1180,9 @@ ${marketLines}
       console.warn('[LLM] 전략 생성 실패:', e.message);
     }
 
-    // ── LLM 실패 시 로컬 폴백 ───────────────────────────────
-    console.log(`%c[LLM] 게임 전략: 로컬 폴백`, 'color:#ffaa55');
-    this._gamePlan = `목표: ${gs.vpTarget}VP. Province ${stock('province')}장, Duchy ${stock('duchy')}장.
-Turn 1-4: Silver 구매. Turn 5-10: Gold + 드로우카드. Turn 10+: Province/Duchy.
-Gold ${stock('gold')}장, Silver ${stock('silver')}장, Curse ${stock('curse')}장.`;
+    // 로컬 폴백
+    this._gamePlan = `목표${gs.vpTarget}VP. Province${stock('province')},Duchy${stock('duchy')},Gold${stock('gold')},Silver${stock('silver')}. T1-4:Silver, T5-10:Gold+드로우, T10+:Province/Duchy.`;
+    console.log(`%c[LLM] 전략: 로컬 폴백 (Turn ${gs.turn})`, 'color:#ffaa55');
   }
 
   _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
