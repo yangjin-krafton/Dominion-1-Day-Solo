@@ -247,13 +247,20 @@ export class BrowserLLMPlayer {
     const gs = this.gs;
 
     // ── 승리/종료 감지 ────────────────────────────────────
-    // 게임 종료는 _finishGame에서 처리됨 (buy/play 시 checkVictory)
-    // _finishGame이 autoPlay면 자동으로 다음 게임 시작
-    // 여기서는 LLM 루프만 정지
     if (this._checkGameOver()) {
       console.log(`%c[LLM] 게임 종료 감지 — 루프 정지`, 'color:#44ff88;font-weight:bold');
       this._running = false;
       this.gs.llmResolver = null;
+      return;
+    }
+
+    // ── 실패/교착 감지 → 자동 새 게임 ─────────────────────
+    if (this._autoPlay && this._checkStalemate()) {
+      console.log(`%c[LLM] 교착 감지 — 게임 포기 → 다음 게임`, 'color:#ff6666;font-weight:bold');
+      this._running = false;
+      this.gs.llmResolver = null;
+      // _finishGame(false)를 트리거하기 위해 강제 턴 종료
+      this.onEndTurn();
       return;
     }
 
@@ -1015,6 +1022,45 @@ ${buyOptions || 'end_turn만 가능'}
         if (emptyCount >= 3) return true;
       }
     }
+    return false;
+  }
+
+  /** 교착 상태 감지: 게임이 막힌 것으로 판단되면 포기 */
+  _checkStalemate() {
+    const gs = this.gs;
+
+    // 조건 1: 턴 30 초과 → 너무 오래 걸림
+    if (gs.turn > 30) {
+      console.warn(`[LLM] 교착: 턴 ${gs.turn} > 30`);
+      return true;
+    }
+
+    // 조건 2: 재물 카드 0장 (코인 생성 불가)
+    const allCards = [...gs.deck, ...gs.hand, ...gs.play, ...gs.discard];
+    const treasureCount = allCards.filter(c => c.def.type === 'Treasure').length;
+    if (treasureCount === 0 && gs.turn > 5) {
+      console.warn(`[LLM] 교착: 재물 카드 0장, 코인 생성 불가`);
+      return true;
+    }
+
+    // 조건 3: VP 카드 재고 + 저주 변수 고려 → 목표 달성 불가
+    const provStock = gs.supply.get('province')?.count ?? 0;
+    const duchyStock = gs.supply.get('duchy')?.count ?? 0;
+    const estateStock = gs.supply.get('estate')?.count ?? 0;
+    const curseSupply = gs.supply.get('curse')?.count ?? 0;
+    const vpRemaining = (gs.vpTarget ?? 20) - (gs.vp ?? 0);
+    const maxGainableVP = provStock * 6 + duchyStock * 3 + estateStock;
+    // 저주 리스크: 남은 저주가 시장 이벤트로 내 덱에 올 수 있음 (18%/턴)
+    const curseRisk = Math.min(curseSupply, Math.ceil((30 - gs.turn) * 0.18));
+    // 폐기 카드가 있으면 저주 제거 가능 → 리스크 감소
+    const hasTrash = allCards.some(c => ['chapel','remodel'].includes(c.def.id));
+    const effectiveCurseRisk = hasTrash ? Math.floor(curseRisk * 0.3) : curseRisk;
+
+    if (vpRemaining > 0 && (maxGainableVP - effectiveCurseRisk) < vpRemaining && gs.turn > 10) {
+      console.warn(`[LLM] 교착: VP 달성 불가 (필요 ${vpRemaining}, 획득 가능 ${maxGainableVP}, 저주 위험 -${effectiveCurseRisk})`);
+      return true;
+    }
+
     return false;
   }
 
