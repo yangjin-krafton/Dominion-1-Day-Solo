@@ -177,7 +177,8 @@ export class BrowserLLMPlayer {
     this._retryCount = 0;
     this.actionLog   = [];     // 턴별 행동 기록 (장기 메모리용)
     this._onGameEnd  = null;   // 게임 종료 → 다음 게임 시작 콜백
-    this._gamePlan   = '';     // 게임 시작 시 LLM이 생성한 단기 전략 캐시
+    this._gamePlan    = '';     // 단기 전략 캐시
+    this._lastPlanTurn = 0;    // 마지막 전략 재생성 턴
   }
 
   // ── 공개 API ────────────────────────────────────────────
@@ -203,11 +204,10 @@ export class BrowserLLMPlayer {
     console.log(`  URL:  ${this.baseURL}`);
     console.log(`  속도: ${this.delay}ms/행동`);
 
-    // 이름 로드 + 시장 분석 + 전략 계획 → 루프 시작
-    Promise.all([
-      this._ensurePlayerName(),
-      this._generateGamePlan(),
-    ]).then(() => this._loop());
+    // 이름 → 전략 → 루프 (순차 실행, LLM 서버 부하 방지)
+    this._ensurePlayerName()
+      .then(() => this._generateGamePlan())
+      .then(() => this._loop());
   }
 
   stop() {
@@ -253,6 +253,12 @@ export class BrowserLLMPlayer {
       this._running = false;
       this.gs.llmResolver = null;
       return;
+    }
+
+    // ── 4턴마다 전략 재생성 ────────────────────────────────
+    if (gs.turn > 1 && gs.turn !== this._lastPlanTurn && gs.turn % 4 === 1) {
+      this._lastPlanTurn = gs.turn;
+      await this._generateGamePlan();
     }
 
     // pending 상태면 skip (llmResolver가 처리)
