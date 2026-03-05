@@ -367,22 +367,37 @@ const _llmPlayer = new BrowserLLMPlayer({
   makeCard,
 });
 
+// ── LLM 연속 플레이: 게임 종료 → 메모리 → 다음 게임 ──────
+_llmPlayer._onGameEnd = () => {
+  // 현재 게임 종료 처리 (승리 판정은 _onEndTurn → _finishGame에서)
+  _onEndTurn();
+};
+
 window.dominion = {
-  /** LLM 자동 플레이 시작
-   *  @example dominion.llm.start()
-   *  @example dominion.llm.start({ model: 'llama3.1:8b', delay: 1000 })
+  /** LLM 자동 플레이
+   *  @example dominion.llm.start()               한 판만
+   *  @example dominion.llm.start({ delay: 300 })  빠르게 한 판
+   *  @example dominion.llm.auto()                 연속 자동 플레이 (종료까지)
+   *  @example dominion.llm.auto({ delay: 200 })   빠르게 연속
+   *  @example dominion.llm.stop()                 즉시 정지
    */
   llm: {
     start:    (opts) => _llmPlayer.start(opts),
-    stop:     ()     => _llmPlayer.stop(),
-    status:   ()     => _llmPlayer.status(),
+    stop:     ()     => { _llmPlayer._autoPlay = false; _llmPlayer.stop(); },
+    status:   ()     => ({ ..._llmPlayer.status(), autoPlay: _llmPlayer._autoPlay }),
     setModel: (m)    => { _llmPlayer.model   = m;  console.log('[LLM] 모델:', m); },
     setUrl:   (u)    => { _llmPlayer.baseURL = u;  console.log('[LLM] URL:', u); },
     setDelay: (ms)   => { _llmPlayer.delay   = ms; console.log('[LLM] 속도:', ms, 'ms'); },
+    /** 연속 자동 플레이: 게임 종료 → 메모리 처리 → 다음 게임 자동 시작 */
+    auto: (opts) => {
+      _llmPlayer._autoPlay = true;
+      _llmPlayer.start(opts);
+      console.log('%c[LLM] 연속 자동 플레이 모드 ON — dominion.llm.stop() 으로 정지', 'color:#ffd700;font-weight:bold');
+    },
   },
 };
 
-console.log('%c[Dominion] 콘솔 명령어: window.dominion.llm.start() / .stop() / .status()', 'color:#88ddff');
+console.log('%c[Dominion] 콘솔 명령어: dominion.llm.start() / .auto() / .stop()', 'color:#88ddff');
 
 // ============================================================
 // 화면 상태 머신
@@ -550,13 +565,50 @@ function _finishGame(won = false) {
   flow.go(STATES.RESULT, { record, ranking, newUnlock });
 
   // LLM 장기 메모리: 게임 리뷰 + 전략 업데이트 (비동기, 백그라운드)
-  if (_llmPlayer._running || _llmPlayer.actionLog.length > 0) {
-    llmReviewGame({
+  const hadActionLog = _llmPlayer.actionLog.length > 0;
+  if (_llmPlayer._running || hadActionLog) {
+    const reviewPromise = llmReviewGame({
       gs, record, won,
       baseURL:   _llmPlayer.baseURL,
       model:     _llmPlayer.model,
       actionLog: _llmPlayer.actionLog,
     }).then(() => { _llmPlayer.actionLog = []; });
+
+    // 연속 자동 플레이: 메모리 처리 완료 후 다음 게임 자동 시작
+    if (_llmPlayer._autoPlay) {
+      reviewPromise.then(() => {
+        console.log('%c[LLM] 메모리 처리 완료 → 다음 게임 자동 시작', 'color:#ffd700;font-weight:bold');
+        flow.go(STATES.GAME);
+        // 새 게임 시작 후 약간 대기 → LLM 플레이 재시작
+        setTimeout(() => {
+          if (_llmPlayer._autoPlay) {
+            _llmPlayer.actionLog = [];
+            _llmPlayer.start();
+          }
+        }, 2000);
+      }).catch(() => {
+        // 메모리 처리 실패해도 다음 게임 진행
+        if (_llmPlayer._autoPlay) {
+          console.warn('[LLM] 메모리 처리 실패 — 다음 게임 계속');
+          flow.go(STATES.GAME);
+          setTimeout(() => {
+            if (_llmPlayer._autoPlay) {
+              _llmPlayer.actionLog = [];
+              _llmPlayer.start();
+            }
+          }, 2000);
+        }
+      });
+    }
+  } else if (_llmPlayer._autoPlay) {
+    // 액션 로그 없어도 autoPlay면 다음 게임
+    console.log('%c[LLM] 다음 게임 자동 시작', 'color:#ffd700;font-weight:bold');
+    flow.go(STATES.GAME);
+    setTimeout(() => {
+      if (_llmPlayer._autoPlay) {
+        _llmPlayer.start();
+      }
+    }, 2000);
   }
 }
 

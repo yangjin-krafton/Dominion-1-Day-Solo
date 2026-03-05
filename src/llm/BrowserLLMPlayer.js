@@ -178,10 +178,12 @@ export class BrowserLLMPlayer {
     this.makeCard   = makeCard;
 
     this._running    = false;
-    this.delay       = 600;   // ms — 행동 간격 (시각적 감상용)
+    this._autoPlay   = false;  // 연속 자동 플레이 모드 (게임 종료 → 메모리 → 다음 게임)
+    this.delay       = 600;    // ms — 행동 간격 (시각적 감상용)
     this.calls       = 0;
     this._retryCount = 0;
-    this.actionLog   = [];    // 턴별 행동 기록 (장기 메모리용)
+    this.actionLog   = [];     // 턴별 행동 기록 (장기 메모리용)
+    this._onGameEnd  = null;   // 게임 종료 → 다음 게임 시작 콜백
   }
 
   // ── 공개 API ────────────────────────────────────────────
@@ -243,6 +245,21 @@ export class BrowserLLMPlayer {
   async _step() {
     const gs = this.gs;
 
+    // ── 승리/종료 감지 ────────────────────────────────────
+    if (this._checkGameOver()) {
+      if (this._autoPlay) {
+        console.log(`%c[LLM] 게임 종료 감지 — 메모리 처리 후 다음 게임 자동 시작`, 'color:#44ff88;font-weight:bold');
+        this._running = false;
+        this.gs.llmResolver = null;
+        // _onGameEnd 콜백이 메모리 처리 + 다음 게임 시작을 담당
+        if (this._onGameEnd) this._onGameEnd();
+      } else {
+        console.log(`%c[LLM] 게임 종료 감지 — 자동 정지`, 'color:#44ff88;font-weight:bold');
+        this.stop();
+      }
+      return;
+    }
+
     // pending 상태면 skip (llmResolver가 처리)
     const pending = this._getActivePending();
     if (pending) return;
@@ -268,9 +285,14 @@ export class BrowserLLMPlayer {
     const actions = this._getAvailableActions();
     if (actions.length === 0) return;
 
-    // 선택지가 end_turn뿐이면 LLM 호출 불필요
-    if (actions.length === 1 && actions[0].action === 'end_turn') {
-      console.log(`%c[LLM 턴${gs.turn}] auto end_turn (no options)`, 'color:#aaddaa');
+    // 의미 있는 선택지가 없으면 LLM 호출 불필요
+    const meaningful = actions.filter(a =>
+      a.action === 'play' ||
+      (a.action === 'buy' && a.card !== 'curse') ||
+      a.action === 'resolve'
+    );
+    if (meaningful.length === 0) {
+      console.log(`%c[LLM 턴${gs.turn}] auto end_turn (no meaningful options)`, 'color:#aaddaa');
       this.actionLog.push({ turn: gs.turn, action: 'end_turn', card: null, reason: 'auto:no_options' });
       this.onEndTurn();
       return;
@@ -489,7 +511,16 @@ export class BrowserLLMPlayer {
     switch (field) {
       case 'pendingDiscard': {
         // cellar, poacher
-        const targets = resolution.cards ?? [];
+        let targets = resolution.cards ?? [];
+
+        // cellar 폴백: LLM이 빈 배열 → 약한 카드 자동 선택 (curse, estate, copper 순)
+        if (targets.length === 0 && pd.drawAfter && gs.hand.length > 0) {
+          const WEAK = ['curse', 'estate', 'copper'];
+          targets = gs.hand
+            .filter(c => WEAK.includes(c.def.id))
+            .map(c => c.def.id);
+        }
+
         const count = pd.exact ?? targets.length; // poacher: exact N required
         let discarded = 0;
         for (const id of targets) {
@@ -848,6 +879,22 @@ export class BrowserLLMPlayer {
       }
     }
     return best ?? 'copper';
+  }
+
+  /** 게임 종료 조건 확인 (VP 도달 / Province 소진 / 3더미 소진) */
+  _checkGameOver() {
+    const gs = this.gs;
+    if (gs.vp >= (gs.vpTarget ?? Infinity)) return true;
+    if (!gs.supply?.size) return false;
+    let emptyCount = 0;
+    for (const [id, { count }] of gs.supply) {
+      if (count <= 0) {
+        if (id === 'province') return true;
+        emptyCount++;
+        if (emptyCount >= 3) return true;
+      }
+    }
+    return false;
   }
 
   _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }

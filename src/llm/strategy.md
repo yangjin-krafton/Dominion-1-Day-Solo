@@ -25,10 +25,13 @@ The LLM reviews its gameplay and accumulates strategic insights here.
 - Avoid buying too many action cards without enough +action support.
 
 ### Phase 3: VP Rush (Turn 10+)
-- Province (8 cost, +6 VP) is the primary VP source. Buy whenever you have 8+ coins.
-- Duchy (5 cost, +3 VP) is good when you can't afford Province.
+- CRITICAL RULE: If you have 8+ coins, ALWAYS buy Province (+6 VP). Province is ALWAYS better than Duchy when affordable.
+- Province (8 cost, +6 VP) is the #1 VP source. Never skip it when you can afford it.
+- Duchy (5 cost, +3 VP) is ONLY for when you have 5-7 coins and can't afford Province.
+- Estate (2 cost, +1 VP) only buy when you need exactly 1-2 VP to win.
 - If Gardens is available, consider a "gain many cheap cards" strategy.
-- Count your VP vs target — sometimes Duchy is enough to win.
+- Count your VP vs target — buy the biggest VP card you can afford each turn.
+- Buy order priority with coins: 8+ → Province, 5-7 → Duchy or Gold, 3-4 → Silver.
 
 ### Action Card Priority (by cost efficiency)
 - Cost 2: Chapel (deck thinning) > Cellar (cycling) > Moat (market protection)
