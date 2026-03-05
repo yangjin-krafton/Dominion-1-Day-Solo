@@ -14,8 +14,10 @@ The LLM reviews its gameplay and accumulates strategic insights here.
 ### Phase 1: Economy (Turn 1-4)
 - Buy Silver every turn. Silver is the most efficient early purchase.
 - Do NOT buy Victory cards (Estate/Duchy) early — they clog your deck with dead draws.
-- If Chapel is available, buy it on turn 1-2 and trash Coppers/Estates aggressively.
-- Moneylender is strong early: trash Copper for +3 coins = effectively a Gold play.
+- If Chapel is available, buy ONLY 1 Chapel (never buy more). Trash Estates and some Coppers.
+- CRITICAL: NEVER trash Silver or Gold with Chapel. Only trash Curse, Estate, and excess Copper.
+- CRITICAL: Keep at least 3 Coppers in your deck. If you trash all treasures, you cannot buy anything!
+- Moneylender is strong early: trash 1 Copper for +3 coins = effectively a Gold play.
 
 ### Phase 2: Engine Building (Turn 5-10)
 - Buy 1-2 Villages MAX for +action chaining. More than 2 is wasteful without draw cards.

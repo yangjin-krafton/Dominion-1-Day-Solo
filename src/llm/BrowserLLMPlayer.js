@@ -552,11 +552,21 @@ export class BrowserLLMPlayer {
         // chapel, moneylender — LLM이 cards/trash 중 아무 키나 쓸 수 있음
         let trashTargets = resolution.cards ?? resolution.trash ?? [];
         if (!Array.isArray(trashTargets)) trashTargets = [trashTargets];
-        // chapel 폴백: LLM이 빈 배열 → curse, estate, copper 순 자동 폐기
+
+        // chapel 안전장치: Silver/Gold 절대 폐기 금지
+        if (pd.type === 'chapel') {
+          trashTargets = trashTargets.filter(id => id !== 'silver' && id !== 'gold');
+        }
+
+        // chapel 폴백: LLM이 빈 배열 → curse, estate만 자동 폐기
+        // copper는 최소 3장 보존 (코인 생성 수단 고갈 방지)
         if (trashTargets.length === 0 && pd.type === 'chapel' && gs.hand.length > 0) {
-          const WEAK = ['curse', 'estate', 'copper'];
+          const allCards = [...gs.deck, ...gs.hand, ...gs.play, ...gs.discard];
+          const copperCount = allCards.filter(c => c.def.id === 'copper').length;
+          const SAFE = ['curse', 'estate'];
+          if (copperCount > 3) SAFE.push('copper'); // copper 3장 이상일 때만 폐기 허용
           trashTargets = gs.hand
-            .filter(c => WEAK.includes(c.def.id))
+            .filter(c => SAFE.includes(c.def.id))
             .map(c => c.def.id)
             .slice(0, pd.maxCount ?? 4);
         }
