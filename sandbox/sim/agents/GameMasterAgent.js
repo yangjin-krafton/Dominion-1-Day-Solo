@@ -12,7 +12,7 @@
 // ============================================================
 
 import {
-  playCard, buyCard, endTurn, checkVictory, calcVP,
+  playCard, buyCard, endTurn, drawCards, checkVictory, calcVP,
   resolvePending, getActivePending, clearUiPending, snapshot,
   makeSimCard,
 } from '../HeadlessEngine.js';
@@ -27,12 +27,15 @@ export const ACTION = Object.freeze({
 
 export class GameMasterAgent {
   /**
-   * @param {object} gs - HeadlessEngine 게임 상태
+   * @param {object} gs       - HeadlessEngine 게임 상태
+   * @param {object} [opts]
+   * @param {number} [opts.maxTurns=30] - 최대 턴수 (테스트용 단축 가능)
    */
-  constructor(gs) {
+  constructor(gs, { maxTurns = 30 } = {}) {
     this.gs     = gs;
-    this.turnHistory = [];   // 턴별 요약 기록
-    this._turnActions = [];  // 현재 턴 행동 목록
+    this.maxTurns    = maxTurns;
+    this.turnHistory = [];
+    this._turnActions = [];
   }
 
   // ── 게임 상태 조회 ───────────────────────────────────────
@@ -131,9 +134,10 @@ export class GameMasterAgent {
       }
 
       case ACTION.END_TURN: {
-        // 재물 카드 자동 플레이 옵션 (플레이어가 안 했을 경우)
-        // → 시뮬에서는 명시적으로 플레이하도록 강제
+        // TurnEngine.endTurn 은 클린업만 처리 (카드 드로우 없음)
+        // main.js 와 동일하게 endTurn 후 5장 드로우
         endTurn(gs);
+        drawCards(gs, 5);
         this._recordTurn();
         result = { ok: true };
         break;
@@ -155,14 +159,63 @@ export class GameMasterAgent {
 
     // 승리 조건 확인
     const victory = checkVictory(gs);
-    const state   = this.getState();
+    if (victory.won) {
+      const state = this.getState();
+      return { ok: true, state, victory: { ...victory, vp: calcVP(gs) }, feedback: this._buildFeedback(action, result, state) };
+    }
 
+    // 게임 중단 조건 확인 (턴 종료 후에만 검사)
+    if (action.action === ACTION.END_TURN) {
+      const abort = this.checkGameHealth();
+      if (abort.over) {
+        const state = this.getState();
+        console.log(`[GameMaster] ⚠ 게임 강제 종료: ${abort.reason}`);
+        return { ok: true, state, victory: { won: false, reason: abort.reason, vp: calcVP(gs) }, feedback: `[GameMaster] 게임 종료 판정: ${abort.reason}` };
+      }
+    }
+
+    const state = this.getState();
     return {
       ok:      true,
       state,
-      victory: victory.won ? { ...victory, vp: calcVP(gs) } : null,
+      victory: null,
       feedback: this._buildFeedback(action, result, state),
     };
+  }
+
+  // ── 게임 중단 판정 ───────────────────────────────────────
+
+  /**
+   * 게임 진행 불가/승리 불가 여부 판정
+   * 턴 종료마다 호출
+   * @returns {{ over: boolean, reason?: string }}
+   */
+  checkGameHealth() {
+    const gs  = this.gs;
+    const vp  = calcVP(gs);
+
+    // 1. 최대 턴수 초과
+    if (gs.turn > this.maxTurns) {
+      return { over: true, reason: `최대_턴수_초과(${this.maxTurns}턴)` };
+    }
+
+    // 2. 수학적 승리 불가 — 남은 공급의 VP 전부 획득해도 목표 미달
+    const allCards = [...gs.deck, ...gs.hand, ...gs.play, ...gs.discard];
+    const deckSize = allCards.length;
+    let maxGainableVP = vp;
+    for (const [, { def, count }] of gs.supply) {
+      if (def.type === 'Victory' && count > 0) {
+        const pts = def.id === 'gardens'
+          ? Math.floor((deckSize + count) / 10)  // gardens 근사치
+          : def.points;
+        maxGainableVP += pts * count;
+      }
+    }
+    if (maxGainableVP < gs.targetVp) {
+      return { over: true, reason: `승리_불가(최대획득VP:${maxGainableVP}<목표:${gs.targetVp})` };
+    }
+
+    return { over: false };
   }
 
   // ── 내부 헬퍼 ───────────────────────────────────────────
@@ -214,13 +267,17 @@ export class GameMasterAgent {
   getFinalResult() {
     const gs = this.gs;
     return {
-      seed:       gs.seed,
+      gameSeed:   gs.gameSeed ?? gs.seed,
+      seed:       gs.gameSeed ?? gs.seed,
       turns:      gs.turn,
       vp:         calcVP(gs),
-      targetVp:   gs.targetVp,
+      vpTarget:   gs.vpTarget ?? gs.targetVp,
+      targetVp:   gs.vpTarget ?? gs.targetVp,   // 하위호환
       totalBuys:  gs.log.filter(l => l.event === 'buy').length,
       totalPlays: gs.log.filter(l => l.event === 'play').length,
-      kingdom:    [...gs.supply.keys()].filter(id =>
+      // 시장 12슬롯 전체 (basic + kingdom) — 실제 게임 세팅과 동일
+      market:     gs.marketIds  ?? [...gs.supply.keys()].filter(id => id !== 'curse'),
+      kingdom:    gs.kingdomIds ?? [...gs.supply.keys()].filter(id =>
         !['copper','silver','gold','estate','duchy','province','curse'].includes(id)
       ),
       turnHistory: this.turnHistory,

@@ -1,24 +1,23 @@
 // ============================================================
 // sim/SimStorage.js — 파일 기반 시뮬레이션 결과 저장소
 //
-// 저장 위치: sandbox/sim-results/
-//   - 게임별 JSON: sim-results/YYYY-MM-DD_HH-MM-SS_{seed}.json
-//   - 통합 랭킹:   sim-results/ranking.json
+// 저장 위치:
+//   - 게임별 raw JSON : sim-results/raw/YYYY-MM-DD_HH-MM-SS_{seed}.json  (git 제외)
+//   - 통합 랭킹       : sim-results/ranking.json                          (git 관리)
 // ============================================================
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
-const __dirname  = dirname(fileURLToPath(import.meta.url));
+const __dirname   = dirname(fileURLToPath(import.meta.url));
 const RESULTS_DIR = resolve(__dirname, '../../sim-results');
-const RANKING_FILE = resolve(RESULTS_DIR, 'ranking.json');
+const RAW_DIR     = resolve(RESULTS_DIR, 'raw');          // git 제외 폴더
+const RANKING_FILE = resolve(RESULTS_DIR, 'ranking.json'); // git 관리
 
 export class SimStorage {
   constructor() {
-    if (!existsSync(RESULTS_DIR)) {
-      mkdirSync(RESULTS_DIR, { recursive: true });
-    }
+    mkdirSync(RAW_DIR, { recursive: true }); // raw 포함 전체 경로 생성
   }
 
   /**
@@ -31,10 +30,10 @@ export class SimStorage {
       .replace(/:/g, '-')
       .slice(0, 19);
     const filename = `${ts}_seed${result.seed}.json`;
-    const filepath = resolve(RESULTS_DIR, filename);
+    const filepath = resolve(RAW_DIR, filename);           // raw/ 서브폴더에 저장
 
     writeFileSync(filepath, JSON.stringify(result, null, 2), 'utf-8');
-    console.log(`[SimStorage] 결과 저장: ${filename}`);
+    console.log(`[SimStorage] raw 저장: raw/${filename}`);
 
     // 랭킹 업데이트
     this._updateRanking(result);

@@ -105,6 +105,13 @@ export function createCardActionHandler({
       if (gs[field]) {
         const pd = gs[field];
         gs[field] = null;
+
+        // LLM 모드: UI 오버레이 생략, BrowserLLMPlayer.llmResolver 에 위임
+        if (gs.llmResolver) {
+          gs.llmResolver(field, pd);
+          return true;
+        }
+
         _dispatch(typeOf(pd), pd);
         return true;
       }

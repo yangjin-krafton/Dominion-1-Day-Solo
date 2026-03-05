@@ -41,6 +41,9 @@ import { createCardActionHandler } from './ui/CardActionHandler.js';
 // ── debug ──────────────────────────────────────────────────
 import { initDebug } from './debug/DebugAPI.js';
 
+// ── LLM 자동 플레이 ─────────────────────────────────────────
+import { BrowserLLMPlayer } from './llm/BrowserLLMPlayer.js';
+
 // ── audio ──────────────────────────────────────────────────
 import { SFX } from './asset/audio/sfx.js';
 
@@ -349,6 +352,36 @@ function _onEndTurn() {
 gs.onEndTurn    = _onEndTurn;
 gs.onScrollHand = () => _sync();
 gs.onShuffle    = () => SFX.shuffle();
+gs.llmResolver  = null;   // BrowserLLMPlayer 가 주입 — pending 상태 LLM 해결
+
+// ── window.dominion — 콘솔 명령어 ─────────────────────────
+const _llmPlayer = new BrowserLLMPlayer({
+  baseURL:    'http://100.66.65.124:1234',
+  model:      'qwen/qwen3.5-35b-a3b',
+  gs,
+  onPlayCard: (card) => _onPlayCard?.(card),
+  onBuyCard:  (def)  => _onBuyCard(def),
+  onEndTurn:  ()     => _onEndTurn(),
+  sync:       _sync,
+  makeCard,
+});
+
+window.dominion = {
+  /** LLM 자동 플레이 시작
+   *  @example dominion.llm.start()
+   *  @example dominion.llm.start({ model: 'llama3.1:8b', delay: 1000 })
+   */
+  llm: {
+    start:    (opts) => _llmPlayer.start(opts),
+    stop:     ()     => _llmPlayer.stop(),
+    status:   ()     => _llmPlayer.status(),
+    setModel: (m)    => { _llmPlayer.model   = m;  console.log('[LLM] 모델:', m); },
+    setUrl:   (u)    => { _llmPlayer.baseURL = u;  console.log('[LLM] URL:', u); },
+    setDelay: (ms)   => { _llmPlayer.delay   = ms; console.log('[LLM] 속도:', ms, 'ms'); },
+  },
+};
+
+console.log('%c[Dominion] 콘솔 명령어: window.dominion.llm.start() / .stop() / .status()', 'color:#88ddff');
 
 // ============================================================
 // 화면 상태 머신

@@ -19,7 +19,7 @@ import {
   gainCard,
   buyCard,
   endTurn,
-  checkVictory,
+  checkVictory as checkVictorySupply,  // boolean 반환 — supply 소진 여부만
   initSupply,
 } from '../../src/core/TurnEngine.js';
 
@@ -36,19 +36,40 @@ import {
 
 import { executeCardEffect } from '../../src/core/CardEffect.js';
 
+// ── src/core/MarketSetup.js 직접 재사용 (실제 게임 시장 구성 로직) ──
+import { buildMarketSetup } from '../../src/core/MarketSetup.js';
+
 // ── src/config.js 상수 재사용 ────────────────────────────────
 import { AREAS, BASIC_IDS, KINGDOM_POOL, START_DECK } from '../../src/config.js';
 
 // ── 재export (외부에서 src/core 접근 가능) ────────────────────
 export {
   shuffle, drawCard, drawCards, playCard, gainCard, buyCard,
-  endTurn, checkVictory, initSupply,
+  endTurn, initSupply,
   calcVP, allCards,
   seededRng, initMarketQueue, popMarketEvent, pushNextMarketEvent,
   applyMarketEvent, generateMarketEvent,
   executeCardEffect,
+  buildMarketSetup,
   AREAS, BASIC_IDS, KINGDOM_POOL, START_DECK,
 };
+
+/**
+ * 승리 조건 확인 (main.js 방식과 동일)
+ *   1) TurnEngine.checkVictory(supply) — Province 소진 / 3더미 소진
+ *   2) gs.vp >= gs.vpTarget            — VP 목표 달성
+ * @returns {{ won: boolean, reason?: string, vp?: number }}
+ */
+export function checkVictory(gs) {
+  const supplyWon = checkVictorySupply(gs.supply);
+  if (supplyWon) return { won: true, reason: 'supply_end', vp: calcVP(gs) };
+
+  const vp = calcVP(gs);
+  const target = gs.vpTarget ?? gs.targetVp ?? 18;
+  if (vp >= target) return { won: true, reason: 'vp_reached', vp };
+
+  return { won: false };
+}
 
 // ── 시뮬 전용: 평범한 JS 카드 팩토리 ────────────────────────
 let _uid = 0;
@@ -65,36 +86,57 @@ export function makeSimCard(def) {
 // ── 헤드리스 게임 상태 생성 ──────────────────────────────────
 
 /**
- * Node.js 시뮬레이션용 게임 상태 초기화
- * @param {object} opts
+ * 실제 게임(main.js)과 완전히 동일한 초기화 로직으로 게임 상태 생성
+ *
+ * 시드 분리 방식 (main.js 와 동일):
+ *   rngSetup  = seededRng(gameSeed)              → 시장 카드 선택 + vpTarget 계산
+ *   rngSupply = seededRng(gameSeed ^ 0x9e3779b9) → 공급 수량
+ *   rngEvents = seededRng(gameSeed ^ 0x6c62272e) → 시장 이벤트
+ *
+ * @param {object}             opts
  * @param {Map<string,object>} opts.cardMap
- * @param {string[]}           opts.marketIds   - 시장 카드 ID 배열
- * @param {number}             [opts.seed]
- * @param {number}             [opts.targetVp]  - 목표 승점 (기본 18)
+ * @param {number}             [opts.gameSeed]      - 게임 시드 (미지정 시 랜덤 생성)
+ * @param {number}             [opts.wins=0]        - 플레이어 누적 승리 수 (언락 필터)
+ * @param {number|null}        [opts.vpTargetOverride] - vpTarget 직접 지정 (null: seeded)
  */
-export function createHeadlessState({ cardMap, marketIds, seed, targetVp = 18 }) {
-  const usedSeed = seed ?? (Date.now() & 0xffffffff);
-  const rng      = seededRng(usedSeed);
+export function createHeadlessState({ cardMap, gameSeed, wins = 0, vpTargetOverride = null }) {
+  const usedSeed = gameSeed ?? ((Date.now() ^ (Math.random() * 0x100000000)) >>> 0);
 
-  // ── 공급 초기화 (src/core/TurnEngine.initSupply 그대로) ──
-  const supply = initSupply(cardMap, marketIds, rng);
+  // ── 실제 게임과 동일한 서브시드 분리 ────────────────────────
+  const rngSetup  = seededRng(usedSeed);                        // 시장 카드 선택
+  const rngSupply = seededRng((usedSeed ^ 0x9e3779b9) >>> 0);   // 공급 수량
+  const rngEvents = seededRng((usedSeed ^ 0x6c62272e) >>> 0);   // 시장 이벤트
 
-  // ── 시작 덱 생성 (src/config.START_DECK 기준) ─────────────
+  // ── vpTarget: 실제 게임과 동일하게 rngSetup 에서 계산 ───────
+  const vpTarget = vpTargetOverride != null
+    ? vpTargetOverride
+    : 10 + Math.floor(rngSetup() * 11);   // 10~20 (main.js 동일)
+
+  // ── buildMarketSetup: 실제 게임과 동일한 시장 구성 ──────────
+  const setup  = buildMarketSetup(cardMap, rngSetup, wins);
+  const supply = initSupply(cardMap, setup.marketIds, rngSupply);
+
+  // ── 초기 시장 이벤트 큐 (rngEvents 서브시드, main.js 동일) ──
+  const initQueue = [];
+  for (let i = 0; i < 4; i++) {
+    initQueue.push(generateMarketEvent(supply, rngEvents));
+  }
+  const marketQueueState = { queue: initQueue, rng: rngEvents };
+
+  // ── 시작 덱: Copper 7 + Estate 3, 셔플 없음 (main.js 는 shuffle만 호출) ──
   const startDeck = [];
   for (const [id, count] of Object.entries(START_DECK)) {
     const def = cardMap.get(id);
     if (!def) continue;
     for (let i = 0; i < count; i++) startDeck.push(makeSimCard(def));
   }
-  // Seeded 셔플 (src/core/TurnEngine.shuffle 은 in-place)
-  for (let i = startDeck.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [startDeck[i], startDeck[j]] = [startDeck[j], startDeck[i]];
-  }
+  shuffle(startDeck);  // TurnEngine.shuffle (Math.random 기반 — main.js 동일)
 
   const gs = {
-    seed:     usedSeed,
-    targetVp,
+    gameSeed:   usedSeed,
+    seed:       usedSeed,   // 하위호환
+    vpTarget,
+    targetVp:   vpTarget,   // 하위호환 (GameMasterAgent 등에서 사용)
     turn:     1,
     phase:    'action',
     actions:  1,
@@ -109,7 +151,10 @@ export function createHeadlessState({ cardMap, marketIds, seed, targetVp = 18 })
     trash:   [],
 
     supply,
-    rng,
+    rng: rngSupply,          // TurnEngine.drawCard 에서 셔플시 사용하는 rng
+    marketQueueState,        // 시장 이벤트 큐 상태
+    marketIds:  setup.marketIds,    // 시장 12슬롯 전체 (basic + kingdom)
+    kingdomIds: setup.kingdomIds,   // 킹덤(액션) 카드만
 
     // ── 오디오/UI 콜백 — 시뮬에서는 null ──────────────────
     onShuffle:      null,   // TurnEngine: gs.onShuffle?.()  → 무음
@@ -396,7 +441,7 @@ export function snapshot(gs) {
     buys:        gs.buys,
     coins:       gs.coins,
     vp:          calcVP(gs),
-    targetVp:    gs.targetVp,
+    targetVp:    gs.vpTarget ?? gs.targetVp,
     hand:        handIds,
     handCounts,
     deckSize:    gs.deck.length,

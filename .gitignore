@@ -23,3 +23,6 @@ build/
 # Environment variables
 .env
 .env.local
+
+# 시뮬레이션 raw 결과 (git 제외) — ranking.json 만 관리
+sim-results/raw/
