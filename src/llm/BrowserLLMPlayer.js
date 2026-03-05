@@ -115,7 +115,7 @@ function buildPrompt(gs, availableActions, pending) {
     `=== Turn ${snap.turn} ===`,
     `VP: ${snap.vp}/${snap.targetVp} | Actions:${snap.actions} Buys:${snap.buys} Coins:${snap.coins}`,
     `Hand: [${handDesc}] | Deck:${snap.deckSize} Discard:${snap.discardSize}`,
-    `(Treasure cards are auto-played. Coins shown above include all treasures.)`,
+    `(Treasures auto-play when no action cards remain. Play actions FIRST if they interact with treasures.)`,
     '',
     '=== Supply ===',
     supplyAll,
@@ -246,20 +246,24 @@ export class BrowserLLMPlayer {
     const pending = this._getActivePending();
     if (pending) return;
 
-    // ── 재물카드 자동 플레이 (LLM 호출 불필요) ─────────────
-    // 도미니언에서 재물을 안 내는 것이 유리한 경우는 거의 없음
-    const treasure = gs.hand.find(c => c.def.type === 'Treasure');
-    if (treasure) {
-      console.log(`%c[LLM 턴${gs.turn}] auto-play "${treasure.def.id}"`, 'color:#aaddaa');
-      this.actionLog.push({
-        turn: gs.turn, action: 'play',
-        card: treasure.def.id, reason: 'auto:treasure',
-      });
-      this.onPlayCard(treasure);
-      return; // 다음 _step에서 나머지 재물 또는 구매 진행
+    // ── 재물카드 자동 플레이 (액션카드가 없고 행동도 0일 때만) ──
+    // 액션카드가 손에 있으면 재물과 상호작용할 수 있으므로 LLM 판단 필요
+    // (moneylender: 동전 폐기, mine: 재물 업그레이드, cellar: 재물 버리기 등)
+    const hasAction = gs.hand.some(c => c.def.type === 'Action');
+    if (!hasAction || gs.actions <= 0) {
+      const treasure = gs.hand.find(c => c.def.type === 'Treasure');
+      if (treasure) {
+        console.log(`%c[LLM 턴${gs.turn}] auto-play "${treasure.def.id}"`, 'color:#aaddaa');
+        this.actionLog.push({
+          turn: gs.turn, action: 'play',
+          card: treasure.def.id, reason: 'auto:treasure',
+        });
+        this.onPlayCard(treasure);
+        return;
+      }
     }
 
-    // ── 액션/구매/종료만 LLM에게 판단 요청 ──────────────────
+    // ── LLM에게 판단 요청 (액션/재물/구매/종료) ──────────────
     const actions = this._getAvailableActions();
     if (actions.length === 0) return;
 
@@ -508,7 +512,18 @@ export class BrowserLLMPlayer {
         }
       }
     }
-    // 재물카드는 _step()에서 자동 플레이 — LLM 선택지에서 제외
+    // 재물카드: 액션카드가 손에 있을 때만 LLM 선택지에 포함
+    // (없으면 _step()에서 자동 플레이)
+    const hasAction = gs.hand.some(c => c.def.type === 'Action') && gs.actions > 0;
+    if (hasAction) {
+      for (const card of gs.hand) {
+        if (card.def.type === 'Treasure') {
+          if (!actions.some(a => a.action === 'play' && a.card === card.def.id)) {
+            actions.push({ action: 'play', card: card.def.id, name: card.def.name });
+          }
+        }
+      }
+    }
     if (gs.buys > 0) {
       for (const [id, { def, count }] of gs.supply) {
         if (count > 0 && gs.coins >= def.cost) {
