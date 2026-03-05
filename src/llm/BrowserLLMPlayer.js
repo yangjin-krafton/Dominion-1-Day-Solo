@@ -203,8 +203,11 @@ export class BrowserLLMPlayer {
     console.log(`  URL:  ${this.baseURL}`);
     console.log(`  속도: ${this.delay}ms/행동`);
 
-    // 게임 시작 시 시장 분석 + 단기 전략 계획 생성
-    this._generateGamePlan().then(() => this._loop());
+    // 이름 로드 + 시장 분석 + 전략 계획 → 루프 시작
+    Promise.all([
+      this._ensurePlayerName(),
+      this._generateGamePlan(),
+    ]).then(() => this._loop());
   }
 
   stop() {
@@ -1005,6 +1008,85 @@ ${buyOptions || 'end_turn만 가능'}
       }
     }
     return false;
+  }
+
+  /** 모델별 고유 플레이어 이름 (서버 파일 캐시) */
+  _getPlayerName() {
+    if (this._playerName) return this._playerName;
+    // 해시 기반 폴백 (비동기 로드 전)
+    const modelStr = this.model ?? 'unknown';
+    const pool = ['금손도적단', '속주광전사', '은화의현자', '덱파괴마왕', '코인연금술사',
+                  '시장의수호자', '저주파괴자', '카드의귀족', '엔진장인', '축제의왕'];
+    let h = 0;
+    for (let i = 0; i < modelStr.length; i++) h = ((h << 5) - h + modelStr.charCodeAt(i)) | 0;
+    this._playerName = pool[Math.abs(h) % pool.length];
+    return this._playerName;
+  }
+
+  /** 게임 시작 시 서버에서 이름 로드 또는 LLM 생성 */
+  async _ensurePlayerName() {
+    const modelStr = this.model ?? 'unknown';
+
+    // 서버에서 players.json 로드
+    try {
+      const res = await fetch('/llm-memory/players.json');
+      if (res.ok) {
+        const players = JSON.parse(await res.text());
+        if (players[modelStr]) {
+          this._playerName = players[modelStr];
+          console.log(`%c[LLM] 플레이어: ${this._playerName}`, 'color:#ffd700');
+          return;
+        }
+      }
+    } catch { /* 파일 없으면 새로 생성 */ }
+
+    // LLM에게 닉네임 생성 요청 (모델명 노출 금지, 연상 가능한 재치있는 이름)
+    try {
+      const res = await fetch(`${this.baseURL}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer local' },
+        body: JSON.stringify({
+          model: this.model,
+          temperature: 0.95,
+          max_tokens: 30,
+          messages: [
+            { role: 'system', content: '/no_think\nOutput ONLY the nickname. Nothing else.' },
+            { role: 'user', content: `인터넷 게임 닉네임을 하나 만들어주세요.
+조건:
+- 한국어 4~10자
+- 모델명 절대 노출 금지
+- 자신을 연상할 수 있는 재치있는 닉네임
+- 인터넷 한글 닉네임 느낌 (게이머/판타지/유머)
+- 예시: 금손도적단, 속주광전사, 덱파괴마왕, 카드의귀족, 은빛연금술사, 코인뿌리는남자, 시장터지배자
+닉네임만 출력:` },
+          ],
+        }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        let name = (data?.choices?.[0]?.message?.content ?? '').trim();
+        name = name.replace(/["'`\n]/g, '').replace(/<[^>]*>/g, '').trim();
+        if (name.length >= 2 && name.length <= 15) {
+          this._playerName = name;
+        }
+      }
+    } catch { /* timeout OK */ }
+
+    // 서버에 저장
+    try {
+      let players = {};
+      const existing = await fetch('/llm-memory/players.json');
+      if (existing.ok) players = JSON.parse(await existing.text());
+      players[modelStr] = this._playerName;
+      await fetch('/llm-memory/players.json', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(players, null, 2),
+      });
+    } catch { /* save fail OK */ }
+
+    console.log(`%c[LLM] 플레이어 이름: ${this._playerName}`, 'color:#ffd700');
   }
 
   /** 게임 시작 시 시장 분석 → LLM이 전략 계획 생성 */

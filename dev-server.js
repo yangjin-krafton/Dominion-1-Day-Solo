@@ -21,7 +21,58 @@ const MIME = {
   '.webp': 'image/webp',        '.ico':  'image/x-icon',
 };
 
+const MEMORY_DIR = path.join(__dirname, 'src', 'llm', 'memory');
+// memory 디렉토리 자동 생성
+fs.mkdirSync(MEMORY_DIR, { recursive: true });
+
 const server = http.createServer(async (req, res) => {
+
+  // ── LLM 메모리 파일 API ───────────────────────────────────
+  if (req.url.startsWith('/llm-memory/')) {
+    const filename = decodeURIComponent(req.url.replace('/llm-memory/', ''));
+    // 파일명 안전 검사 (.. 방지)
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      res.writeHead(400); res.end('Bad filename'); return;
+    }
+    const filePath = path.join(MEMORY_DIR, filename);
+
+    if (req.method === 'GET') {
+      // 파일 읽기
+      fs.readFile(filePath, 'utf8', (err, data) => {
+        if (err) { res.writeHead(404); res.end(''); return; }
+        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end(data);
+      });
+      return;
+    }
+
+    if (req.method === 'PUT' || req.method === 'POST') {
+      // 파일 쓰기
+      const body = await readBody(req);
+      fs.writeFile(filePath, body, 'utf8', (err) => {
+        if (err) { res.writeHead(500); res.end(err.message); return; }
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('ok');
+      });
+      return;
+    }
+
+    if (req.method === 'DELETE') {
+      fs.unlink(filePath, () => { res.writeHead(200); res.end('ok'); });
+      return;
+    }
+  }
+
+  // ── LLM 메모리 목록 ────────────────────────────────────────
+  if (req.url === '/llm-memory' && req.method === 'GET') {
+    fs.readdir(MEMORY_DIR, (err, files) => {
+      if (err) { res.writeHead(500); res.end('[]'); return; }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(files.filter(f => f.endsWith('.md') || f.endsWith('.json'))));
+    });
+    return;
+  }
+
   // ── LLM 프록시 ──────────────────────────────────────────
   if (req.url.startsWith('/llm-proxy/')) {
     const target = LLM_URL + req.url.replace('/llm-proxy', '');

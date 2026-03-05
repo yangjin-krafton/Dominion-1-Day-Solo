@@ -565,11 +565,17 @@ function _finishGame(won = false) {
     console.log('[Unlock] wins:', newWins, '→', newUnlock ? `${newUnlock.id}(order:${newUnlock.unlockOrder})` : 'null (모두 해금됨 또는 CSV 캐시 문제)');
   }
 
+  // LLM 플레이어 이름 (재치있는 AI 이름)
+  const playerName = (_llmPlayer._running || _llmPlayer.actionLog.length > 0)
+    ? _llmPlayer._getPlayerName()
+    : Storage.getProfile()?.name ?? 'Player';
+
   const record  = Storage.addRecord({
     turns: gs.turn, vp: totalVP, durationSec,
     kingdom:     _activeKingdomIds,
     vpTarget:    gs.vpTarget,
     marketCards: _initialSupplyData,
+    playerName,
   });
   const ranking = Storage.getRanking();
   flow.go(STATES.RESULT, { record, ranking, newUnlock });
