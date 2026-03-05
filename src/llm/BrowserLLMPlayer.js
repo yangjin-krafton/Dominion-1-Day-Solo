@@ -111,22 +111,16 @@ function buildPrompt(gs, availableActions, pending) {
       return `  ${JSON.stringify(a)}`;
     }).join('\n');
 
-  const unplayedTreasures = availableActions.filter(
-    a => a.action === 'play' && ['gold','silver','copper'].includes(a.card)
-  );
-
   const lines = [
-    `=== 턴 ${snap.turn} ===`,
-    `승점: ${snap.vp}/${snap.targetVp} | 행동${snap.actions} 구매${snap.buys} 코인${snap.coins}`,
-    `손패: [${handDesc}] | 덱:${snap.deckSize} 버림:${snap.discardSize}`,
+    `=== Turn ${snap.turn} ===`,
+    `VP: ${snap.vp}/${snap.targetVp} | Actions:${snap.actions} Buys:${snap.buys} Coins:${snap.coins}`,
+    `Hand: [${handDesc}] | Deck:${snap.deckSize} Discard:${snap.discardSize}`,
+    `(Treasure cards are auto-played. Coins shown above include all treasures.)`,
     '',
-    '=== 공급 ===',
+    '=== Supply ===',
     supplyAll,
     '',
-    pending ? `=== PENDING (resolve 필수) ===\n${JSON.stringify(pending, null, 2)}` : '',
-    unplayedTreasures.length > 0 && !pending
-      ? `⚠ 힌트: 재물카드(${unplayedTreasures.map(a=>a.card).join(',')})를 먼저 플레이해야 코인이 생깁니다.`
-      : '',
+    pending ? `=== PENDING (must resolve) ===\n${JSON.stringify(pending, null, 2)}` : '',
     '',
     '=== 가능한 행동 ===',
     actionsDesc,
@@ -252,8 +246,30 @@ export class BrowserLLMPlayer {
     const pending = this._getActivePending();
     if (pending) return;
 
+    // ── 재물카드 자동 플레이 (LLM 호출 불필요) ─────────────
+    // 도미니언에서 재물을 안 내는 것이 유리한 경우는 거의 없음
+    const treasure = gs.hand.find(c => c.def.type === 'Treasure');
+    if (treasure) {
+      console.log(`%c[LLM 턴${gs.turn}] auto-play "${treasure.def.id}"`, 'color:#aaddaa');
+      this.actionLog.push({
+        turn: gs.turn, action: 'play',
+        card: treasure.def.id, reason: 'auto:treasure',
+      });
+      this.onPlayCard(treasure);
+      return; // 다음 _step에서 나머지 재물 또는 구매 진행
+    }
+
+    // ── 액션/구매/종료만 LLM에게 판단 요청 ──────────────────
     const actions = this._getAvailableActions();
     if (actions.length === 0) return;
+
+    // 선택지가 end_turn뿐이면 LLM 호출 불필요
+    if (actions.length === 1 && actions[0].action === 'end_turn') {
+      console.log(`%c[LLM 턴${gs.turn}] auto end_turn (no options)`, 'color:#aaddaa');
+      this.actionLog.push({ turn: gs.turn, action: 'end_turn', card: null, reason: 'auto:no_options' });
+      this.onEndTurn();
+      return;
+    }
 
     const prompt   = buildPrompt(gs, actions, null);
     let decision;
@@ -492,13 +508,7 @@ export class BrowserLLMPlayer {
         }
       }
     }
-    for (const card of gs.hand) {
-      if (card.def.type === 'Treasure') {
-        if (!actions.some(a => a.action === 'play' && a.card === card.def.id)) {
-          actions.push({ action: 'play', card: card.def.id, name: card.def.name });
-        }
-      }
-    }
+    // 재물카드는 _step()에서 자동 플레이 — LLM 선택지에서 제외
     if (gs.buys > 0) {
       for (const [id, { def, count }] of gs.supply) {
         if (count > 0 && gs.coins >= def.cost) {
@@ -555,10 +565,7 @@ export class BrowserLLMPlayer {
   }
 
   _fallback(actions) {
-    // Big Money 폴백
-    const treasure = actions.find(a => a.action === 'play' && ['gold','silver','copper'].includes(a.card));
-    if (treasure) return { action: 'play', card: treasure.card, reason: 'fallback:treasure' };
-
+    // Big Money 폴백 (재물은 자동 플레이됨)
     const resolve = actions.find(a => a.action === 'resolve');
     if (resolve) return { action: 'resolve', resolution: {}, reason: 'fallback:resolve' };
 
