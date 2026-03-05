@@ -112,11 +112,20 @@ function buildPrompt(gs, availableActions, pending) {
       return `  ${JSON.stringify(a)}`;
     }).join('\n');
 
+  // 전체 덱 구성 (보유 카드 요약 — 중복 구매 방지에 활용)
+  const allCards = [...gs.deck, ...gs.hand, ...gs.play, ...gs.discard];
+  const ownedCounts = {};
+  for (const c of allCards) ownedCounts[c.def.id] = (ownedCounts[c.def.id] ?? 0) + 1;
+  const ownedDesc = Object.entries(ownedCounts)
+    .sort(([,a],[,b]) => b - a)
+    .map(([id, cnt]) => `${id}×${cnt}`).join(', ');
+
   const lines = [
     `=== Turn ${snap.turn} ===`,
     `VP: ${snap.vp}/${snap.targetVp} | Actions:${snap.actions} Buys:${snap.buys} Coins:${snap.coins}`,
     `Hand: [${handDesc}] | Deck:${snap.deckSize} Discard:${snap.discardSize}`,
-    `(Treasures auto-play when no action cards remain. Play actions FIRST if they interact with treasures.)`,
+    `My deck composition: [${ownedDesc}] (${allCards.length} total)`,
+    `(Treasures auto-play when no action cards remain. Do NOT buy action cards you already own unless it is a draw card.)`,
     '',
     '=== Supply ===',
     supplyAll,
@@ -540,8 +549,18 @@ export class BrowserLLMPlayer {
       }
 
       case 'pendingTrash': {
-        // chapel, moneylender
-        const targets = (resolution.cards ?? []).slice(0, pd.maxCount ?? Infinity);
+        // chapel, moneylender — LLM이 cards/trash 중 아무 키나 쓸 수 있음
+        let trashTargets = resolution.cards ?? resolution.trash ?? [];
+        if (!Array.isArray(trashTargets)) trashTargets = [trashTargets];
+        // chapel 폴백: LLM이 빈 배열 → curse, estate, copper 순 자동 폐기
+        if (trashTargets.length === 0 && pd.type === 'chapel' && gs.hand.length > 0) {
+          const WEAK = ['curse', 'estate', 'copper'];
+          trashTargets = gs.hand
+            .filter(c => WEAK.includes(c.def.id))
+            .map(c => c.def.id)
+            .slice(0, pd.maxCount ?? 4);
+        }
+        const targets = trashTargets.slice(0, pd.maxCount ?? Infinity);
         for (const id of targets) {
           if (pd.filter && id !== pd.filter) continue;
           const card = removeFromHand(id);
@@ -855,16 +874,24 @@ export class BrowserLLMPlayer {
     const resolve = actions.find(a => a.action === 'resolve');
     if (resolve) return { action: 'resolve', resolution: {}, reason: 'fallback:resolve' };
 
-    const priority = ['province','duchy','gold','silver','estate'];
+    const gs = this.gs;
+    const vpRemaining = (gs.vpTarget ?? 20) - (gs.vp ?? 0);
+
+    // 구매 우선순위: Province > Gold > Duchy > Silver (Estate는 VP 거의 달성 시에만)
+    const priority = ['province', 'gold', 'duchy', 'silver'];
+    if (vpRemaining <= 3) priority.push('estate'); // 승리 직전에만 Estate 허용
     for (const id of priority) {
       const b = actions.find(a => a.action === 'buy' && a.card === id);
       if (b) return { action: 'buy', card: id, reason: 'fallback:priority' };
     }
-    const anyBuy = actions.find(a => a.action === 'buy');
-    if (anyBuy) return { action: 'buy', card: anyBuy.card, reason: 'fallback:any' };
 
+    // 액션 카드 플레이
     const anyPlay = actions.find(a => a.action === 'play');
     if (anyPlay) return { action: 'play', card: anyPlay.card, reason: 'fallback:action' };
+
+    // 나머지 구매 (Estate/Curse 제외)
+    const safeBuy = actions.find(a => a.action === 'buy' && a.card !== 'estate' && a.card !== 'curse');
+    if (safeBuy) return { action: 'buy', card: safeBuy.card, reason: 'fallback:any' };
 
     return { action: 'end_turn', reason: 'fallback:end' };
   }

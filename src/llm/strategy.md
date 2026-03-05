@@ -67,6 +67,8 @@ The LLM reviews its gameplay and accumulates strategic insights here.
 
 ## Common Mistakes to Avoid
 - Buying Village without draw cards (actions without cards to play = wasted actions).
+- NEVER buy duplicate action cards you already own (Chapel x1 is enough, Cellar x1 is enough).
+- Exception: Silver, Gold, and draw cards (Smithy, Laboratory) can be bought multiple times.
 - Buying too many action cards without +action support (terminal action collision).
 - Ignoring market timeline — losing key cards to vanish events.
 - Buying Victory cards before turn 8-10 (dead draws slow your engine).
