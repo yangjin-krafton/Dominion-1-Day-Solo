@@ -129,8 +129,10 @@ function buildPrompt(gs, availableActions, pending, gamePlan = '') {
 function parseJSON(raw) {
   let text = raw
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
-    .replace(/<\/think>/gi, '')
-    .replace(/<think>/gi, '')
+    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+    .replace(/<\/?think>/gi, '')
+    .replace(/<\/?thinking>/gi, '')
+    .replace(/^Thinking Process:[\s\S]*?(?=\{)/im, '')  // "Thinking Process:" 블록 제거
     .trim();
 
   // ```json ... ``` 블록
@@ -1168,7 +1170,16 @@ ${getStrategy()}` },
       if (res.ok) {
         const data = await res.json();
         let plan = data?.choices?.[0]?.message?.content ?? '';
-        plan = plan.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/<\/?think>/gi, '').trim();
+        // thinking 잔해 제거 (다양한 형식 대응)
+        plan = plan
+          .replace(/<think>[\s\S]*?<\/think>/gi, '')
+          .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+          .replace(/<\/?think>/gi, '')
+          .replace(/<\/?thinking>/gi, '')
+          .replace(/^Thinking Process:[\s\S]*?(?=\n\n|##|###|1\.|승리|전략)/im, '')
+          .replace(/^\d+\.\s+\*\*Analyze[\s\S]*?(?=\n\n[^*\d]|##|###|승리|전략)/im, '')
+          .replace(/```json[\s\S]*?```/gi, '')  // JSON 코드블록 제거 (전략은 텍스트)
+          .trim();
         if (plan.length > 20) {
           this._gamePlan = plan.slice(0, 800);
           console.log(`%c[LLM] 전략 생성 (Turn ${gs.turn})`, 'color:#88ff88;font-weight:bold');
