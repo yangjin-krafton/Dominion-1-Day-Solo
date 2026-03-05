@@ -1027,6 +1027,9 @@ ${buyOptions || 'end_turn만 가능'}
   async _ensurePlayerName() {
     const modelStr = this.model ?? 'unknown';
 
+    // 폴백 이름 먼저 설정 (LLM 실패해도 undefined 방지)
+    this._getPlayerName();
+
     // 서버에서 players.json 로드
     try {
       const res = await fetch('/llm-memory/players.json');
@@ -1141,7 +1144,7 @@ ${marketLines}
             { role: 'user', content: dataPrompt },
           ],
         }),
-        signal: AbortSignal.timeout(30_000),
+        signal: AbortSignal.timeout(15_000),
       });
       if (res.ok) {
         const data = await res.json();
