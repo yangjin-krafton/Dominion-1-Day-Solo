@@ -151,7 +151,7 @@ async function callLLM(baseURL, model, system, user) {
         { role: 'user',   content: user },
       ],
     }),
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.timeout(120_000),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();

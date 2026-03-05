@@ -368,9 +368,12 @@ const _llmPlayer = new BrowserLLMPlayer({
 });
 
 // ── LLM 연속 플레이: 게임 종료 → 메모리 → 다음 게임 ──────
+// _onGameEnd는 _checkGameOver가 감지한 후 호출됨
+// 이 시점에서 _finishGame은 이미 buy/play 시 checkVictory로 실행됨
+// → 여기서는 _finishGame을 다시 호출하지 않음 (wins 이중 카운트 방지)
 _llmPlayer._onGameEnd = () => {
-  // 현재 게임 종료 처리 (승리 판정은 _onEndTurn → _finishGame에서)
-  _onEndTurn();
+  // _finishGame이 아직 안 불렸을 경우만 처리 (3더미 소진 등)
+  // 대부분은 이미 처리됨 — 메모리+다음 게임은 _finishGame 내부에서 autoPlay로 처리
 };
 
 window.dominion = {
@@ -446,6 +449,13 @@ flow
     const _showResult = () => resultScr.show({ record, ranking });
 
     console.log('[RESULT] newUnlock:', newUnlock?.id ?? 'null', '| wins:', Storage.getWins());
+
+    // LLM autoPlay 모드: 축하 연출/카탈로그 건너뛰고 바로 결과 표시
+    if (_llmPlayer._autoPlay) {
+      _showResult();
+      return;
+    }
+
     VictoryCelebration.show(() => {
       console.log('[RESULT] VictoryCelebration 완료 → catalog:', !!newUnlock);
       if (newUnlock) {
@@ -564,51 +574,42 @@ function _finishGame(won = false) {
   const ranking = Storage.getRanking();
   flow.go(STATES.RESULT, { record, ranking, newUnlock });
 
-  // LLM 장기 메모리: 게임 리뷰 + 전략 업데이트 (비동기, 백그라운드)
+  // LLM: 게임 종료 시 즉시 정지 (루프 중단)
+  const wasAutoPlay = _llmPlayer._autoPlay;
   const hadActionLog = _llmPlayer.actionLog.length > 0;
-  if (_llmPlayer._running || hadActionLog) {
-    const reviewPromise = llmReviewGame({
+  if (_llmPlayer._running) {
+    _llmPlayer._running = false;
+    _llmPlayer.gs.llmResolver = null;
+  }
+
+  // 다음 게임 자동 시작 헬퍼
+  const _autoStartNext = () => {
+    if (!wasAutoPlay) return;
+    console.log('%c[LLM] 다음 게임 자동 시작', 'color:#ffd700;font-weight:bold');
+    // 결과창/오버레이 닫기
+    resultScr.hide();
+    VictoryCelebration.hide?.();
+    flow.go(STATES.GAME);
+    setTimeout(() => {
+      if (_llmPlayer._autoPlay) {
+        _llmPlayer.actionLog = [];
+        _llmPlayer.start();
+      }
+    }, 2000);
+  };
+
+  // LLM 장기 메모리: 게임 리뷰 + 전략 업데이트 (비동기, 백그라운드)
+  if (hadActionLog) {
+    llmReviewGame({
       gs, record, won,
       baseURL:   _llmPlayer.baseURL,
       model:     _llmPlayer.model,
       actionLog: _llmPlayer.actionLog,
-    }).then(() => { _llmPlayer.actionLog = []; });
-
-    // 연속 자동 플레이: 메모리 처리 완료 후 다음 게임 자동 시작
-    if (_llmPlayer._autoPlay) {
-      reviewPromise.then(() => {
-        console.log('%c[LLM] 메모리 처리 완료 → 다음 게임 자동 시작', 'color:#ffd700;font-weight:bold');
-        flow.go(STATES.GAME);
-        // 새 게임 시작 후 약간 대기 → LLM 플레이 재시작
-        setTimeout(() => {
-          if (_llmPlayer._autoPlay) {
-            _llmPlayer.actionLog = [];
-            _llmPlayer.start();
-          }
-        }, 2000);
-      }).catch(() => {
-        // 메모리 처리 실패해도 다음 게임 진행
-        if (_llmPlayer._autoPlay) {
-          console.warn('[LLM] 메모리 처리 실패 — 다음 게임 계속');
-          flow.go(STATES.GAME);
-          setTimeout(() => {
-            if (_llmPlayer._autoPlay) {
-              _llmPlayer.actionLog = [];
-              _llmPlayer.start();
-            }
-          }, 2000);
-        }
-      });
-    }
-  } else if (_llmPlayer._autoPlay) {
+    }).then(() => { _llmPlayer.actionLog = []; _autoStartNext(); })
+      .catch(() => { _llmPlayer.actionLog = []; _autoStartNext(); });
+  } else if (wasAutoPlay) {
     // 액션 로그 없어도 autoPlay면 다음 게임
-    console.log('%c[LLM] 다음 게임 자동 시작', 'color:#ffd700;font-weight:bold');
-    flow.go(STATES.GAME);
-    setTimeout(() => {
-      if (_llmPlayer._autoPlay) {
-        _llmPlayer.start();
-      }
-    }, 2000);
+    _autoStartNext();
   }
 }
 

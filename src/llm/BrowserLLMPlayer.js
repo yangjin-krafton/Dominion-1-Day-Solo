@@ -119,7 +119,7 @@ function buildPrompt(gs, availableActions, pending, gamePlan = '') {
     '=== Available Actions ===',
     actionsDesc,
     '',
-    'Choose the best action. Output JSON only.',
+    'You are the PLAY agent. Focus on: play action cards optimally to maximize coins and buys. For buy, suggest the highest-value card you can afford. Output JSON only.',
   ];
   return lines.filter(l => l !== null && l !== undefined).join('\n');
 }
@@ -242,17 +242,13 @@ export class BrowserLLMPlayer {
     const gs = this.gs;
 
     // ── 승리/종료 감지 ────────────────────────────────────
+    // 게임 종료는 _finishGame에서 처리됨 (buy/play 시 checkVictory)
+    // _finishGame이 autoPlay면 자동으로 다음 게임 시작
+    // 여기서는 LLM 루프만 정지
     if (this._checkGameOver()) {
-      if (this._autoPlay) {
-        console.log(`%c[LLM] 게임 종료 감지 — 메모리 처리 후 다음 게임 자동 시작`, 'color:#44ff88;font-weight:bold');
-        this._running = false;
-        this.gs.llmResolver = null;
-        // _onGameEnd 콜백이 메모리 처리 + 다음 게임 시작을 담당
-        if (this._onGameEnd) this._onGameEnd();
-      } else {
-        console.log(`%c[LLM] 게임 종료 감지 — 자동 정지`, 'color:#44ff88;font-weight:bold');
-        this.stop();
-      }
+      console.log(`%c[LLM] 게임 종료 감지 — 루프 정지`, 'color:#44ff88;font-weight:bold');
+      this._running = false;
+      this.gs.llmResolver = null;
       return;
     }
 
@@ -295,17 +291,15 @@ export class BrowserLLMPlayer {
       return;
     }
 
-    // ── [1차] 제안 에이전트 ─────────────────────────────────
+    // ── [1차] 플레이 에이전트: 코인/구매 극대화 ────────────────
+    // 역할: 손패의 액션카드를 최적 순서로 플레이하여 코인·구매 극대화
+    //       구매 시에는 "현재 코인으로 가장 비싼 유용한 카드" 제안
     const prompt = buildPrompt(gs, actions, null, this._gamePlan);
     let proposal = null;
 
     try {
       const raw = await this._callLLM(prompt);
-      // candidates 또는 단일 응답 처리
-      if (raw?.candidates && Array.isArray(raw.candidates)) {
-        const valid = raw.candidates.filter(c => c?.action && this._validate(c, actions));
-        proposal = valid[0] ?? null;
-      } else if (raw?.action && this._validate(raw, actions)) {
+      if (raw?.action && this._validate(raw, actions)) {
         proposal = raw;
       }
     } catch (e) {
@@ -321,10 +315,16 @@ export class BrowserLLMPlayer {
     }
     this._retryCount = 0;
 
-    console.log(`%c[LLM 1차] 제안: ${proposal.action}${proposal.card ? ' "'+proposal.card+'"' : ''}`, 'color:#aaccff');
+    console.log(`%c[LLM 1차 플레이] ${proposal.action}${proposal.card ? ' "'+proposal.card+'"' : ''}`, 'color:#aaccff');
 
-    // ── [2차] 검증 에이전트: 항상 호출 ────────────────────────
-    let decision = await this._reviewCandidates([proposal], actions);
+    // ── [2차] 전략 에이전트: 장기 운영 관점 검토 ─────────────────
+    // 역할: play는 통과, buy/end_turn은 시장·덱 구성 기반 장기 전략 검토
+    let decision;
+    if (proposal.action === 'play' || proposal.action === 'resolve') {
+      decision = proposal; // play/resolve는 1차 판단 그대로
+    } else {
+      decision = await this._strategyReview(proposal, actions);
+    }
 
     console.log(`%c[LLM 턴${gs.turn}] ${decision.action}${decision.card ? ' "'+decision.card+'"' : ''}`, 'color:#88ddff');
     if (decision.reason) console.log(`  이유: ${decision.reason}`);
@@ -870,67 +870,74 @@ export class BrowserLLMPlayer {
     return true;
   }
 
-  /** [2차] 검증 에이전트: 1차 제안을 검토하고 대안과 비교 */
-  async _reviewCandidates(candidates, actions) {
+  /** [2차] 전략 에이전트: 시장·덱 구성 기반 장기 운영 관점에서 구매 결정 */
+  async _strategyReview(proposal, actions) {
     const gs = this.gs;
-    const proposal = candidates[0];
-
-    // play는 검증 불필요
-    if (proposal.action === 'play' || proposal.action === 'resolve') return proposal;
 
     // 덱 보유 현황
     const allCards = [...gs.deck, ...gs.hand, ...gs.play, ...gs.discard];
     const owned = {};
     for (const c of allCards) owned[c.def.id] = (owned[c.def.id] ?? 0) + 1;
     const ownedStr = Object.entries(owned).map(([id, n]) => `${id}×${n}`).join(', ');
-    const ownedActions = Object.entries(owned)
-      .filter(([id]) => { const s = gs.supply.get(id); return s?.def?.type === 'Action'; })
-      .map(([id, n]) => `${id}×${n}`)
-      .join(', ');
 
     const vpRemaining = (gs.vpTarget ?? 20) - (gs.vp ?? 0);
+    const treasureCount = allCards.filter(c => c.def.type === 'Treasure').length;
+    const actionCount = allCards.filter(c => c.def.type === 'Action').length;
 
-    // 대안 목록 (1차 제안 외)
-    const alternatives = actions
-      .filter(a => (a.action === 'buy' || a.action === 'play') && a.card !== 'curse' && a.card !== 'copper')
-      .filter(a => !(a.action === proposal.action && a.card === proposal.card))
-      .map(a => `${a.action} "${a.card}"${a.cost != null ? ` (cost:${a.cost})` : ''}`)
-      .slice(0, 8)
+    // 구매 가능한 카드 목록 (비용순 정렬)
+    const buyOptions = actions
+      .filter(a => a.action === 'buy' && a.card !== 'curse' && a.card !== 'copper')
+      .sort((a, b) => (b.cost ?? 0) - (a.cost ?? 0))
+      .map(a => {
+        const alreadyOwned = owned[a.card] ?? 0;
+        return `${a.card}(cost:${a.cost}, 보유:${alreadyOwned}장)`;
+      })
       .join(', ');
 
-    const reviewPrompt = `Review this Dominion AI decision. Accept or pick a better alternative.
+    // 시장 12장 요약
+    const marketSummary = [...gs.supply.entries()]
+      .filter(([, v]) => v.count > 0 && v.def.type === 'Action')
+      .map(([id, v]) => `${id}(${v.def.summary || v.def.name}, cost:${v.def.cost}, 재고:${v.count})`)
+      .join('\n  ');
 
-## State
-Turn ${gs.turn} | VP ${gs.vp}/${gs.vpTarget} (need ${vpRemaining}) | Coins ${gs.coins} | Buys ${gs.buys}
-Deck: [${ownedStr}]
-Owned action cards: [${ownedActions || 'none'}]
+    const prompt = `당신은 도미니언 전략가입니다. 플레이 에이전트의 구매 제안을 검토하세요.
 
-## 1차 제안
+## 현재 상황
+턴: ${gs.turn} | 승점: ${gs.vp}/${gs.vpTarget} (남은 ${vpRemaining}점)
+코인: ${gs.coins} | 구매: ${gs.buys}
+내 덱: [${ownedStr}] (총 ${allCards.length}장)
+재물 ${treasureCount}장 | 액션 ${actionCount}장
+
+## 시장 왕국 카드
+  ${marketSummary || '없음'}
+
+## 플레이 에이전트 제안
 ${JSON.stringify(proposal)}
 
-## 대안
-${alternatives || 'none'}
+## 구매 가능 카드
+${buyOptions || 'end_turn만 가능'}
 
-## 판단 기준 (중요도 순)
-1. ${gs.coins >= 8 ? 'COINS 8+ → Province 구매 필수!' : gs.coins >= 6 ? 'COINS 6+ → Gold 구매 우선' : gs.coins >= 5 ? 'Duchy 또는 강력 액션' : 'Silver 또는 저비용 액션'}
-2. ${gs.turn >= 10 ? 'Turn 10+ VP RUSH: Province/Duchy/Gold만 구매! 액션카드 구매 금지!' : 'Turn<10: 경제/엔진 구축 OK'}
-3. 이미 보유한 액션카드 중복 구매 금지 (Silver/Gold 제외)
-4. end_turn은 play/buy 가능할 때 최악의 선택
-5. Estate는 VP ${vpRemaining}점 남았을 때만 (현재 ${vpRemaining <= 3 ? 'OK' : '금지'})
+## 전략 판단 기준
+- 현재 페이즈: ${gs.turn <= 4 ? '초반(경제 구축) → Silver 우선' : gs.turn <= 10 ? '중반(엔진 빌딩) → Gold/드로우카드' : '후반(VP 러시) → Province/Duchy만!'}
+- 코인 ${gs.coins}: ${gs.coins >= 8 ? 'Province 필수!' : gs.coins >= 6 ? 'Gold 최우선' : gs.coins >= 5 ? 'Duchy/강력액션' : gs.coins >= 3 ? 'Silver' : '저비용 카드'}
+- 이미 보유한 액션은 중복 구매 금지 (보유: ${Object.entries(owned).filter(([id]) => gs.supply.get(id)?.def?.type === 'Action').map(([id, n]) => `${id}×${n}`).join(', ') || '없음'})
+- 재물 ${treasureCount}장 → ${treasureCount < 5 ? '경고: 재물 부족! Silver/Gold 구매 필수' : '적정'}
+- Estate 구매: ${vpRemaining <= 3 ? '허용 (승리 근접)' : '금지 (너무 이름)'}
+- end_turn: ${buyOptions ? '구매 가능 카드가 있으므로 비추천' : '대안 없으면 OK'}
 
 ## 출력
-제안이 올바르면 그대로, 아니면 교정된 JSON. JSON만 출력.`;
+제안이 최선이면 그대로, 아니면 더 나은 구매를 JSON으로. JSON만 출력.`;
 
     try {
-      const chosen = await this._callLLM(reviewPrompt);
+      const chosen = await this._callLLM(prompt);
       if (chosen?.action && this._validate(chosen, actions)) {
         if (chosen.action !== proposal.action || chosen.card !== proposal.card) {
-          console.log(`%c[LLM 2차] 교정: ${proposal.action} "${proposal.card ?? ''}" → ${chosen.action} "${chosen.card ?? ''}"`, 'color:#ff8800');
+          console.log(`%c[LLM 2차 전략] 교정: ${proposal.action} "${proposal.card ?? ''}" → ${chosen.action} "${chosen.card ?? ''}"`, 'color:#ff8800');
         }
         return chosen;
       }
     } catch {
-      // 검증 실패
+      // 전략 검토 실패 → 1차 제안 유지
     }
     return proposal;
   }
