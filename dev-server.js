@@ -23,10 +23,37 @@ const MIME = {
 
 const MEMORY_DIR = path.join(__dirname, 'src', 'llm', 'memory');
 const RECORDS_DIR  = path.join(__dirname, 'records');
-const RANKING_PATH = path.join(__dirname, 'sim-results', 'ranking.json');
+const RANKING_DIR  = path.join(__dirname, 'sim-results');
 // 디렉토리 자동 생성
 fs.mkdirSync(MEMORY_DIR, { recursive: true });
 fs.mkdirSync(RECORDS_DIR, { recursive: true });
+fs.mkdirSync(RANKING_DIR, { recursive: true });
+
+// ── 날짜별 랭킹 헬퍼 ──────────────────────────────────────
+function _todayRankingPath() {
+  const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  return path.join(RANKING_DIR, `ranking_${date}.json`);
+}
+
+function _loadRankingFile(filePath) {
+  try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return []; }
+}
+
+/** 모든 날짜별 랭킹 파일을 통합하여 점수 내림차순 반환 */
+function _mergeAllRankings(limit = 200) {
+  const files = fs.readdirSync(RANKING_DIR)
+    .filter(f => f.startsWith('ranking_') && f.endsWith('.json'));
+  let all = [];
+  for (const f of files) {
+    const records = _loadRankingFile(path.join(RANKING_DIR, f));
+    all.push(...records);
+  }
+  // 중복 제거 (같은 id)
+  const seen = new Set();
+  all = all.filter(r => { if (seen.has(r.id)) return false; seen.add(r.id); return true; });
+  all.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  return all.slice(0, limit);
+}
 
 const server = http.createServer(async (req, res) => {
 
@@ -48,13 +75,12 @@ const server = http.createServer(async (req, res) => {
       if (all.length > 500) all = all.slice(-500);
       fs.writeFileSync(allPath, JSON.stringify(all, null, 2), 'utf8');
 
-      // sim-results/ranking.json 에도 누적 (점수 내림차순, 최대 100건)
-      let ranking = [];
-      try { ranking = JSON.parse(fs.readFileSync(RANKING_PATH, 'utf8')); } catch {}
-      ranking.push(record);
-      ranking.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-      if (ranking.length > 100) ranking = ranking.slice(0, 100);
-      fs.writeFileSync(RANKING_PATH, JSON.stringify(ranking, null, 2), 'utf8');
+      // sim-results/ranking_YYYY-MM-DD.json 에 날짜별 누적
+      const dailyPath = _todayRankingPath();
+      let daily = _loadRankingFile(dailyPath);
+      daily.push(record);
+      daily.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+      fs.writeFileSync(dailyPath, JSON.stringify(daily, null, 2), 'utf8');
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true, file: filename }));
@@ -62,6 +88,16 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: e.message }));
     }
+    return;
+  }
+
+  // ── 통합 랭킹 API (모든 날짜 파일 병합) ─────────────────
+  if (req.url === '/ranking' && req.method === 'GET') {
+    const merged = _mergeAllRankings();
+    // ranking.json 자동 갱신 (공개 서버용)
+    fs.writeFileSync(path.join(RANKING_DIR, 'ranking.json'), JSON.stringify(merged, null, 2), 'utf8');
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(merged));
     return;
   }
 
