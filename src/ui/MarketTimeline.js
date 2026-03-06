@@ -849,10 +849,10 @@ export class MarketTimeline {
     // 지속 아이스 효과 정리
     this._frozenFilter = null;
     this._frozenTick   = null;
-    this._frozenG?.parent?.removeChild(this._frozenG);
-    this._frozenG?.destroy();
-    this._frozenTxt?.parent?.removeChild(this._frozenTxt);
-    this._frozenTxt?.destroy();
+    try { this._frozenG?.parent?.removeChild(this._frozenG); this._frozenG?.destroy(); } catch(_) {}
+    try { this._frozenTxt?.parent?.removeChild(this._frozenTxt); this._frozenTxt?.destroy(); } catch(_) {}
+    this._frozenG = null;
+    this._frozenTxt = null;
 
     if (this._panelG?.parent) this._panelG.parent.removeChild(this._panelG);
     this._panelG?.destroy();

@@ -589,8 +589,10 @@ function _finishGame(won = false) {
   }
 
   // 다음 게임 자동 시작 헬퍼
+  let _autoStarted = false;
   const _autoStartNext = () => {
-    if (!wasAutoPlay) return;
+    if (!wasAutoPlay || _autoStarted) return;
+    _autoStarted = true;
     console.log('%c[LLM] 다음 게임 자동 시작', 'color:#ffd700;font-weight:bold');
     // 결과창/오버레이 닫기
     resultScr.hide();
