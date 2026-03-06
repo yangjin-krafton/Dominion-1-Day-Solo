@@ -28,13 +28,9 @@ const TREASURE_BASICS = ['copper', 'silver', 'gold'];
 export function buildMarketSetup(cardMap, rng = null, wins = 0) {
   const _r = rng ?? (() => Math.random());
 
-  // ── 1. 기본 재화·승점 ─────────────────────────────────────
-  // 승점 3종(estate·duchy·province)은 항상 포함 → 목표 승점 도달 보장
-  // 나머지 슬롯(1~3)은 재화(copper·silver·gold) 랜덤 선택
-  const basicCount    = 4 + Math.floor(_r() * 3);           // 4 | 5 | 6
-  const treasureCount = basicCount - VP_BASICS.length;       // 1 | 2 | 3
-  const treasureIds   = _shuffle([...TREASURE_BASICS], _r).slice(0, treasureCount);
-  const basicIds      = [...VP_BASICS, ...treasureIds];
+  // ── 1. 기본 재화·승점 (6장 고정) ──────────────────────────
+  const basicCount  = 6;
+  const basicIds    = [...TREASURE_BASICS, ...VP_BASICS];
 
   // ── 2. 킹덤 카드: 언락된 카드만, 나머지 슬롯, 비용 다양성 확보 ─
   const kingdomCount = MARKET_SIZE - basicCount;          // 6 | 7 | 8

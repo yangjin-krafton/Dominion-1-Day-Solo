@@ -434,7 +434,7 @@ flow
     });
     // 게임 시드 + 목표 승점 사전 확정 (HomeScreen 표시 + _startGame 재사용)
     _previewGameSeed = (Date.now() ^ (Math.random() * 0x100000000)) >>> 0;
-    _previewVpTarget = 10 + Math.floor(Math.random() * 11);
+    _previewVpTarget = 15;
     homeScr.onStart = () => flow.go(STATES.GAME);
     homeScr.show({ kingdomNames, todayMarketCards,
                    vpTarget: _previewVpTarget, gameSeed: _previewGameSeed });
@@ -450,9 +450,8 @@ flow
 
     console.log('[RESULT] newUnlock:', newUnlock?.id ?? 'null', '| wins:', Storage.getWins());
 
-    // LLM autoPlay 모드: 축하 연출/카탈로그 건너뛰고 바로 결과 표시
+    // LLM autoPlay 모드: 모든 연출 스킵, 바로 다음 게임 진입
     if (_llmPlayer._autoPlay) {
-      _showResult();
       return;
     }
 
@@ -497,7 +496,7 @@ export function _startGame() {
     gs.vpTarget      = _previewVpTarget;
     _previewVpTarget = 0;
   } else {
-    gs.vpTarget = 10 + Math.floor(rngSetup() * 11);   // 10~20
+    gs.vpTarget = 15;
   }
   gs.phase           = 'action';
   gs.pendingGain     = null;
@@ -608,13 +607,15 @@ function _finishGame(won = false) {
 
   // LLM 장기 메모리: 게임 리뷰 + 전략 업데이트 (비동기, 백그라운드)
   if (hadActionLog) {
+    // autoPlay: 리뷰는 백그라운드로, 다음 게임은 즉시 시작
+    if (wasAutoPlay) _autoStartNext();
     llmReviewGame({
       gs, record, won,
       baseURL:   _llmPlayer.baseURL,
       model:     _llmPlayer.model,
       actionLog: _llmPlayer.actionLog,
-    }).then(() => { _llmPlayer.actionLog = []; _autoStartNext(); })
-      .catch(() => { _llmPlayer.actionLog = []; _autoStartNext(); });
+    }).then(() => { _llmPlayer.actionLog = []; if (!wasAutoPlay) _autoStartNext(); })
+      .catch(() => { _llmPlayer.actionLog = []; if (!wasAutoPlay) _autoStartNext(); });
   } else if (wasAutoPlay) {
     // 액션 로그 없어도 autoPlay면 다음 게임
     _autoStartNext();
