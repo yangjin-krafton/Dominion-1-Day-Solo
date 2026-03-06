@@ -18,20 +18,38 @@ const MAX_LOGS = 20;
 async function _readFile(filename) {
   try {
     const res = await fetch(`/llm-memory/${encodeURIComponent(filename)}`);
-    if (!res.ok) return null;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.text();
-  } catch { return null; }
+  } catch {
+    // localStorage 폴백
+    try { return localStorage.getItem(`dominion_mem_${filename}`); } catch {}
+    return null;
+  }
 }
+
+let _fileApiAvailable = null; // null=미확인, true/false
 
 async function _writeFile(filename, content) {
   try {
-    await fetch(`/llm-memory/${encodeURIComponent(filename)}`, {
+    const res = await fetch(`/llm-memory/${encodeURIComponent(filename)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
       body: content,
     });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (_fileApiAvailable === null) {
+      _fileApiAvailable = true;
+      console.log('[Memory] 파일 API 연결됨 → src/llm/memory/');
+    }
+    return true;
   } catch (e) {
-    console.warn(`[Memory] 파일 저장 실패 (${filename}):`, e.message);
+    if (_fileApiAvailable === null) {
+      _fileApiAvailable = false;
+      console.warn('[Memory] 파일 API 사용 불가 (dev-server 미실행?) → localStorage 폴백');
+    }
+    // localStorage 폴백
+    try { localStorage.setItem(`dominion_mem_${filename}`, content); } catch {}
+    return false;
   }
 }
 
@@ -45,31 +63,26 @@ async function _ensureInit() {
   if (_initialized) return;
   _initialized = true;
 
-  // 전략 로드 (파일 → localStorage 폴백)
+  // 전략 로드 (파일 API → localStorage 폴백 → 기본 strategy.md)
   const fileStrategy = await _readFile('strategy.md');
   if (fileStrategy) {
     _strategyCache = fileStrategy;
   } else {
-    // 파일 없으면 기본 strategy.md에서 복사
     try {
       const defaultRes = await fetch(new URL('./strategy.md', import.meta.url));
       _strategyCache = await defaultRes.text();
       await _writeFile('strategy.md', _strategyCache);
     } catch {
-      _strategyCache = localStorage.getItem('dominion_llm_strategy') || '';
+      _strategyCache = '';
     }
   }
 
-  // 로그 로드
+  // 로그 로드 (파일 API → localStorage 폴백)
   const fileLogsText = await _readFile('logs.json');
   if (fileLogsText) {
     try { _logsCache = JSON.parse(fileLogsText); } catch { _logsCache = []; }
   } else {
-    // localStorage에서 마이그레이션
-    try {
-      _logsCache = JSON.parse(localStorage.getItem('dominion_llm_logs') || '[]');
-      if (_logsCache.length > 0) await _writeFile('logs.json', JSON.stringify(_logsCache));
-    } catch { _logsCache = []; }
+    _logsCache = [];
   }
 
   console.log(`[Memory] 초기화 완료 — 전략 ${_strategyCache.length}자, 로그 ${_logsCache.length}건`);

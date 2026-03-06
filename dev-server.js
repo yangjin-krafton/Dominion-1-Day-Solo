@@ -94,7 +94,8 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ── 정적 파일 ──────────────────────────────────────────
-  let filePath = path.join(STATIC_ROOT, req.url === '/' ? 'index.html' : req.url);
+  const urlPath = req.url.split('?')[0];   // 쿼리스트링 제거
+  let filePath = path.join(STATIC_ROOT, urlPath === '/' ? 'index.html' : urlPath);
   filePath = decodeURIComponent(filePath);
 
   const ext = path.extname(filePath);

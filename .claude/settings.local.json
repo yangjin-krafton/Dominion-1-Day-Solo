@@ -50,7 +50,8 @@
       "WebFetch(domain:wiki.bloodontheclocktower.com)",
       "Bash(ffmpeg -version)",
       "WebFetch(domain:wiki.dominionstrategy.com)",
-      "WebFetch(domain:dominionstrategy.miraheze.org)"
+      "WebFetch(domain:dominionstrategy.miraheze.org)",
+      "Bash(/mnt/c/Windows/System32/cmd.exe:*)"
     ],
     "additionalDirectories": [
       "\\tmp"
