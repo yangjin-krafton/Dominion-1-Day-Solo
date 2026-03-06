@@ -77,13 +77,28 @@ export function addRecord(record) {
     ...record,
     id:   Date.now(),
     date: new Date().toISOString().split('T')[0],
+    score: calcScore(record),
   };
   d.records = [...(d.records ?? []), full];
   // 최대 200개 유지
   if (d.records.length > 200) d.records = d.records.slice(-200);
   if (d.profile) d.profile.totalGames = (d.profile.totalGames ?? 0) + 1;
   _save(d);
+
+  // 프로젝트 파일로 자동 저장 (비동기, 실패 무시)
+  _saveToProject(full);
+
   return full;
+}
+
+function _saveToProject(record) {
+  fetch('/game-records', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(record),
+  }).then(r => {
+    if (r.ok) console.log('[Records] 프로젝트 저장 완료');
+  }).catch(() => {});
 }
 
 /**

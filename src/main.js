@@ -81,6 +81,25 @@ app.stage.addChild(lBg, lCards, lFx, lUI);
 lCards.sortableChildren = true;
 
 // ============================================================
+// 랜덤 유저 이름 풀 (50명)
+// ============================================================
+const _USER_NAMES = [
+  '김도윤','이서준','박하윤','정지호','최수빈',
+  '강민준','조예은','윤서영','장현우','임지우',
+  '한소율','오태양','신유진','권도현','송하린',
+  '황준서','전예린','문채원','배지훈','류시우',
+  '안수현','홍다은','서은호','양하영','구민서',
+  '노윤아','남진우','하소연','곽도영','변서진',
+  '손태민','유가은','마지원','표승현','위하늘',
+  '봉예찬','피수아','석다현','탁은비','우서율',
+  '팽준혁','선가영','국채린','모태웅','사하은',
+  '채윤서','금시현','옥지안','명도윤','빈서하',
+];
+function _randomUserName() {
+  return _USER_NAMES[Math.floor(Math.random() * _USER_NAMES.length)];
+}
+
+// ============================================================
 // 게임 상태
 // ============================================================
 let _cardMap   = new Map();
@@ -564,10 +583,10 @@ function _finishGame(won = false) {
     console.log('[Unlock] wins:', newWins, '→', newUnlock ? `${newUnlock.id}(order:${newUnlock.unlockOrder})` : 'null (모두 해금됨 또는 CSV 캐시 문제)');
   }
 
-  // LLM 플레이어 이름 (재치있는 AI 이름)
+  // 플레이어 이름: LLM이면 AI 이름, 아니면 랜덤 유저 이름
   const playerName = (_llmPlayer._running || _llmPlayer.actionLog.length > 0)
     ? _llmPlayer._getPlayerName()
-    : Storage.getProfile()?.name ?? 'Player';
+    : _randomUserName();
 
   const record  = Storage.addRecord({
     turns: gs.turn, vp: totalVP, durationSec,

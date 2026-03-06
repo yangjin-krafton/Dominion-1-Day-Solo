@@ -22,10 +22,61 @@ const MIME = {
 };
 
 const MEMORY_DIR = path.join(__dirname, 'src', 'llm', 'memory');
-// memory 디렉토리 자동 생성
+const RECORDS_DIR  = path.join(__dirname, 'records');
+const RANKING_PATH = path.join(__dirname, 'sim-results', 'ranking.json');
+// 디렉토리 자동 생성
 fs.mkdirSync(MEMORY_DIR, { recursive: true });
+fs.mkdirSync(RECORDS_DIR, { recursive: true });
 
 const server = http.createServer(async (req, res) => {
+
+  // ── 게임 기록 저장 API ───────────────────────────────────
+  if (req.url === '/game-records' && req.method === 'POST') {
+    const body = await readBody(req);
+    try {
+      const record = JSON.parse(body);
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const filename = `game_${ts}.json`;
+      const filePath = path.join(RECORDS_DIR, filename);
+      fs.writeFileSync(filePath, JSON.stringify(record, null, 2), 'utf8');
+
+      // records/all.json 에 누적 (최대 500건)
+      const allPath = path.join(RECORDS_DIR, 'all.json');
+      let all = [];
+      try { all = JSON.parse(fs.readFileSync(allPath, 'utf8')); } catch {}
+      all.push(record);
+      if (all.length > 500) all = all.slice(-500);
+      fs.writeFileSync(allPath, JSON.stringify(all, null, 2), 'utf8');
+
+      // sim-results/ranking.json 에도 누적 (점수 내림차순, 최대 100건)
+      let ranking = [];
+      try { ranking = JSON.parse(fs.readFileSync(RANKING_PATH, 'utf8')); } catch {}
+      ranking.push(record);
+      ranking.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+      if (ranking.length > 100) ranking = ranking.slice(0, 100);
+      fs.writeFileSync(RANKING_PATH, JSON.stringify(ranking, null, 2), 'utf8');
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, file: filename }));
+    } catch (e) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  if (req.url === '/game-records' && req.method === 'GET') {
+    const allPath = path.join(RECORDS_DIR, 'all.json');
+    try {
+      const data = fs.readFileSync(allPath, 'utf8');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(data);
+    } catch {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('[]');
+    }
+    return;
+  }
 
   // ── LLM 메모리 파일 API ───────────────────────────────────
   if (req.url.startsWith('/llm-memory/')) {
