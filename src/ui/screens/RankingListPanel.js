@@ -2,6 +2,7 @@
 // RankingListPanel.js — 랭킹 목록 패널 (setup / global 모드)
 // ============================================================
 import { buildRankingTable } from './RankingPanel.js';
+import { calcScore as _calcScore } from '../../core/Storage.js';
 
 /**
  * 두 가지 모드:
@@ -48,7 +49,8 @@ function _buildSetupHtml(records, kingdomIds, profile) {
 
   const setupRecords = records
     .filter(r => r.kingdom?.length && [...r.kingdom].sort().join(',') === kingdomKey)
-    .sort((a, b) => b.vp - a.vp);
+    .map(r => ({ ...r, score: _calcScore(r) }))
+    .sort((a, b) => b.score - a.score);
 
   const top5 = setupRecords.slice(0, 5);
 
@@ -56,7 +58,7 @@ function _buildSetupHtml(records, kingdomIds, profile) {
     <tr>
       <td>${i === 0 ? '🏆' : `#${i + 1}`}</td>
       <td>${name}</td>
-      <td>${r.vp} 승점</td>
+      <td>${r.score} 점</td>
     </tr>`).join('');
 
   const padRows = Array.from({ length: Math.max(0, 5 - top5.length) }, (_, i) => `
@@ -72,7 +74,7 @@ function _buildSetupHtml(records, kingdomIds, profile) {
     sixthRow = `<tr class="ds-home-rank-first"><td colspan="3">✦ 첫 도전! ✦</td></tr>`;
   } else if (myRank > 5) {
     sixthRow = `<tr class="ds-home-rank-me">
-      <td>#${myRank}</td><td>${name}</td><td>${myLatest.vp} 승점</td>
+      <td>#${myRank}</td><td>${name}</td><td>${myLatest.score ?? 0} 점</td>
     </tr>`;
   }
 
@@ -81,7 +83,7 @@ function _buildSetupHtml(records, kingdomIds, profile) {
     <table class="ds-rank-table">
       <thead>
         <tr style="color:#7a5c0a;font-size:15px">
-          <td style="width:40px">순위</td><td>이름</td><td>승점</td>
+          <td style="width:40px">순위</td><td>이름</td><td>점수</td>
         </tr>
       </thead>
       <tbody>${top5Rows}${padRows}${sixthRow}</tbody>
@@ -99,10 +101,11 @@ function _buildGlobalHtml(ranking, currentId, limit, record) {
     const rankMsg = rankIdx === 0 ? '🎉 신기록!'
       : rankIdx > 0 ? `개인 ${rankIdx + 1}위` : '';
 
+    const score = record.score ?? _calcScore(record);
     resultHeader = `
       <div class="ds-result-main">
-        <span class="ds-big-vp">${record.vp}</span>
-        <span class="ds-big-label">승점</span>
+        <span class="ds-big-vp">${score}</span>
+        <span class="ds-big-label">점</span>
       </div>
       <p class="ds-meta">
         ${record.turns}턴 · ${m}분 ${String(s).padStart(2, '0')}초

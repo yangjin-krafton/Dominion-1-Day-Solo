@@ -69,7 +69,7 @@ export function buildRankingRows(ranking, currentId = null, limit = 10) {
     return `
       <tr class="${cls}">
         <td>${i === 0 ? '🏆' : `#${i + 1}`}</td>
-        <td>${r.vp}&nbsp;승점</td>
+        <td>${r.score ?? 0}&nbsp;점</td>
         <td>${r.turns}턴</td>
         <td>${m}:${String(s).padStart(2, '0')}</td>
         <td>${r.date}</td>
@@ -92,7 +92,7 @@ export function buildRankingTable(ranking, currentId = null, limit = 10) {
     <table class="ds-rank-table">
       <thead>
         <tr style="color:#7a5c0a;font-size:15px">
-          <td>순위</td><td>승점</td><td>턴</td><td>시간</td><td>날짜</td><td>목표</td>
+          <td>순위</td><td>점수</td><td>턴</td><td>시간</td><td>날짜</td><td>목표</td>
         </tr>
       </thead>
       <tbody>${rows || '<tr><td colspan="6" style="color:#554433">기록 없음</td></tr>'}</tbody>
@@ -120,7 +120,7 @@ function _buildTop5Table(ranking, profileName) {
         <tr>
           <td>${rank}</td>
           <td class="ds-rank-name">${profileName ?? '—'}</td>
-          <td>${r.vp}&nbsp;승점</td>
+          <td>${r.score ?? 0}&nbsp;점</td>
           <td>${r.turns}턴</td>
           <td>${m}:${String(s).padStart(2, '0')}</td>
           <td>${r.date}</td>
@@ -137,7 +137,7 @@ function _buildTop5Table(ranking, profileName) {
     <table class="ds-rank-table">
       <thead>
         <tr style="color:#7a5c0a;font-size:15px">
-          <td>순위</td><td>이름</td><td>승점</td><td>턴</td><td>시간</td><td>날짜</td>
+          <td>순위</td><td>이름</td><td>점수</td><td>턴</td><td>시간</td><td>날짜</td>
         </tr>
       </thead>
       <tbody>${rows}</tbody>

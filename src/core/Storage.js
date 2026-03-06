@@ -87,13 +87,25 @@ export function addRecord(record) {
 }
 
 /**
- * 승점 기준 내림차순 랭킹 반환
+ * 통합 점수 계산: 턴 효율 + 시간 효율
+ *   턴 점수 : max(0, 30 - turns) × 10   →  0~290
+ *   시간 점수: max(0, 300 - durationSec) →  0~300
+ *   합산 점수 = 턴 점수 + 시간 점수 (높을수록 좋음, 동점 허용)
+ */
+export function calcScore(record) {
+  const turnScore = Math.max(0, 30 - (record.turns ?? 30)) * 10;
+  const timeScore = Math.max(0, 300 - (record.durationSec ?? 300));
+  return turnScore + timeScore;
+}
+
+/**
+ * 통합 점수 기준 내림차순 랭킹 반환
  * @param {number} limit
- * @returns {{ id, date, vp, turns, durationSec }[]}
  */
 export function getRanking(limit = 10) {
   return (_load().records ?? [])
-    .sort((a, b) => b.vp - a.vp || a.turns - b.turns)
+    .map(r => ({ ...r, score: calcScore(r) }))
+    .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }
 
@@ -106,7 +118,8 @@ export function getSetupRanking(kingdomIds, limit = 5) {
   const key = [...kingdomIds].sort().join(',');
   return (_load().records ?? [])
     .filter(r => r.kingdom?.length && [...r.kingdom].sort().join(',') === key)
-    .sort((a, b) => b.vp - a.vp || a.turns - b.turns)
+    .map(r => ({ ...r, score: calcScore(r) }))
+    .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }
 
